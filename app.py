@@ -1,6 +1,8 @@
 """Question Bank Lite MVP-0 v3: fidelity-first local question digitization."""
 from __future__ import annotations
 
+import asyncio
+import csv
 import hashlib
 import io
 import json
@@ -12,13 +14,13 @@ import sqlite3
 import time
 import uuid
 import zipfile
-from contextlib import closing
+from contextlib import closing, contextmanager
 from copy import deepcopy
 from pathlib import Path
 from typing import Optional
 from xml.etree import ElementTree as ET
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -113,6 +115,34 @@ CREATE TABLE IF NOT EXISTS question_versions (
     created_at REAL NOT NULL,
     FOREIGN KEY(question_id) REFERENCES questions(id)
 );
+
+CREATE TABLE IF NOT EXISTS question_explanations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    question_id INTEGER NOT NULL UNIQUE,
+    explanation TEXT NOT NULL DEFAULT '',
+    liked INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    FOREIGN KEY(question_id) REFERENCES questions(id)
+);
+
+CREATE TABLE IF NOT EXISTS exam_registrations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    full_name TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    exam_name TEXT NOT NULL DEFAULT '',
+    exam_date TEXT NOT NULL DEFAULT '',
+    center_preference TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending',
+    notes TEXT NOT NULL DEFAULT '',
+    confirmation_token TEXT NOT NULL DEFAULT '',
+    is_confirmed INTEGER NOT NULL DEFAULT 0,
+    confirmation_sent_at REAL NOT NULL DEFAULT 0,
+    confirmed_at REAL NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL
+);
 """
 
 # Additive migration map for databases created by the original ZIP.
@@ -195,7 +225,173 @@ class Question(BaseModel):
     math_evidence: list[dict] = Field(default_factory=list)
 
 
+class ExamRegistration(BaseModel):
+    full_name: str = ""
+    email: str = ""
+    phone: str = ""
+    exam_name: str = ""
+    exam_date: str = ""
+    center_preference: str = ""
+    status: str = "pending"
+    notes: str = ""
+    confirmation_token: str = ""
+    is_confirmed: bool = False
+
+
 app = FastAPI(title="Question Bank Lite MVP-0 v3", version="3.0.0")
+
+
+def row_to_exam_registration(row: sqlite3.Row) -> dict:
+    item = dict(row)
+    item['is_confirmed'] = bool(item.get('is_confirmed'))
+    return item
+
+
+def normalize_gmail_email(value: str) -> str:
+    email = (value or '').strip().lower()
+    if not re.fullmatch(r"[a-z0-9._%+\-]+@gmail\.com", email):
+        raise ValueError('Only Gmail accounts are allowed for exam registration.')
+    return email
+
+
+def request_exam_registration_confirmation(email: str, *, full_name: str = '', exam_name: str = '', notes: str = '') -> dict:
+    gmail = normalize_gmail_email(email)
+    token = uuid.uuid4().hex
+    now = time.time()
+    with closing(connect()) as conn:
+        row = conn.execute("SELECT * FROM exam_registrations WHERE email = ? COLLATE NOCASE", (gmail,)).fetchone()
+        if row is None:
+            conn.execute(
+                "INSERT INTO exam_registrations (full_name, email, phone, exam_name, exam_date, center_preference, status, notes, confirmation_token, is_confirmed, confirmation_sent_at, confirmed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (full_name.strip(), gmail, '', exam_name.strip(), '', '', 'pending', notes.strip(), token, 0, now, 0, now, now),
+            )
+        else:
+            conn.execute(
+                "UPDATE exam_registrations SET full_name = ?, exam_name = ?, notes = ?, confirmation_token = ?, is_confirmed = 0, confirmation_sent_at = ?, updated_at = ? WHERE id = ?",
+                (full_name.strip(), exam_name.strip(), notes.strip(), token, now, now, row['id']),
+            )
+        conn.commit()
+    return {
+        'email': gmail,
+        'token': token,
+        'confirmation_url': f'http://127.0.0.1:8001/api/exam-registrations/confirm?token={token}',
+    }
+
+
+def confirm_exam_registration(token: str) -> dict:
+    if not token or not str(token).strip():
+        raise ValueError('Confirmation token is required.')
+    with closing(connect()) as conn:
+        row = conn.execute("SELECT * FROM exam_registrations WHERE confirmation_token = ?", (str(token).strip(),)).fetchone()
+        if row is None:
+            raise ValueError('Invalid or expired confirmation token.')
+        now = time.time()
+        conn.execute(
+            "UPDATE exam_registrations SET is_confirmed = 1, confirmed_at = ?, status = 'pending', confirmation_token = '', updated_at = ? WHERE id = ?",
+            (now, now, row['id']),
+        )
+        conn.commit()
+        updated = conn.execute("SELECT * FROM exam_registrations WHERE id = ?", (row['id'],)).fetchone()
+    return {'confirmed': True, 'email': updated['email'], 'token': str(token).strip()}
+
+
+def list_exam_registrations(query: str | None = None) -> list[dict]:
+    with closing(connect()) as conn:
+        rows = conn.execute(
+            "SELECT * FROM exam_registrations ORDER BY id DESC"
+        ).fetchall()
+    items = [row_to_exam_registration(row) for row in rows]
+    if not query:
+        return items
+    needle = query.strip().lower()
+    if not needle:
+        return items
+    return [
+        item for item in items
+        if needle in " ".join([
+            item.get('full_name', ''),
+            item.get('email', ''),
+            item.get('phone', ''),
+            item.get('exam_name', ''),
+            item.get('center_preference', ''),
+            item.get('status', ''),
+            item.get('notes', ''),
+        ]).lower()
+    ]
+
+
+def create_exam_registration(payload: ExamRegistration | dict) -> dict:
+    record = payload.model_dump() if isinstance(payload, ExamRegistration) else dict(payload)
+    email = normalize_gmail_email(record.get('email') or '')
+    if not record.get('is_confirmed') and not record.get('confirmation_token'):
+        with closing(connect()) as conn:
+            existing = conn.execute("SELECT * FROM exam_registrations WHERE email = ? COLLATE NOCASE", (email,)).fetchone()
+        if existing is None or not bool(existing['is_confirmed']):
+            raise ValueError('Only a confirmed Gmail account can register for the exam.')
+    now = time.time()
+    with closing(connect()) as conn:
+        cur = conn.execute(
+            "INSERT INTO exam_registrations (full_name, email, phone, exam_name, exam_date, center_preference, status, notes, confirmation_token, is_confirmed, confirmation_sent_at, confirmed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                (record.get('full_name') or '').strip(),
+                email,
+                (record.get('phone') or '').strip(),
+                (record.get('exam_name') or '').strip(),
+                (record.get('exam_date') or '').strip(),
+                (record.get('center_preference') or '').strip(),
+                (record.get('status') or 'pending').strip() or 'pending',
+                (record.get('notes') or '').strip(),
+                (record.get('confirmation_token') or '').strip(),
+                1 if record.get('is_confirmed') else 0,
+                now,
+                now if record.get('is_confirmed') else 0,
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM exam_registrations WHERE id = ?", (cur.lastrowid,)).fetchone()
+    return row_to_exam_registration(row)
+
+
+def update_exam_registration(registration_id: int, payload: ExamRegistration | dict) -> dict:
+    record = payload.model_dump() if isinstance(payload, ExamRegistration) else dict(payload)
+    existing = None
+    with closing(connect()) as conn:
+        existing = conn.execute("SELECT * FROM exam_registrations WHERE id = ?", (registration_id,)).fetchone()
+        if existing is None:
+            raise HTTPException(404, "exam registration not found")
+        email = normalize_gmail_email(record.get('email') or existing['email'])
+        if not bool(record.get('is_confirmed', existing['is_confirmed'])):
+            raise ValueError('Only a confirmed Gmail account can update an exam registration.')
+        conn.execute(
+            "UPDATE exam_registrations SET full_name = ?, email = ?, phone = ?, exam_name = ?, exam_date = ?, center_preference = ?, status = ?, notes = ?, confirmation_token = '', is_confirmed = 1, confirmed_at = ?, updated_at = ? WHERE id = ?",
+            (
+                (record.get('full_name') or '').strip(),
+                email,
+                (record.get('phone') or '').strip(),
+                (record.get('exam_name') or '').strip(),
+                (record.get('exam_date') or '').strip(),
+                (record.get('center_preference') or '').strip(),
+                (record.get('status') or 'pending').strip() or 'pending',
+                (record.get('notes') or '').strip(),
+                time.time(),
+                time.time(),
+                registration_id,
+            ),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM exam_registrations WHERE id = ?", (registration_id,)).fetchone()
+    return row_to_exam_registration(row)
+
+
+def delete_exam_registration(registration_id: int) -> dict:
+    with closing(connect()) as conn:
+        cur = conn.execute("DELETE FROM exam_registrations WHERE id = ?", (registration_id,))
+        conn.commit()
+    if cur.rowcount == 0:
+        raise HTTPException(404, "exam registration not found")
+    return {"deleted": registration_id}
 
 
 def row_to_dict(row: sqlite3.Row) -> dict:
@@ -216,6 +412,44 @@ def values_of(q: Question) -> list:
     for field in JSON_FIELDS:
         payload[field] = json.dumps(payload[field], ensure_ascii=False)
     return [payload[f] for f in FIELDS]
+
+
+def get_cached_question_explanation(question_id: int) -> Optional[dict]:
+    with closing(connect()) as conn:
+        row = conn.execute(
+            "SELECT question_id, explanation, liked, created_at, updated_at FROM question_explanations WHERE question_id = ?",
+            (question_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return {
+        "question_id": row["question_id"],
+        "explanation": row["explanation"],
+        "liked": bool(row["liked"]),
+        "created_at": row["created_at"],
+        "updated_at": row["updated_at"],
+    }
+
+
+def save_question_explanation(question_id: int, explanation: str, *, liked: bool = True) -> dict:
+    text = (explanation or '').strip()
+    if not text:
+        raise ValueError('Explanation text is required before caching.')
+    now = time.time()
+    with closing(connect()) as conn:
+        existing = conn.execute("SELECT id FROM question_explanations WHERE question_id = ?", (question_id,)).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE question_explanations SET explanation = ?, liked = ?, updated_at = ? WHERE question_id = ?",
+                (text, 1 if liked else 0, now, question_id),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO question_explanations (question_id, explanation, liked, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+                (question_id, text, 1 if liked else 0, now, now),
+            )
+        conn.commit()
+    return {"question_id": question_id, "explanation": text, "liked": bool(liked)}
 
 
 def _snapshot(conn: sqlite3.Connection, qid: int, reason: str) -> None:
@@ -432,6 +666,181 @@ def get_question(qid: int):
     return row_to_dict(row)
 
 
+@app.get("/api/questions/{qid}/explain")
+def explain_question(qid: int):
+    cached = get_cached_question_explanation(qid)
+    if cached and cached.get('liked'):
+        return {"explanation": cached['explanation'], "cached": True}
+
+    with closing(connect()) as conn:
+        row = conn.execute("SELECT * FROM questions WHERE id = ?", (qid,)).fetchone()
+    if row is None:
+        raise HTTPException(404, "question not found")
+    question = row_to_dict(row)
+    status = llm_status()
+    if not status.get("available"):
+        raise HTTPException(503, "Gemini explanation is not configured. Set GCP_PROJECT_ID and enable Vertex AI first.")
+
+    statement = (question.get("statement") or "").strip()
+    options = question.get("options") or []
+    answer = (question.get("answer") or "").strip()
+    subject = (question.get("subject") or "").strip()
+    chapter = (question.get("chapter") or "").strip()
+    solution = (question.get("solution") or "").strip()
+    prompt = (
+        "You are a high-quality exam tutor. Explain this question as a concept-first learning explanation, not just a final-answer note.\n\n"
+        f"Subject: {subject or 'General'}\n"
+        f"Chapter: {chapter or 'General'}\n"
+        f"Question: {statement}\n"
+        f"Options: {json.dumps(options, ensure_ascii=False)}\n"
+        f"Stored answer: {answer or 'Not explicitly available'}\n"
+        f"Solution/hint: {solution or 'No solution text stored'}\n\n"
+        "Instructions:\n"
+        "1. Identify the underlying concept, law, formula, principle, or reasoning pattern in this question.\n"
+        "2. Explain the concept in a student-friendly way, with clear intuition and a short physical/mathematical idea behind it.\n"
+        "3. Relate the concept to each option: explain why the correct option fits and why the other options are likely wrong or less suitable.\n"
+        "4. Give the background information needed to understand the topic, but keep it concise and relevant.\n"
+        "5. If the stored answer is missing or ambiguous, say so clearly and explain the likely correct approach without inventing a new answer.\n"
+        "6. Add a short 'Relevant references' section with book and YouTube suggestions only when they are broadly appropriate for the topic.\n"
+        "7. Do not fabricate exact URLs, page numbers, or false statements about a specific video. Prefer general references like 'NCERT chapter on X', 'HC Verma chapter on Y', or search terms such as 'X explained by Khan Academy'.\n"
+        "8. Use clean markdown headings and bullet points.\n"
+        "9. Use **bold** for the key ideas, the correct option reasoning, and important background points.\n"
+        "10. Return only the explanation text; no extra JSON, no meta commentary, no disclaimers unless necessary.\n\n"
+        "Format:\n"
+        "## Concept\n<clear explanation>\n\n"
+        "## Why this answer is correct\n<connect the concept to the correct option>\n\n"
+        "## Why the other options are less likely\n<brief explanation for each option if useful>\n\n"
+        "## Background\n<short contextual knowledge>\n\n"
+        "## Relevant references\n- Book: <broadly relevant textbook or standard reference>\n- YouTube: <search term or channel-style suggestion>\n- If no reliable reference is appropriate, say 'No specific textbook or video reference is strongly required for this concept.'"
+    )
+
+    try:
+        from google import genai
+        from google.genai import types
+        client = genai.Client(
+            vertexai=True,
+            project=os.getenv('GCP_PROJECT_ID') or os.getenv('GOOGLE_CLOUD_PROJECT') or os.getenv('GCLOUD_PROJECT', ''),
+            location=os.getenv('GCP_REGION') or os.getenv('GOOGLE_CLOUD_REGION') or os.getenv('GOOGLE_CLOUD_LOCATION', 'asia-south1'),
+            http_options=types.HttpOptions(api_version='v1', timeout=180000),
+        )
+        response = client.models.generate_content(
+            model=status.get('model', 'gemini-3.5-flash'),
+            contents=[prompt],
+            config=types.GenerateContentConfig(
+                temperature=0.25,
+                max_output_tokens=1500,
+                system_instruction='You are a patient, concept-focused tutor who teaches exam concepts deeply. Explain the underlying principle, connect it to the correct option and the distractors, add relevant background knowledge, and give cautious textbook/YouTube references only when they are broadly appropriate. Use bold emphasis for the key teaching points. Never invent exact URLs or false video claims.',
+            ),
+        )
+
+        def _looks_like_metadata(value):
+            text = (value or '').strip()
+            if not text:
+                return False
+            lowered = text.lower()
+            if lowered.startswith('application/') or lowered.startswith('text/'):
+                return True
+            if 'charset=' in lowered or 'content-type' in lowered:
+                return True
+            if lowered.startswith('multipart/'):
+                return True
+            return False
+
+        def _coerce_text(value):
+            if value is None:
+                return ''
+            if isinstance(value, str):
+                cleaned = value.strip()
+                return '' if _looks_like_metadata(cleaned) else cleaned
+            if isinstance(value, (list, tuple)):
+                for item in value:
+                    extracted = _coerce_text(item)
+                    if extracted:
+                        return extracted
+                return ''
+            if isinstance(value, dict):
+                for key in ('text', 'value', 'content', 'parts'):
+                    if key in value:
+                        extracted = _coerce_text(value[key])
+                        if extracted:
+                            return extracted
+                for nested in value.values():
+                    if isinstance(nested, str) and _looks_like_metadata(nested):
+                        continue
+                    extracted = _coerce_text(nested)
+                    if extracted:
+                        return extracted
+                return ''
+            for attr in ('text', 'value', 'content', 'parts'):
+                if hasattr(value, attr):
+                    nested = getattr(value, attr)
+                    extracted = _coerce_text(nested)
+                    if extracted:
+                        return extracted
+            for nested in vars(value).values() if hasattr(value, '__dict__') else []:
+                if isinstance(nested, str) and _looks_like_metadata(nested):
+                    continue
+                extracted = _coerce_text(nested)
+                if extracted:
+                    return extracted
+            return ''
+
+        def _collect_candidate_text(candidate):
+            if candidate is None:
+                return ''
+            extracted = _coerce_text(candidate)
+            if extracted:
+                return extracted
+            if isinstance(candidate, dict):
+                candidate = candidate.get('content', candidate)
+            content = getattr(candidate, 'content', None)
+            if content is not None:
+                extracted = _coerce_text(content)
+                if extracted:
+                    return extracted
+            parts = getattr(candidate, 'parts', None)
+            if parts is None and isinstance(candidate, dict):
+                parts = candidate.get('parts')
+            if parts is not None:
+                extracted = _coerce_text(parts)
+                if extracted:
+                    return extracted
+            return ''
+
+        text = _coerce_text(response)
+        if text.strip() and _looks_like_metadata(text):
+            text = ''
+        if not text.strip():
+            candidates = getattr(response, 'candidates', None)
+            if candidates is None and isinstance(response, dict):
+                candidates = response.get('candidates')
+            for candidate in candidates or []:
+                candidate_text = _collect_candidate_text(candidate)
+                if candidate_text.strip() and not _looks_like_metadata(candidate_text):
+                    text = candidate_text.strip()
+                    break
+        if not text.strip():
+            raise ValueError('Gemini returned no explanation text')
+        cleaned = text.strip()
+        return {"explanation": cleaned, "cached": False}
+    except Exception as exc:
+        raise HTTPException(502, f"Could not generate explanation: {type(exc).__name__}: {exc}") from exc
+
+
+@app.post("/api/questions/{qid}/explain/like")
+async def like_question_explanation(qid: int, request: Request):
+    data = await request.json()
+    text = str(data.get('explanation') or '').strip()
+    if not text:
+        raise HTTPException(400, 'An explanation is required before it can be saved.')
+    with closing(connect()) as conn:
+        row = conn.execute("SELECT id FROM questions WHERE id = ?", (qid,)).fetchone()
+    if row is None:
+        raise HTTPException(404, 'question not found')
+    saved = save_question_explanation(qid, text, liked=True)
+    return {"saved": True, "question_id": qid, "explanation": saved['explanation']}
+
+
 @app.get("/api/questions/{qid}/versions")
 def get_versions(qid: int):
     with closing(connect()) as conn:
@@ -490,6 +899,197 @@ def facets():
             rows = conn.execute(f"SELECT DISTINCT {column} v FROM questions WHERE {column} != '' ORDER BY v").fetchall()
             return [r["v"] for r in rows]
         return {"subjects": distinct("subject"), "chapters": distinct("chapter")}
+
+
+@app.get("/api/exam-registrations")
+def list_exam_registrations_api(query: str | None = None):
+    return list_exam_registrations(query)
+
+
+@app.post("/api/exam-registrations/request-confirmation")
+def request_exam_confirmation_api(payload: dict):
+    email = str(payload.get('email') or '').strip()
+    full_name = str(payload.get('full_name') or '').strip()
+    exam_name = str(payload.get('exam_name') or '').strip()
+    notes = str(payload.get('notes') or '').strip()
+    try:
+        return request_exam_registration_confirmation(email, full_name=full_name, exam_name=exam_name, notes=notes)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.get("/api/exam-registrations/confirm")
+def confirm_exam_registration_api(token: str):
+    try:
+        return confirm_exam_registration(token)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.post("/api/exam-registrations")
+def create_exam_registrations_api(item: ExamRegistration):
+    try:
+        return create_exam_registration(item)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+
+@app.put("/api/exam-registrations/{registration_id}")
+def update_exam_registrations_api(registration_id: int, item: ExamRegistration):
+    return update_exam_registration(registration_id, item)
+
+
+@app.put("/api/exam-registrations/{registration_id}/status")
+def set_exam_registration_status(registration_id: int, payload: dict):
+    status = str(payload.get('status', 'pending')).strip().lower() if isinstance(payload, dict) else 'pending'
+    if status not in {'pending', 'approved', 'rejected'}:
+        raise HTTPException(400, 'status must be pending, approved or rejected')
+    item = update_exam_registration(registration_id, {'status': status})
+    return {**item, 'status': status}
+
+
+@app.get("/api/exam-registrations/analytics")
+def exam_registration_analytics():
+    items = list_exam_registrations()
+    status_counts = {'pending': 0, 'approved': 0, 'rejected': 0}
+    for item in items:
+        name = str(item.get('status', 'pending') or 'pending').lower()
+        if name in status_counts:
+            status_counts[name] += 1
+    exam_summary: dict[str, int] = {}
+    for item in items:
+        name = str(item.get('exam_name') or 'General').strip() or 'General'
+        exam_summary[name] = exam_summary.get(name, 0) + 1
+    return {
+        'total': len(items),
+        'status_counts': status_counts,
+        'by_exam': [{'exam_name': exam, 'count': count} for exam, count in sorted(exam_summary.items(), key=lambda row: (-row[1], row[0]))],
+    }
+
+
+@app.get("/api/exam-registrations/export.csv")
+def export_exam_registrations_csv():
+    items = list_exam_registrations()
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=['id', 'full_name', 'email', 'phone', 'exam_name', 'exam_date', 'center_preference', 'status', 'notes', 'created_at', 'updated_at'])
+    writer.writeheader()
+    for item in items:
+        writer.writerow({key: item.get(key, '') for key in writer.fieldnames})
+    body = output.getvalue().encode('utf-8')
+    return Response(body, media_type='text/csv', headers={'Content-Disposition': 'attachment; filename="exam-registrations.csv"'})
+
+
+@app.get("/api/exam-registrations/export.pdf")
+def export_exam_registrations_pdf():
+    import pymupdf
+    items = list_exam_registrations()
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((36, 52), 'Exam Registration Report', fontsize=18)
+    y = 82
+    for item in items:
+        line = f"{item.get('id', '')}. {item.get('full_name', '')} | {item.get('exam_name', '')} | {item.get('status', '')} | {item.get('center_preference', '')}"
+        page.insert_text((36, y), line, fontsize=10)
+        y += 16
+        if y > 720:
+            page = doc.new_page()
+            y = 52
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    doc.close()
+    return Response(buffer.getvalue(), media_type='application/pdf', headers={'Content-Disposition': 'attachment; filename="exam-registrations.pdf"'})
+
+
+def _clean_exam_option(option):
+    if option is None:
+        return ''
+    if isinstance(option, str):
+        return option.strip()
+    return str(option).strip()
+
+
+def _exam_question_from_db(row: sqlite3.Row, number: int) -> dict:
+    item = row_to_dict(row)
+    options = item.get('options') or []
+    cleaned = [_clean_exam_option(opt) for opt in options if _clean_exam_option(opt)]
+    return {
+        'number': number,
+        'subject': item.get('subject') or 'General',
+        'chapter': item.get('chapter') or 'General',
+        'difficulty': item.get('difficulty') or 'medium',
+        'statement': (item.get('statement') or '').strip(),
+        'options': cleaned,
+        'answer': (item.get('answer') or '').strip(),
+        'solution': (item.get('solution') or '').strip(),
+    }
+
+
+def _sample_exam_questions() -> list[dict]:
+    with closing(connect()) as conn:
+        rows = conn.execute(
+            "SELECT * FROM questions WHERE TRIM(statement) != '' AND options IS NOT NULL AND options != '[]' ORDER BY RANDOM() LIMIT 15"
+        ).fetchall()
+    questions = [_exam_question_from_db(row, idx + 1) for idx, row in enumerate(rows)]
+    if len(questions) >= 15:
+        return questions
+    fallback = [
+        {'number': idx + 1, 'statement': 'If 3x + 5 = 20, what is x?', 'options': ['3', '4', '5', '6'], 'answer': 'B', 'subject': 'Mathematics', 'chapter': 'Linear equations', 'difficulty': 'easy'},
+        {'number': idx + 2, 'statement': 'The value of 7^2 is:', 'options': ['14', '49', '56', '63'], 'answer': 'B', 'subject': 'Mathematics', 'chapter': 'Squares', 'difficulty': 'easy'},
+        {'number': idx + 3, 'statement': 'Which of these is a prime number?', 'options': ['21', '27', '29', '33'], 'answer': 'C', 'subject': 'Mathematics', 'chapter': 'Number theory', 'difficulty': 'easy'},
+        {'number': idx + 4, 'statement': 'Simplify: 12/18', 'options': ['2/3', '3/4', '4/5', '5/6'], 'answer': 'A', 'subject': 'Mathematics', 'chapter': 'Fractions', 'difficulty': 'easy'},
+        {'number': idx + 5, 'statement': 'The perimeter of a square of side 6 cm is:', 'options': ['12 cm', '18 cm', '24 cm', '36 cm'], 'answer': 'C', 'subject': 'Mathematics', 'chapter': 'Geometry', 'difficulty': 'easy'},
+        {'number': idx + 6, 'statement': 'Find the mean of 4, 6, 8, 10.', 'options': ['6', '7', '8', '9'], 'answer': 'B', 'subject': 'Mathematics', 'chapter': 'Statistics', 'difficulty': 'easy'},
+        {'number': idx + 7, 'statement': 'Which gas do plants absorb from the atmosphere?', 'options': ['Oxygen', 'Hydrogen', 'Carbon dioxide', 'Nitrogen'], 'answer': 'C', 'subject': 'Chemistry', 'chapter': 'Environment', 'difficulty': 'easy'},
+        {'number': idx + 8, 'statement': 'The organ that pumps blood in the human body is the:', 'options': ['Lungs', 'Brain', 'Heart', 'Kidney'], 'answer': 'C', 'subject': 'Biology', 'chapter': 'Human physiology', 'difficulty': 'easy'},
+        {'number': idx + 9, 'statement': 'The capital of France is:', 'options': ['Berlin', 'Rome', 'Paris', 'Madrid'], 'answer': 'C', 'subject': 'General', 'chapter': 'Geography', 'difficulty': 'easy'},
+        {'number': idx + 10, 'statement': 'The value of 15% of 200 is:', 'options': ['20', '25', '30', '35'], 'answer': 'C', 'subject': 'Mathematics', 'chapter': 'Percentages', 'difficulty': 'easy'},
+        {'number': idx + 11, 'statement': 'Which sentence is grammatically correct?', 'options': ['He go to school every day.', 'He goes to school every day.', 'He going to school every day.', 'He gone to school every day.'], 'answer': 'B', 'subject': 'English', 'chapter': 'Grammar', 'difficulty': 'easy'},
+        {'number': idx + 12, 'statement': 'The sum of the angles of a triangle is:', 'options': ['90°', '180°', '270°', '360°'], 'answer': 'B', 'subject': 'Mathematics', 'chapter': 'Triangles', 'difficulty': 'easy'},
+        {'number': idx + 13, 'statement': 'The smallest two-digit number is:', 'options': ['0', '1', '10', '11'], 'answer': 'C', 'subject': 'Mathematics', 'chapter': 'Number system', 'difficulty': 'easy'},
+        {'number': idx + 14, 'statement': 'Which is the chemical symbol for sodium?', 'options': ['S', 'So', 'Na', 'N'], 'answer': 'C', 'subject': 'Chemistry', 'chapter': 'Periodic table', 'difficulty': 'easy'},
+        {'number': idx + 15, 'statement': 'The speed of light is approximately:', 'options': ['3 x 10^5 m/s', '3 x 10^8 m/s', '3 x 10^10 m/s', '3 x 10^12 m/s'], 'answer': 'B', 'subject': 'Physics', 'chapter': 'Modern physics', 'difficulty': 'medium'},
+    ]
+    combined = questions + [
+        {**item, 'number': len(questions) + idx + 1}
+        for idx, item in enumerate(fallback[:max(0, 15 - len(questions))])
+    ]
+    return combined[:15]
+
+
+@app.get("/api/exam-registrations/sample-paper")
+def sample_exam_paper():
+    return {'questions': _sample_exam_questions()}
+
+
+@app.get("/api/exam-registrations/sample-paper.pdf")
+def sample_exam_paper_pdf():
+    import pymupdf
+    questions = _sample_exam_questions()
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((36, 52), 'Sample Exam Paper (15 Questions)', fontsize=18)
+    y = 90
+    for q in questions:
+        statement = f"{q['number']}. {q['statement']}"
+        page.insert_text((36, y), statement, fontsize=12)
+        y += 18
+        for idx, option in enumerate(q.get('options', [])):
+            label = chr(65 + idx)
+            page.insert_text((52, y), f"{label}. {option}", fontsize=11)
+            y += 16
+        y += 10
+        if y > 700:
+            page = doc.new_page()
+            y = 52
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    doc.close()
+    return Response(buffer.getvalue(), media_type='application/pdf', headers={'Content-Disposition': 'attachment; filename="sample-exam-paper.pdf"'})
+
+
+@app.delete("/api/exam-registrations/{registration_id}")
+def delete_exam_registrations_api(registration_id: int):
+    return delete_exam_registration(registration_id)
 
 
 @app.post("/api/upload")
@@ -855,34 +1455,56 @@ def _map_crop_evidence(data: dict, source: dict, req: PdfCropRequest) -> dict:
     return data
 
 
+async def _digitise_single_crop(source_id: str, selection: PdfCropSelection):
+    single = PdfCropRequest(page=selection.page, bbox=selection.bbox)
+    source, png = await run_in_threadpool(_render_pdf_crop, source_id, single)
+    crop = UploadFile(filename=f"page-{selection.page}-crop.png", file=io.BytesIO(png))
+    try:
+        data = await _parse_source(crop, "auto")
+    finally:
+        await crop.close()
+    data = _map_crop_evidence(data, source, single)
+    evidence_name = f"selected-{uuid.uuid4().hex}.png"
+    await run_in_threadpool(Path(UPLOAD_DIR, evidence_name).write_bytes, png)
+    evidence_url = f"/uploads/{evidence_name}"
+    for question in data.get("questions", []):
+        question.update(image=evidence_url, source_image=evidence_url, source_bbox=list(single.bbox),
+                        source_segments=[{"page": selection.page, "bbox": list(single.bbox),
+                                          "image": evidence_url, "provider": "user-selected-region"}])
+    if data.get("extraction_run_id"):
+        with closing(connect()) as conn:
+            conn.execute("UPDATE extraction_runs SET source_document_id = ? WHERE id = ?",
+                         (source_id, data["extraction_run_id"]))
+            conn.commit()
+    return data
+
+
+@contextmanager
+def _temporary_env(overrides: dict[str, str]):
+    previous = {key: os.environ.get(key) for key in overrides}
+    os.environ.update(overrides)
+    try:
+        yield
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
 @app.post("/api/sources/{source_id}/digitise-crop")
 async def digitise_pdf_crop(source_id: str, req: PdfCropRequest):
     selections = _normalise_crop_selections(req)
     combined = {"questions": [], "warnings": [], "llm": {"provider": "local", "model": "local"},
                 "source_document": None, "selected_regions": []}
-    for selection in selections:
-        single = PdfCropRequest(page=selection.page, bbox=selection.bbox)
-        source, png = await run_in_threadpool(_render_pdf_crop, source_id, single)
-        crop = UploadFile(filename=f"page-{selection.page}-crop.png", file=io.BytesIO(png))
-        try:
-            data = await _parse_source(crop, "auto")
-        finally:
-            await crop.close()
-        data = _map_crop_evidence(data, source, single)
-        # The user's complete selection remains authoritative, even when the model
-        # returns a smaller region for an individual question or visual.
-        evidence_name = f"selected-{uuid.uuid4().hex}.png"
-        await run_in_threadpool(Path(UPLOAD_DIR, evidence_name).write_bytes, png)
-        evidence_url = f"/uploads/{evidence_name}"
-        for question in data.get("questions", []):
-            question.update(image=evidence_url, source_image=evidence_url, source_bbox=list(single.bbox),
-                            source_segments=[{"page": selection.page, "bbox": list(single.bbox),
-                                              "image": evidence_url, "provider": "user-selected-region"}])
-        if data.get("extraction_run_id"):
-            with closing(connect()) as conn:
-                conn.execute("UPDATE extraction_runs SET source_document_id = ? WHERE id = ?",
-                             (source_id, data["extraction_run_id"]))
-                conn.commit()
+    async def _digitise_selected(selection: PdfCropSelection):
+        with _temporary_env({"QB_VERIFY": "off"}):
+            return await _digitise_single_crop(source_id, selection)
+    per_selection = await asyncio.gather(*[
+        _digitise_selected(selection) for selection in selections
+    ])
+    for selection, data in zip(selections, per_selection):
         combined["questions"].extend(data.get("questions", []))
         combined["warnings"].extend(data.get("warnings", []))
         combined["selected_regions"].append({"page": selection.page, "bbox": list(selection.bbox)})

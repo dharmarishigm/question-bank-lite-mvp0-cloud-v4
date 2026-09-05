@@ -71,6 +71,64 @@ function renderTables(lines) {
 }
 
 /** Markdown-lite + LaTeX: math segments are shielded from markdown rewriting. */
+function renderMarkdownBlocks(text) {
+  const lines = text.split('\n');
+  const blocks = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line.trim()) {
+      i += 1;
+      continue;
+    }
+    if (/^#{1,6}\s+/.test(line)) {
+      const match = line.match(/^(#{1,6})\s+(.*)$/);
+      if (match) {
+        const level = Math.min(6, match[1].length);
+        blocks.push(`<h${level}>${match[2].trim()}</h${level}>`);
+        i += 1;
+        continue;
+      }
+    }
+    if (/^>\s?/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) {
+        items.push(lines[i].replace(/^>\s?/, '').trim());
+        i += 1;
+      }
+      blocks.push(`<blockquote>${items.join('<br>')}</blockquote>`);
+      continue;
+    }
+    if (/^[-*]\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^[-*]\s+/.test(lines[i])) {
+        items.push(`<li>${lines[i].replace(/^[-*]\s+/, '').trim()}</li>`);
+        i += 1;
+      }
+      blocks.push(`<ul>${items.join('')}</ul>`);
+      continue;
+    }
+    if (/^\d+\.\s+/.test(line)) {
+      const items = [];
+      while (i < lines.length && /^\d+\.\s+/.test(lines[i])) {
+        items.push(`<li>${lines[i].replace(/^\d+\.\s+/, '').trim()}</li>`);
+        i += 1;
+      }
+      blocks.push(`<ol>${items.join('')}</ol>`);
+      continue;
+    }
+    const paragraph = [];
+    while (i < lines.length && lines[i].trim() && !/^#{1,6}\s+/.test(lines[i]) && !/^>\s?/.test(lines[i]) && ! /^[-*]\s+/.test(lines[i]) && !/^\d+\.\s+/.test(lines[i])) {
+      paragraph.push(lines[i].trim());
+      i += 1;
+    }
+    if (paragraph.length) {
+      blocks.push(`<p>${paragraph.join('<br>')}</p>`);
+    }
+  }
+  return blocks.join('');
+}
+
 function toHtml(source) {
   const math = [];
   let text = escapeHtml(source || '').replace(MATH_PATTERN, (m) => {
@@ -85,8 +143,9 @@ function toHtml(source) {
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
     .replace(/`([^`]+)`/g, '<code>$1</code>');
+  text = renderMarkdownBlocks(text);
   text = renderTables(text.split('\n')).join('\n');
-  text = text.replace(/\n{2,}/g, '<br><br>').replace(/\n(?!<\/?table|<tbody|<thead|<tr)/g, '<br>');
+  text = text.replace(/\n{2,}/g, '<br><br>').replace(/\n(?!<\/?table|<tbody|<thead|<tr|<h|<p|<ul|<ol|<blockquote)/g, '<br>');
   return text.replace(/\u0000(\d+)\u0000/g, (_, i) => math[Number(i)]);
 }
 
@@ -158,10 +217,18 @@ function resetForm() {
   syncSaveState();
 }
 
+function scrollToPageTop() {
+  window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+  const appHeader = document.querySelector('header');
+  if (appHeader) appHeader.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function openEditor() {
-  switchMainTab('questions');
+  switchMainTab('edit');
+  $('editor-modal').hidden = false;
   $('editor').hidden = false;
-  $('editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  $('editor').dataset.activeDraft = 'true';
+  scrollToPageTop();
 }
 
 function visualAssetsHtml(q) {
@@ -209,6 +276,7 @@ function cardHtml(q, withAnswer) {
     <div class="rendered">${toHtml(q.statement)}</div>${visualAssetsHtml(q)}${opts}${answer}${source}
     <div class="card-actions">
       <button data-edit="${q.id}">Edit</button>
+      <button data-explain="${q.id}">Explain</button>
       <button data-delete="${q.id}">Delete</button>
     </div>`;
 }
@@ -265,7 +333,7 @@ async function loadFacets() {
 
 function updatePreview() {
   const q = formValue();
-  $('preview').innerHTML = cardHtml({ ...q, id: editingId ?? 'new' }, true);
+  $('preview').innerHTML = cardHtml({ ...q, id: editingId ?? 'new', hide_source: true }, true);
   typeset($('preview'));
   if (!previewConfirmed) {
     syncSaveState();
@@ -298,6 +366,7 @@ async function saveRequest() {
   resetForm();
   $('editor').hidden = true;
   await Promise.all([loadQuestions(), loadFacets()]);
+  scrollToPageTop();
 }
 
 async function uploadImage(file, targetId) {
@@ -369,15 +438,83 @@ document.querySelectorAll('.toolbar').forEach((bar) => {
   });
 });
 
+async function openExplainModal(questionId) {
+  const q = questions.find((item) => String(item.id) === String(questionId));
+  if (!q) return;
+  const explainContent = $('explain-content');
+  explainContent.textContent = 'Preparing an explanation...';
+  $('explain-modal').hidden = false;
+  $('explain-like').dataset.questionId = String(questionId);
+  $('explain-like').disabled = false;
+  try {
+    const res = await fetch(`/api/questions/${questionId}/explain`);
+    const rawText = await res.text();
+    let body = {};
+    if (rawText) {
+      try {
+        body = JSON.parse(rawText);
+      } catch {
+        body = { explanation: rawText };
+      }
+    }
+    if (!res.ok) {
+      const detail = body?.detail || body?.error || body?.message || rawText || 'Could not load explanation.';
+      throw new Error(detail);
+    }
+    const explanation = body.explanation || body?.message || 'No explanation available.';
+    explainContent.innerHTML = toHtml(explanation);
+    typeset(explainContent);
+    if (body.cached) {
+      $('explain-like').textContent = 'Saved';
+      $('explain-like').disabled = true;
+    } else {
+      $('explain-like').textContent = 'Like & save';
+      $('explain-like').disabled = false;
+    }
+  } catch (err) {
+    explainContent.textContent = err.message || 'Could not load explanation.';
+    $('explain-like').disabled = true;
+  }
+}
+
+async function saveLikedExplanation() {
+  const questionId = $('explain-like')?.dataset.questionId;
+  const explainContent = $('explain-content');
+  if (!questionId || !explainContent) return;
+  const explanation = explainContent.innerText || explainContent.textContent || '';
+  if (!explanation.trim()) {
+    notify('There is no explanation to save yet.');
+    return;
+  }
+  try {
+    const res = await fetch(`/api/questions/${questionId}/explain/like`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ explanation }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || 'Could not save the explanation.');
+    $('explain-like').textContent = 'Saved';
+    $('explain-like').disabled = true;
+    notify('Explanation saved for reuse.');
+  } catch (err) {
+    notify(err.message || 'Could not save the explanation.');
+  }
+}
+
 $('list').addEventListener('click', async (e) => {
   const btn = e.target.closest('button');
   if (!btn) return;
   if (btn.dataset.edit) {
     const q = questions.find((item) => String(item.id) === btn.dataset.edit);
+    if (!q) return;
     editingId = q.id;
     $('editor-title').textContent = `Editing question #${q.id}`;
     fillForm(q);
     openEditor();
+  }
+  if (btn.dataset.explain) {
+    await openExplainModal(btn.dataset.explain);
   }
   if (btn.dataset.delete && confirm('Delete this question?')) {
     const res = await fetch(`/api/questions/${btn.dataset.delete}`, { method: 'DELETE' });
@@ -437,7 +574,14 @@ $('btn-digitize-image').addEventListener('click', () => {
   };
   picker.click();
 });
-$('btn-close-editor').addEventListener('click', () => { $('editor').hidden = true; });
+$('btn-close-editor').addEventListener('click', () => {
+  $('editor-modal').hidden = true;
+  $('editor').hidden = true;
+  $('editor').dataset.activeDraft = 'false';
+  switchMainTab('questions');
+});
+$('explain-close').addEventListener('click', () => { $('explain-modal').hidden = true; });
+$('explain-like')?.addEventListener('click', saveLikedExplanation);
 $('btn-print').addEventListener('click', () => window.print());
 $('btn-export').addEventListener('click', () => { window.location.href = '/api/export'; });
 $('import-file').addEventListener('change', async (e) => {
@@ -1181,19 +1325,512 @@ async function refreshOcrStatus() {
   return status;
 }
 
+async function loadExamRegistrations() {
+  const list = $('exam-registration-list');
+  const search = $('exam-search');
+  if (!list) return;
+  list.innerHTML = '<p class="muted">Loading registrations…</p>';
+  try {
+    const params = new URLSearchParams();
+    if (search && search.value.trim()) params.set('query', search.value.trim());
+    const res = await fetch(`/api/exam-registrations${params.toString() ? `?${params}` : ''}`);
+    if (!res.ok) throw new Error('Could not load registration data');
+    const items = await res.json();
+    if (!items.length) {
+      list.innerHTML = '<div class="empty-state"><span class="empty-icon" aria-hidden="true">E</span><h3>No registrations yet</h3><p>Register an individual candidate to start the exam workflow.</p></div>';
+      await loadExamAnalytics();
+      return;
+    }
+    list.innerHTML = items.map((item) => `
+      <div class="exam-registration-item">
+        <div class="exam-registration-header">
+          <strong>${escapeHtml(item.full_name || 'Unnamed candidate')}</strong>
+          <span class="status-pill ${escapeHtml(item.status || 'pending')}">${escapeHtml(item.status || 'pending')}</span>
+        </div>
+        <div class="exam-registration-meta">
+          <span>${escapeHtml(item.exam_name || 'No exam')}</span>
+          <span>${escapeHtml(item.exam_date || 'No date')}</span>
+          <span>${escapeHtml(item.center_preference || 'No center')}</span>
+        </div>
+        <div class="exam-registration-meta smaller">
+          <span>${escapeHtml(item.email || 'No email')}</span>
+          <span>${escapeHtml(item.phone || 'No phone')}</span>
+        </div>
+        ${item.notes ? `<p class="exam-registration-notes">${escapeHtml(item.notes)}</p>` : ''}
+        <div class="card-actions">
+          <button type="button" data-exam-approve="${item.id}">Approve</button>
+          <button type="button" data-exam-reject="${item.id}">Reject</button>
+          <button type="button" data-exam-edit="${item.id}">Edit</button>
+          <button type="button" data-exam-delete="${item.id}">Delete</button>
+        </div>
+      </div>
+    `).join('');
+    await loadExamAnalytics();
+  } catch (err) {
+    list.innerHTML = `<div class="empty-state"><h3>Unable to load registrations</h3><p>${escapeHtml(err.message || 'Please try again.')}</p></div>`;
+  }
+}
+
+async function loadExamAnalytics() {
+  const analytics = $('exam-analytics');
+  if (!analytics) return;
+  try {
+    const res = await fetch('/api/exam-registrations/analytics');
+    if (!res.ok) throw new Error('Could not load analytics');
+    const data = await res.json();
+    const cards = [
+      { label: 'Total', value: data.total ?? 0 },
+      { label: 'Pending', value: data.status_counts?.pending ?? 0 },
+      { label: 'Approved', value: data.status_counts?.approved ?? 0 },
+      { label: 'Rejected', value: data.status_counts?.rejected ?? 0 },
+    ];
+    const byExam = (data.by_exam || []).slice(0, 5);
+    analytics.innerHTML = `
+      <div class="exam-analytics-card"><h4>Total registrations</h4><strong>${cards[0].value}</strong></div>
+      <div class="exam-analytics-card"><h4>Pending</h4><strong>${cards[1].value}</strong></div>
+      <div class="exam-analytics-card"><h4>Approved</h4><strong>${cards[2].value}</strong></div>
+      <div class="exam-analytics-card"><h4>Rejected</h4><strong>${cards[3].value}</strong></div>
+      <div class="exam-analytics-card" style="grid-column: 1 / -1;"><h4>Top exam groups</h4><ul class="exam-analytics-list">${byExam.length ? byExam.map((item) => `<li>${escapeHtml(item.exam_name)} — ${item.count}</li>`).join('') : '<li>No exam data</li>'}</ul></div>
+    `;
+  } catch (err) {
+    analytics.innerHTML = '<div class="exam-analytics-card"><h4>Analytics</h4><p class="muted">Unavailable right now.</p></div>';
+  }
+}
+
+const EXAM_TIME_SECONDS = 30 * 60;
+const examState = {
+  questions: [],
+  currentIndex: 0,
+  answers: {},
+  markedForReview: new Set(),
+  timerId: null,
+  timeRemaining: EXAM_TIME_SECONDS,
+  started: false,
+  submitted: false,
+};
+
+function renderExamPaper(questions) {
+  const container = $('exam-paper-preview');
+  if (!container) return;
+  if (!questions || !questions.length) {
+    container.innerHTML = '<div class="empty-state"><h3>No exam paper generated</h3><p>There are not enough valid questions in the question bank yet.</p></div>';
+    return;
+  }
+  container.innerHTML = `
+    <div class="exam-paper-header">
+      <strong>Randomised 15-question paper</strong>
+      <span>${questions.length} questions</span>
+    </div>
+    <ol class="exam-paper-list">
+      ${questions.map((q, idx) => `
+        <li class="exam-paper-item">
+          <div class="exam-paper-meta"><span>${escapeHtml(q.subject || 'General')}</span><span>${escapeHtml(q.chapter || 'General')}</span><span>${escapeHtml(q.difficulty || 'medium')}</span></div>
+          <div class="rendered">${toHtml(q.statement || '')}</div>
+          <ol class="exam-option-list">
+            ${(q.options || []).map((option, optionIndex) => `<li><span class="option-label">${OPTION_LABELS[optionIndex] || optionIndex + 1}.</span> <span class="rendered">${toHtml(option || '')}</span></li>`).join('')}
+          </ol>
+        </li>
+      `).join('')}
+    </ol>
+  `;
+  container.querySelectorAll('.rendered').forEach((node) => typeset(node));
+}
+
+function formatExamTime(seconds) {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+function normalizeExamChoice(value) {
+  return String(value || '').trim().toUpperCase();
+}
+
+function loadExamPaperIntoTab() {
+  const preview = $('exam-paper-preview-tab');
+  if (!preview) return Promise.resolve([]);
+  preview.innerHTML = '<p class="muted">Generating a realistic 15-question paper…</p>';
+  return fetch('/api/exam-registrations/sample-paper')
+    .then((res) => {
+      if (!res.ok) throw new Error('Could not load the exam paper');
+      return res.json();
+    })
+    .then((body) => {
+      const questions = body.questions || [];
+      renderExamPaperToTab(preview, questions);
+      return questions;
+    })
+    .catch((err) => {
+      preview.innerHTML = `<div class="empty-state"><h3>Exam paper unavailable</h3><p>${escapeHtml(err.message || 'Please try again.')}</p></div>`;
+      return [];
+    });
+}
+
+function renderExamPaperToTab(container, questions) {
+  if (!container) return;
+  if (!questions || !questions.length) {
+    container.innerHTML = '<div class="empty-state"><h3>No exam paper generated</h3><p>There are not enough valid questions in the question bank yet.</p></div>';
+    return;
+  }
+  container.innerHTML = `
+    <div class="exam-paper-header">
+      <strong>Randomised 15-question paper</strong>
+      <span>${questions.length} questions</span>
+    </div>
+    <ol class="exam-paper-list">
+      ${questions.map((q) => `
+        <li class="exam-paper-item">
+          <div class="exam-paper-meta"><span>${escapeHtml(q.subject || 'General')}</span><span>${escapeHtml(q.chapter || 'General')}</span><span>${escapeHtml(q.difficulty || 'medium')}</span></div>
+          <div class="rendered">${toHtml(q.statement || '')}</div>
+          <ol class="exam-option-list">
+            ${(q.options || []).map((option, optionIndex) => `<li><span class="option-label">${OPTION_LABELS[optionIndex] || optionIndex + 1}.</span> <span class="rendered">${toHtml(option || '')}</span></li>`).join('')}
+          </ol>
+        </li>
+      `).join('')}
+    </ol>
+  `;
+  container.querySelectorAll('.rendered').forEach((node) => typeset(node));
+}
+
+function getExamQuestionKey(index) {
+  const question = examState.questions[index];
+  if (!question) return `exam-q-${index}`;
+  if (!question._examKey) {
+    const base = question.id ?? question.number ?? `question-${index}`;
+    question._examKey = `exam-q-${index}-${String(base)}`;
+  }
+  return question._examKey;
+}
+
+function renderExamNav() {
+  const nav = $('exam-question-nav');
+  if (!nav) return;
+  nav.innerHTML = examState.questions.map((question, index) => {
+    const questionKey = getExamQuestionKey(index);
+    const selected = examState.answers[questionKey] ?? '';
+    const isActive = index === examState.currentIndex;
+    const isAnswered = String(selected).trim() !== '';
+    const isReview = examState.markedForReview.has(index);
+    const classes = ['exam-question-pill'];
+    if (isActive) classes.push('active');
+    if (isAnswered) classes.push('answered');
+    if (isReview) classes.push('review');
+    return `<button type="button" class="${classes.join(' ')}" data-exam-jump="${index}">${index + 1}</button>`;
+  }).join('');
+}
+
+function renderExamCurrentQuestion() {
+  const container = $('exam-current-question');
+  if (!container || !examState.questions.length) return;
+  const question = examState.questions[examState.currentIndex];
+  const questionNumber = question.number || examState.currentIndex + 1;
+  const questionKey = getExamQuestionKey(examState.currentIndex);
+  const selected = examState.answers[questionKey] ?? '';
+  const isReview = examState.markedForReview.has(examState.currentIndex);
+  const optionEntries = (question.options || []).map((option, index) => {
+    const label = OPTION_LABELS[index] || String(index + 1);
+    const checked = normalizeExamChoice(selected) === normalizeExamChoice(label) ? 'checked' : '';
+    return `
+      <li class="exam-option-item">
+        <input type="radio" name="exam-choice-${questionKey}" value="${escapeHtml(label)}" ${checked} />
+        <span class="exam-option-label">${escapeHtml(label)}</span>
+        <span class="rendered">${toHtml(option || '')}</span>
+      </li>
+    `;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="exam-question-meta">
+      <span>Question ${questionNumber}</span>
+      <span>${escapeHtml(question.subject || 'General')}</span>
+      <span>${escapeHtml(question.chapter || 'General')}</span>
+      <span>${isReview ? 'Marked for review' : 'Standard view'}</span>
+    </div>
+    <div class="rendered">${toHtml(question.statement || '')}</div>
+    <ul class="exam-option-list-compact">${optionEntries}</ul>
+  `;
+  container.querySelectorAll('.rendered').forEach((node) => typeset(node));
+  $('exam-progress-text').textContent = `Question ${examState.currentIndex + 1} of ${examState.questions.length}`;
+}
+
+function renderExamSession() {
+  const session = $('exam-session');
+  const empty = $('exam-session-empty');
+  if (!session) return;
+  if (!examState.started || !examState.questions.length) {
+    session.hidden = true;
+    if (empty) empty.hidden = false;
+    return;
+  }
+  if (empty) empty.hidden = true;
+  session.hidden = false;
+  $('exam-timer').textContent = formatExamTime(examState.timeRemaining);
+  renderExamNav();
+  renderExamCurrentQuestion();
+}
+
+function saveExamAnswer(questionKey, value) {
+  const answerKey = normalizeExamChoice(value);
+  if (!answerKey) return;
+  examState.answers[questionKey] = answerKey;
+  renderExamNav();
+  renderExamCurrentQuestion();
+}
+
+function toggleMarkForReview() {
+  if (!examState.questions.length) return;
+  const index = examState.currentIndex;
+  if (examState.markedForReview.has(index)) {
+    examState.markedForReview.delete(index);
+  } else {
+    examState.markedForReview.add(index);
+  }
+  renderExamNav();
+  renderExamCurrentQuestion();
+}
+
+function clearCurrentAnswer() {
+  const questionKey = getExamQuestionKey(examState.currentIndex);
+  delete examState.answers[questionKey];
+  renderExamNav();
+  renderExamCurrentQuestion();
+}
+
+function moveExamQuestion(nextIndex) {
+  if (!examState.questions.length) return;
+  examState.currentIndex = Math.max(0, Math.min(examState.questions.length - 1, nextIndex));
+  renderExamSession();
+}
+
+function stopExamTimer() {
+  if (examState.timerId) {
+    clearInterval(examState.timerId);
+    examState.timerId = null;
+  }
+}
+
+function submitExamSession(force = false) {
+  if (!examState.started || examState.submitted) return;
+  if (!force && !confirm('Submit the exam now? You cannot change answers after submission.')) return;
+  stopExamTimer();
+  examState.submitted = true;
+  const total = examState.questions.length;
+  const score = examState.questions.reduce((sum, question, index) => {
+    const questionKey = getExamQuestionKey(index);
+    const selected = normalizeExamChoice(examState.answers[questionKey] ?? '');
+    const correct = normalizeExamChoice(question.answer || '');
+    return sum + (selected && selected === correct ? 1 : 0);
+  }, 0);
+
+  const reviewCount = examState.markedForReview.size;
+  const answeredCount = Object.keys(examState.answers).length;
+  const summary = $('exam-session');
+  if (summary) {
+    summary.innerHTML = `
+      <div class="exam-summary">
+        <div class="exam-summary-box">
+          <h3>Exam submitted</h3>
+          <p class="muted">Your final submission has been recorded.</p>
+        </div>
+        <div class="exam-summary-grid">
+          <div class="exam-summary-stat"><small>Score</small><strong>${score}/${total}</strong></div>
+          <div class="exam-summary-stat"><small>Answered</small><strong>${answeredCount}</strong></div>
+          <div class="exam-summary-stat"><small>Review</small><strong>${reviewCount}</strong></div>
+          <div class="exam-summary-stat"><small>Time left</small><strong>${formatExamTime(examState.timeRemaining)}</strong></div>
+        </div>
+        <div class="exam-review-list-wrap">
+          <h3>Question review</h3>
+          <ul class="exam-review-list">
+            ${examState.questions.map((question, index) => {
+              const questionKey = getExamQuestionKey(index);
+              const selected = normalizeExamChoice(examState.answers[questionKey] ?? '');
+              const correct = normalizeExamChoice(question.answer || '');
+              const status = selected && selected === correct ? 'Correct' : (selected ? 'Incorrect' : 'Unanswered');
+              return `<li><span>Q${index + 1}</span><strong>${escapeHtml(status)}</strong></li>`;
+            }).join('')}
+          </ul>
+        </div>
+      </div>
+    `;
+  }
+  notify(`Exam submitted. Final score: ${score}/${total}.`);
+}
+
+async function startExamSession() {
+  const sessionEmpty = $('exam-session-empty');
+  const questions = examState.questions.length ? examState.questions : await loadExamPaperIntoTab();
+  if (!questions.length) {
+    notify('No questions are available to start the exam yet.');
+    return;
+  }
+
+  examState.questions = questions.slice(0, 15).map((question, index) => ({
+    ...question,
+    _examKey: `exam-q-${index}-${String(question.id ?? question.number ?? `question-${index}`)}`,
+  }));
+  examState.currentIndex = 0;
+  examState.answers = {};
+  examState.markedForReview = new Set();
+  examState.timeRemaining = EXAM_TIME_SECONDS;
+  examState.started = true;
+  examState.submitted = false;
+
+  if (sessionEmpty) sessionEmpty.hidden = true;
+  $('exam-session').hidden = false;
+  $('exam-timer').textContent = formatExamTime(examState.timeRemaining);
+
+  examState.timerId = setInterval(() => {
+    if (!examState.started || examState.submitted) return;
+    examState.timeRemaining -= 1;
+    $('exam-timer').textContent = formatExamTime(examState.timeRemaining);
+    if (examState.timeRemaining <= 0) {
+      submitExamSession(true);
+    }
+  }, 1000);
+
+  renderExamSession();
+  notify('Exam started. You have 30 minutes to complete 15 questions.');
+}
+
+async function loadExamPaper() {
+  const preview = $('exam-paper-preview');
+  if (!preview) return;
+  preview.innerHTML = '<p class="muted">Generating a realistic 15-question paper…</p>';
+  try {
+    const res = await fetch('/api/exam-registrations/sample-paper');
+    if (!res.ok) throw new Error('Could not load the exam paper');
+    const body = await res.json();
+    renderExamPaper(body.questions || []);
+  } catch (err) {
+    preview.innerHTML = `<div class="empty-state"><h3>Exam paper unavailable</h3><p>${escapeHtml(err.message || 'Please try again.')}</p></div>`;
+  }
+}
+
+async function requestExamConfirmation() {
+  const form = $('exam-registration-form');
+  const email = $('exam-email').value.trim();
+  if (!email || !/@gmail\.com$/i.test(email)) {
+    notify('Use a valid Gmail address to continue.');
+    return;
+  }
+  try {
+    const res = await fetch('/api/exam-registrations/request-confirmation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        full_name: $('exam-full-name').value.trim(),
+        exam_name: $('exam-name').value.trim(),
+        notes: $('exam-notes').value.trim(),
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || 'Could not start Gmail confirmation.');
+    const status = $('exam-confirmation-status');
+    if (status) {
+      status.innerHTML = `Confirmation step started. Open the Gmail link to confirm your account: <a href="${escapeHtml(body.confirmation_url || '#')}" target="_blank" rel="noopener">Confirm registration</a>`;
+    }
+    notify('Confirmation link generated. Please click it in your Gmail inbox.');
+    form.dataset.confirmationToken = body.token || '';
+  } catch (err) {
+    notify(err.message || 'Could not begin Gmail confirmation.');
+  }
+}
+
+async function saveExamRegistration(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const formData = new FormData(form);
+  const payload = Object.fromEntries(formData.entries());
+  const isEdit = form.dataset.registrationId;
+  const method = isEdit ? 'PUT' : 'POST';
+  const email = String(payload.email || '').trim();
+  if (!email || !/@gmail\.com$/i.test(email)) {
+    notify('Only Gmail-based sign-in is allowed for exam registration.');
+    return;
+  }
+  const url = isEdit ? `/api/exam-registrations/${encodeURIComponent(isEdit)}` : '/api/exam-registrations';
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, is_confirmed: true, confirmation_token: form.dataset.confirmationToken || '' }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.detail || 'Could not save the registration');
+    form.reset();
+    delete form.dataset.registrationId;
+    delete form.dataset.confirmationToken;
+    form.querySelector('button[type="submit"]').textContent = 'Register exam';
+    await loadExamRegistrations();
+    notify(isEdit ? 'Exam registration updated.' : 'Exam registration saved.');
+  } catch (err) {
+    notify(err.message || 'Could not save the registration.');
+  }
+}
+
+async function deleteExamRegistration(id) {
+  if (!id || !confirm('Delete this exam registration?')) return;
+  try {
+    const res = await fetch(`/api/exam-registrations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Could not delete the registration');
+    await loadExamRegistrations();
+    notify('Exam registration deleted.');
+  } catch (err) {
+    notify(err.message || 'Could not delete the registration.');
+  }
+}
+
+async function editExamRegistration(id) {
+  const list = $('exam-registration-list');
+  if (!list) return;
+  try {
+    const res = await fetch(`/api/exam-registrations`);
+    if (!res.ok) throw new Error('Could not load records');
+    const items = await res.json();
+    const entry = items.find((item) => String(item.id) === String(id));
+    if (!entry) return;
+    $('exam-full-name').value = entry.full_name || '';
+    $('exam-email').value = entry.email || '';
+    $('exam-phone').value = entry.phone || '';
+    $('exam-name').value = entry.exam_name || '';
+    $('exam-date').value = entry.exam_date || '';
+    $('exam-center').value = entry.center_preference || '';
+    $('exam-status').value = entry.status || 'pending';
+    $('exam-notes').value = entry.notes || '';
+    const form = $('exam-registration-form');
+    form.dataset.registrationId = String(entry.id);
+    form.querySelector('button[type="submit"]').textContent = 'Update registration';
+    switchMainTab('exam-registration');
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (err) {
+    notify(err.message || 'Could not open the registration for editing.');
+  }
+}
+
 function switchMainTab(tabName) {
   $('pdf-modal').hidden = tabName !== 'upload-crop' || !(parsed.length || sourceBusy);
   const panels = {
     questions: $('questions-panel'),
+    'exam-registration': $('exam-registration-panel'),
+    exam: $('exam-panel'),
     'upload-crop': $('upload-crop-panel'),
   };
   const tabs = [...document.querySelectorAll('.main-tab')];
   Object.entries(panels).forEach(([name, panel]) => {
     if (!panel) return;
-    const active = name === tabName;
-    panel.hidden = !active;
-    panel.classList.toggle('active', active);
+    panel.hidden = name !== tabName && !(name === 'questions' && tabName === 'edit');
+    panel.classList.toggle('active', name === tabName || (name === 'questions' && tabName === 'edit'));
   });
+  if (tabName === 'edit') {
+    $('editor-modal').hidden = false;
+    $('editor').hidden = false;
+    $('editor').dataset.activeDraft = 'true';
+  } else {
+    $('editor-modal').hidden = true;
+    $('editor').hidden = true;
+    $('editor').dataset.activeDraft = 'false';
+  }
   tabs.forEach((tab) => {
     const active = tab.dataset.mainTab === tabName;
     tab.classList.toggle('active', active);
@@ -1205,6 +1842,91 @@ document.querySelectorAll('.main-tab').forEach((tab) => {
   tab.addEventListener('click', () => switchMainTab(tab.dataset.mainTab));
 });
 
+$('exam-registration-form')?.addEventListener('submit', saveExamRegistration);
+$('exam-confirm-gmail')?.addEventListener('click', requestExamConfirmation);
+$('exam-reset-form')?.addEventListener('click', () => {
+  const form = $('exam-registration-form');
+  form.reset();
+  delete form.dataset.registrationId;
+  delete form.dataset.confirmationToken;
+  form.querySelector('button[type="submit"]').textContent = 'Register exam';
+  const status = $('exam-confirmation-status');
+  if (status) status.textContent = 'Only Gmail accounts can register. Confirm the link sent to your Google account before final submission.';
+});
+$('exam-start-button')?.addEventListener('click', startExamSession);
+$('exam-generate-paper-tab')?.addEventListener('click', () => loadExamPaperIntoTab());
+$('exam-prev-question')?.addEventListener('click', () => moveExamQuestion(examState.currentIndex - 1));
+$('exam-next-question')?.addEventListener('click', () => moveExamQuestion(examState.currentIndex + 1));
+$('exam-mark-review')?.addEventListener('click', toggleMarkForReview);
+$('exam-clear-answer')?.addEventListener('click', clearCurrentAnswer);
+$('exam-submit-button')?.addEventListener('click', () => submitExamSession());
+$('exam-question-nav')?.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-exam-jump]');
+  if (!button) return;
+  moveExamQuestion(Number(button.dataset.examJump));
+});
+$('exam-current-question')?.addEventListener('change', (event) => {
+  const input = event.target;
+  if (!input || input.type !== 'radio' || !input.name.startsWith('exam-choice-')) return;
+  saveExamAnswer(input.name.replace('exam-choice-', ''), input.value);
+});
+$('exam-generate-paper')?.addEventListener('click', () => loadExamPaper());
+$('exam-print-paper')?.addEventListener('click', () => window.print());
+$('exam-search')?.addEventListener('input', () => { loadExamRegistrations(); });
+$('exam-export-csv')?.addEventListener('click', () => window.location.href = '/api/exam-registrations/export.csv');
+$('exam-export-pdf')?.addEventListener('click', () => window.location.href = '/api/exam-registrations/export.pdf');
+$('exam-sample-paper')?.addEventListener('click', () => window.location.href = '/api/exam-registrations/sample-paper.pdf');
+
+if ($('exam-paper-preview')) {
+  loadExamPaper();
+}
+
+$('exam-registration-list')?.addEventListener('click', async (event) => {
+  const approveButton = event.target.closest('[data-exam-approve]');
+  if (approveButton) {
+    try {
+      const res = await fetch(`/api/exam-registrations/${approveButton.dataset.examApprove}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'approved' }),
+      });
+      if (!res.ok) throw new Error('Could not approve the registration');
+      await loadExamRegistrations();
+      notify('Registration approved.');
+    } catch (err) {
+      notify(err.message || 'Could not approve the registration.');
+    }
+    return;
+  }
+
+  const rejectButton = event.target.closest('[data-exam-reject]');
+  if (rejectButton) {
+    try {
+      const res = await fetch(`/api/exam-registrations/${rejectButton.dataset.examReject}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'rejected' }),
+      });
+      if (!res.ok) throw new Error('Could not reject the registration');
+      await loadExamRegistrations();
+      notify('Registration rejected.');
+    } catch (err) {
+      notify(err.message || 'Could not reject the registration.');
+    }
+    return;
+  }
+
+  const button = event.target.closest('[data-exam-edit]');
+  if (button) {
+    await editExamRegistration(button.dataset.examEdit);
+    return;
+  }
+  const deleteButton = event.target.closest('[data-exam-delete]');
+  if (deleteButton) {
+    await deleteExamRegistration(deleteButton.dataset.examDelete);
+  }
+});
+
 $('btn-open-review')?.addEventListener('click', () => {
   switchMainTab('upload-crop');
   if (!parsed.length) { $('pdf-file').click(); return; }
@@ -1214,11 +1936,21 @@ $('btn-open-review')?.addEventListener('click', () => {
   }
 });
 
+document.querySelectorAll('.main-tab').forEach((tab) => {
+  tab.addEventListener('click', () => {
+    const nextTab = tab.dataset.mainTab;
+    switchMainTab(nextTab);
+    if (nextTab === 'edit' && !$('editor').hidden) {
+      $('editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+});
+
 window.addEventListener('load', async () => {
   resetForm();
   syncSaveState();
   switchMainTab('questions');
-  await Promise.all([loadQuestions(), loadFacets(), refreshOcrStatus()]);
+  await Promise.all([loadQuestions(), loadFacets(), loadExamRegistrations(), refreshOcrStatus()]);
 });
 
 // Keep keyboard navigation available for upload actions and overlay dismissal.
