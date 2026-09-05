@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+pymupdf
+pillow
+pytesseract
+python-dotenv
+
+# GCP-native AI path
+# Vertex AI Gemini structured multimodal transcription/verification
+google-genai
+# Enterprise Document OCR + Math OCR
+google-cloud-documentai

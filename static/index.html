@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Question Bank Lite MVP-0 v3</title>
+<link rel="stylesheet" href="/static/vendor/katex.min.css" />
+<script defer src="/static/vendor/katex.min.js"></script>
+<script defer src="/static/vendor/contrib/mhchem.min.js"></script>
+<script defer src="/static/vendor/contrib/auto-render.min.js"></script>
+<link rel="stylesheet" href="/static/app.css" />
+</head>
+<body>
+<header>
+  <div class="brand"><span class="brand-mark" aria-hidden="true">Q</span><div><h1>Question Bank</h1><span class="brand-caption">Your science &amp; mathematics library</span></div></div>
+  <div class="spacer"></div>
+  <div class="header-actions">
+    <label class="btn primary" for="pdf-file">Upload document</label>
+    <span id="upload-status" class="upload-status" hidden>
+      <span class="spinner" aria-hidden="true"></span>
+      <span class="upload-text">Processing…</span>
+    </span>
+  </div>
+  <input id="pdf-file" type="file" accept=".pdf,.txt,.md,.csv,.json,.log,.html,.xml,.rtf,.ipynb,.doc,.docx,.odt,.ppt,.pptx,.xls,.xlsx,image/png,image/jpeg,image/webp" hidden />
+  <button id="btn-new">New question</button>
+  <button id="btn-print" title="Print the current page of questions">Print page</button>
+  <details id="more-menu" class="menu">
+    <summary>More</summary>
+    <div class="menu-body">
+      <button id="btn-export">Export JSON</button>
+      <label class="btn" for="import-file">Import JSON</label>
+      <input id="import-file" type="file" accept="application/json" hidden />
+    </div>
+  </details>
+</header>
+
+<main>
+  <div class="workspace-heading"><div><p class="eyebrow">QUESTION WORKSPACE</p><h2>From source to study-ready.</h2><p class="muted">Digitise, compare and organise your questions in one place.</p></div><span class="local-badge">Local workspace</span></div>
+  <div class="main-tabs" aria-label="Main UI tabs">
+    <button type="button" class="main-tab active" data-main-tab="questions">Questions</button>
+    <button type="button" class="main-tab" data-main-tab="upload-crop">Import &amp; digitise</button>
+  </div>
+
+  <section id="questions-panel" class="tab-panel active">
+    <section id="bank" class="panel">
+      <div class="section-heading"><div><h2>Your question library</h2><p class="muted">Find a question, review its source, or add something new.</p></div></div>
+      <div class="filters">
+        <input id="s-q" aria-label="Search questions" placeholder="Search questions, topics, tags…" />
+        <select id="s-subject" aria-label="Filter by subject"><option value="">All subjects</option></select>
+        <select id="s-chapter" aria-label="Filter by chapter"><option value="">All chapters</option></select>
+        <select id="s-difficulty" aria-label="Filter by difficulty"><option value="">Any difficulty</option><option>easy</option><option>medium</option><option>hard</option></select>
+        <label class="inline"><input type="checkbox" id="s-answers" checked /> answers</label>
+        <label class="inline"><input type="checkbox" id="s-originals" checked /> original images</label>
+        <div class="spacer"></div>
+        <span id="count" class="muted"></span>
+      </div>
+      <div id="list" aria-live="polite"></div>
+      <nav class="pagination" aria-label="Question pages"><span id="page-summary"></span><div><button id="page-prev" disabled>Previous</button><button id="page-next" disabled>Next</button></div></nav>
+    </section>
+  </section>
+
+  <section id="upload-crop-panel" class="tab-panel" hidden>
+    <section class="panel">
+      <h2>Upload, crop and digitise</h2>
+      <p class="muted">Upload your source, compare the extracted questions with the original, and save the ones you need.</p>
+      <div class="digitization-actions">
+        <label class="btn primary" for="pdf-file">Upload document</label>
+        <button id="btn-open-review" type="button">Open review workspace</button>
+      </div>
+      <section id="pdf-viewer" class="pdf-viewer" aria-label="PDF document viewer" hidden>
+        <div class="pdf-viewer-toolbar">
+          <div class="pdf-viewer-title"><strong id="pdf-viewer-name">PDF preview</strong><span id="pdf-viewer-status" role="status"></span></div>
+          <label>Zoom <select id="pdf-viewer-zoom"><option value="20">20%</option><option value="30">30%</option><option value="40">40%</option><option value="50">50%</option><option value="60">60%</option><option value="75">75%</option><option value="100" selected>Fit width</option><option value="125">125%</option><option value="150">150%</option></select></label>
+          <button id="pdf-viewer-crop-toggle" aria-pressed="false" disabled>Select portion</button>
+          <button id="pdf-viewer-digitise" disabled>Digitise whole PDF</button>
+          <button id="pdf-viewer-close" aria-label="Close PDF preview">Close</button>
+        </div>
+        <div id="pdf-selection-bar" class="pdf-selection-bar" hidden>
+          <span id="pdf-selection-status" role="status">Drag a rectangle around a question on any page.</span>
+          <button id="pdf-selection-clear" disabled>Redraw selection</button>
+          <button id="pdf-selection-digitise" class="primary" disabled>Digitise selected portion</button>
+        </div>
+        <div id="pdf-viewer-pages" class="pdf-viewer-pages" tabindex="0" aria-label="PDF pages. Scroll to read the document."></div>
+      </section>
+      <div class="digitization-steps">
+        <ol>
+          <li>Upload the scanned PDF or image document.</li>
+          <li>Compare each extracted question with its original source.</li>
+          <li>Use the crop tool under the review tab to select a question area and digitise it.</li>
+        </ol>
+      </div>
+    </section>
+  </section>
+
+  <section id="editor" class="panel" hidden>
+    <div class="editor-head">
+      <h2 id="editor-title">New question</h2>
+      <div class="spacer"></div>
+      <button id="btn-close-editor">Close</button>
+    </div>
+
+    <div class="grid">
+      <label>Subject
+        <select id="f-subject">
+          <option>Mathematics</option><option>Chemistry</option>
+          <option>Physics</option><option>Other</option>
+        </select>
+      </label>
+      <label>Answer <input id="f-answer" placeholder="B  /  2.5  /  A,C" /></label>
+    </div>
+
+    <div class="toolbar" data-target="f-statement">
+      <button data-snippet="$x$">math</button>
+      <button data-snippet="$\dfrac{a}{b}$">fraction</button>
+      <button data-snippet="$\ce{H2SO4}$">chemistry</button>
+      <button data-snippet="table">table</button>
+      <button data-upload="1">image</button>
+      <button id="btn-upload-document" type="button" class="primary">Upload document</button>
+      <button id="btn-digitize-image" type="button" class="primary">Digitize image</button>
+    </div>
+    <label class="wide">Question
+      <textarea id="f-statement" rows="6" placeholder="Evaluate $\int_0^{\pi/2}\frac{dx}{1+\tan^3 x}$"></textarea>
+    </label>
+
+    <div id="options-block">
+      <div class="opt"><span>A</span><textarea id="f-opt-0" aria-label="Option A" rows="1"></textarea></div>
+      <div class="opt"><span>B</span><textarea id="f-opt-1" aria-label="Option B" rows="1"></textarea></div>
+      <div class="opt"><span>C</span><textarea id="f-opt-2" aria-label="Option C" rows="1"></textarea></div>
+      <div class="opt"><span>D</span><textarea id="f-opt-3" aria-label="Option D" rows="1"></textarea></div>
+      <div class="opt"><span>E</span><textarea id="f-opt-4" aria-label="Option E" rows="1"></textarea></div>
+      <div class="opt"><span>F</span><textarea id="f-opt-5" aria-label="Option F" rows="1"></textarea></div>
+    </div>
+
+    <details class="extras">
+      <summary>More fields</summary>
+      <div class="grid">
+        <label>Type
+          <select id="f-qtype">
+            <option value="mcq_single">MCQ (single correct)</option>
+            <option value="mcq_multi">MCQ (multiple correct)</option>
+            <option value="numerical">Numerical</option>
+            <option value="matrix_match">Matrix match</option>
+            <option value="subjective">Subjective</option><option value="assertion_reason">Assertion / reason</option><option value="paragraph">Paragraph</option><option value="other">Other</option>
+          </select>
+        </label>
+        <label>Difficulty
+          <select id="f-difficulty"><option>easy</option><option selected>medium</option><option>hard</option></select>
+        </label>
+        <label>Chapter <input id="f-chapter" placeholder="Definite Integrals" /></label>
+        <label>Topic <input id="f-topic" placeholder="Properties of definite integrals" /></label>
+        <label>Exam <input id="f-exam" placeholder="JEE Advanced" /></label>
+        <label>Year <input id="f-year" placeholder="2019" /></label>
+        <label>Marks <input id="f-marks" placeholder="4" /></label>
+        <label>Tags <input id="f-tags" placeholder="integration, symmetry" /></label>
+      </div>
+      <div class="toolbar" data-target="f-solution">
+        <button data-snippet="$$ $$">math</button>
+        <button data-snippet="$\ce{}$">chemistry</button>
+        <button data-upload="1">image</button>
+      </div>
+      <label class="wide">Solution / hint
+        <textarea id="f-solution" rows="4"></textarea>
+      </label>
+    </details>
+
+    <div class="actions">
+      <button id="btn-preview" type="button">Preview</button>
+      <button id="btn-save" class="primary">Save</button>
+      <button id="btn-reset">Clear</button>
+      <span id="save-status"></span>
+    </div>
+
+    <figure id="f-source" class="source-image" hidden>
+      <figcaption>original from the paper</figcaption>
+      <img id="f-source-img" alt="original question as printed" />
+    </figure>
+
+    <div id="preview" class="question-card"></div>
+  </section>
+</main>
+
+<div id="pdf-modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>Review digitized questions</h2>
+      <div class="spacer"></div>
+      <span id="pdf-mode-note" class="muted"></span>
+      <button id="pdf-local">Re-read locally</button>
+      <button id="pdf-reocr" title="Read the printed pages as images instead of the PDF's text">Re-read with OCR</button>
+      <button id="pdf-preview-all">Preview all</button>
+      <button id="pdf-save" class="primary">Save</button>
+      <button id="pdf-import">Import selected</button>
+      <button id="pdf-cancel">Cancel</button>
+    </div>
+    <div class="review-tabs" aria-label="Digitized review tabs">
+      <button type="button" class="review-tab active" data-review-tab="documents">Review</button>
+      <button type="button" class="review-tab" data-review-tab="crop">Digitize crop</button>
+    </div>
+    <div id="review-documents-panel" class="review-panel">
+      <div class="grid pdf-defaults">
+        <label>Subject
+          <select id="p-subject">
+            <option>Mathematics</option><option>Chemistry</option>
+            <option>Physics</option><option>Other</option>
+          </select>
+        </label>
+        <label>Exam <input id="p-exam" placeholder="JEE Advanced" /></label>
+        <label>Year <input id="p-year" placeholder="2026" /></label>
+        <label class="inline wide"><input type="checkbox" id="p-keep-image" checked /> keep the original question image</label>
+        <label class="inline wide"><input type="checkbox" id="p-image-only" /> use the image alone as the question (when the maths comes out garbled)</label>
+        <details class="extras wide">
+          <summary>More fields</summary>
+          <div class="grid">
+            <label>Type
+              <select id="p-qtype">
+                <option value="mcq_single">MCQ (single correct)</option>
+                <option value="mcq_multi">MCQ (multiple correct)</option>
+                <option value="numerical">Numerical</option>
+                <option value="matrix_match">Matrix match</option>
+                <option value="subjective">Subjective</option><option value="assertion_reason">Assertion / reason</option><option value="paragraph">Paragraph</option><option value="other">Other</option>
+              </select>
+            </label>
+            <label>Chapter <input id="p-chapter" /></label>
+            <label>Tags <input id="p-tags" /></label>
+          </div>
+        </details>
+      </div>
+      <div id="pdf-warnings"></div>
+      <div id="pdf-list"></div>
+    </div>
+    <div id="review-crop-panel" class="review-panel" hidden>
+      <div class="empty-state"><h3>Choose a question to crop</h3><p>Return to Review and select Crop beside a question to isolate a region of its source image.</p><button id="back-to-review">Back to review</button></div>
+    </div>
+  </div>
+</div>
+
+<div id="ocr-modal" class="modal" hidden>
+  <div class="modal-box">
+    <div class="modal-head">
+      <h2>Read one formula as LaTeX</h2>
+      <div class="spacer"></div>
+      <span id="ocr-state" class="muted">drag a box over a single formula</span>
+      <button id="ocr-cancel">Cancel</button>
+    </div>
+    <div id="ocr-frame" class="crop-frame"><img id="ocr-image" alt="question crop" /></div>
+  </div>
+</div>
+
+<div id="compare-modal" class="modal" hidden>
+  <div class="modal-box compare-box">
+    <div class="modal-head">
+      <h2>Original vs Digitized</h2>
+      <div class="spacer"></div>
+      <span id="compare-score" class="verify unverified">Verification confidence: 0%</span>
+      <button id="compare-close">Close</button>
+    </div>
+    <div class="compare-layout">
+      <div class="compare-panel">
+        <h3>Original</h3>
+        <div id="compare-originals"></div>
+      </div>
+      <div class="compare-panel">
+        <h3>Digitized</h3>
+        <div id="compare-transformed" class="question-card"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="crop-modal" class="modal" hidden>
+  <div class="modal-box crop-box">
+    <div class="modal-head">
+      <h2>Select question crop(s)</h2>
+      <div class="spacer"></div>
+      <button id="crop-add">Add crop</button>
+      <button id="crop-digitize-selected" class="primary">Digitise selected</button>
+      <button id="crop-close">Close</button>
+    </div>
+    <div class="crop-layout">
+      <div class="compare-panel">
+        <h3>Document page</h3>
+        <div id="crop-frame" class="crop-frame">
+          <img id="crop-image" alt="Select a crop from the source page" />
+        </div>
+      </div>
+      <div class="compare-panel">
+        <h3>Selected crops</h3>
+        <div id="crop-preview-list" class="crop-preview-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="image-viewer-modal" class="modal image-viewer-modal" role="dialog" aria-modal="true" aria-labelledby="image-viewer-title" hidden>
+  <div class="modal-box image-viewer-box">
+    <div class="modal-head"><h2 id="image-viewer-title">Full image</h2><span class="spacer"></span><button id="image-viewer-close">Close</button></div>
+    <div class="image-viewer-stage"><img id="image-viewer-img" alt="Complete question or diagram, fitted to the available space" /></div>
+  </div>
+</div>
+
+<input id="upload-file" type="file" accept="image/*" hidden />
+<div id="notification" class="notification" role="status" aria-live="polite" hidden></div>
+<script src="/static/app.js"></script>
+<script src="/static/pdf-viewer.js"></script>
+</body>
+</html>
