@@ -5,7 +5,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import app
-from llm_generate import GeneratedOption, GeneratedQuestion, GeneratedQuestionBatch, GenerationRequest, generate_questions, parse_generated_batch, public_prompt_preview, validate_question
+from llm_generate import GeneratedOption, GeneratedQuestion, GeneratedQuestionBatch, GenerationRequest, PromptGuidanceRequest, generate_prompt_guidance, generate_questions, parse_generated_batch, public_prompt_preview, validate_question
 from platform_api import init_platform
 
 
@@ -45,6 +45,14 @@ class PromptGenerationTests(unittest.TestCase):
             batch,_,_=generate_questions(self.request(),client=client)
         self.assertEqual(len(batch.questions),1);self.assertEqual(batch.questions[0].answer,'B');self.assertEqual(len(client.models.calls),2)
         self.assertIn('prior response was invalid or truncated',client.models.calls[1]['contents'])
+
+    def test_gemini_can_draft_syllabus_and_generation_prompt_from_minimal_metadata(self):
+        response=type('Response',(),{'parsed':None,'text':'{"syllabus":"Grade 4 matter, materials, observable properties, mixtures, and changes.","generation_prompt":"Generate age-appropriate reasoning MCQs with four distinct options, one valid answer, and concise explanations."}'})()
+        models=type('Models',(),{'generate_content':lambda self,**kwargs:response})()
+        client=type('Client',(),{'models':models})()
+        with patch('llm_generate.gcp_project_id',return_value='test-project'):
+            guidance,model=generate_prompt_guidance(PromptGuidanceRequest(exam_name='Olympiad',subject='Science',level='Grade 4'),client=client)
+        self.assertIn('Grade 4',guidance.syllabus);self.assertIn('four distinct options',guidance.generation_prompt);self.assertTrue(model)
 
     def test_generation_endpoint_persists_canonical_question_and_lineage(self):
         with tempfile.TemporaryDirectory() as directory:

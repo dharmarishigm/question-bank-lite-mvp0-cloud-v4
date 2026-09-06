@@ -70,6 +70,24 @@ class GeneratedQuestion(BaseModel):
 class GeneratedQuestionBatch(BaseModel):
     questions: list[GeneratedQuestion]
 
+class PromptGuidanceRequest(BaseModel):
+    exam_name: str = Field(min_length=1,max_length=300)
+    subject: str = Field(min_length=1,max_length=300)
+    exam_type: str = Field(default="",max_length=200)
+    level: str = Field(default="",max_length=200)
+    chapter: str = Field(default="",max_length=300)
+    topic: str = Field(default="",max_length=300)
+    subtopic: str = Field(default="",max_length=300)
+    difficulty: str = Field(default="",max_length=100)
+    question_type: str = Field(default="",max_length=200)
+    count: int = Field(default=5,ge=1,le=50)
+    marks: str = Field(default="",max_length=50)
+    language: str = Field(default="English",max_length=100)
+
+class PromptGuidance(BaseModel):
+    syllabus: str = Field(min_length=20,max_length=20_000)
+    generation_prompt: str = Field(min_length=20,max_length=20_000)
+
 
 def public_prompt_preview(request: GenerationRequest) -> str:
     metadata = {
@@ -95,6 +113,19 @@ def validate_question(question: GeneratedQuestion) -> None:
 def fingerprint(statement: str) -> str:
     normalized=" ".join(statement.casefold().split())
     return hashlib.sha256(normalized.encode()).hexdigest()
+
+def generate_prompt_guidance(request: PromptGuidanceRequest, client=None) -> tuple[PromptGuidance,str]:
+    if not gcp_project_id():raise RuntimeError("Vertex AI is unavailable. Configure GCP_PROJECT_ID and credentials.")
+    model=os.getenv("VERTEX_MODEL_PRIMARY","gemini-3.5-flash")
+    from google.genai import types
+    if client is None:
+        from google import genai
+        client=genai.Client(vertexai=True,project=gcp_project_id(),location=gcp_region(),http_options=types.HttpOptions(api_version="v1",timeout=180000))
+    context=json.dumps(request.model_dump(),ensure_ascii=False,indent=2)
+    response=client.models.generate_content(model=model,contents=f"""Create expert guidance for an administrator generating assessment questions. Use this minimal metadata:\n{context}\n\nReturn two fields. `syllabus` must be a focused curriculum scope with learning objectives, included concepts, exclusions where useful, and expected prerequisite knowledge. `generation_prompt` must be a ready-to-use instruction specifying age-appropriate difficulty, reasoning style, question construction, option quality, answer validity, concise worked solutions, and correct LaTeX/chemical notation when relevant. Generate exactly the requested number later; do not generate questions now. Keep both fields practical and editable.""",config=types.GenerateContentConfig(temperature=0.3,response_mime_type="application/json",response_schema=PromptGuidance,max_output_tokens=8192))
+    payload=_json_payload(response)
+    try:return PromptGuidance.model_validate(payload),model
+    except Exception as exc:raise ValueError(f"Gemini guidance did not match the required schema: {exc}") from exc
 
 
 def _json_payload(response) -> Any:

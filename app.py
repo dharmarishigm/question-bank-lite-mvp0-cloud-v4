@@ -30,7 +30,7 @@ from llm_extract import extract_image, extract_pdf, extract_source, llm_status
 from ocr import OcrUnavailable, ocr_status, ocr_to_latex, vision_status
 from pdf_import import parse_pdf
 from multimodal import build_content_blocks
-from llm_generate import GenerationRequest, SYSTEM_PROMPT_VERSION, fingerprint, generate_questions, public_prompt_preview
+from llm_generate import GenerationRequest, PromptGuidanceRequest, SYSTEM_PROMPT_VERSION, fingerprint, generate_prompt_guidance, generate_questions, public_prompt_preview
 from database import connect as connect_database
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -1019,6 +1019,15 @@ def preview_ai_generation(payload: GenerationRequest, request: Request):
     from platform_api import _auth, require_admin
     require_admin(_auth(request, True))
     return {"effective_prompt": public_prompt_preview(payload), "model": os.getenv("VERTEX_MODEL_PRIMARY", "gemini-3.5-flash")}
+
+@app.post("/api/ai/prompt-guidance")
+def guide_ai_generation(payload: PromptGuidanceRequest, request: Request):
+    from platform_api import _auth, require_admin
+    require_admin(_auth(request,True))
+    try:
+        guidance,model=generate_prompt_guidance(payload)
+        return {**guidance.model_dump(),"model":model}
+    except (ValueError,RuntimeError) as exc:raise HTTPException(422,str(exc)) from exc
 
 
 @app.get("/api/ai/runs")
