@@ -28,6 +28,7 @@ function showView(name){
   const panels=[...document.querySelectorAll('.tab-panel')];
   panels.forEach(p=>{const active=p.id===`${name}-panel`;p.hidden=!active;p.classList.toggle('active',active);});
   document.querySelectorAll('.sidebar nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
+  document.body.dataset.view=name;
   if(name==='dashboard') loadDashboard();
   if(name==='available-exams') loadAvailableExams();
   if(name==='my-exams') loadMyExams();
