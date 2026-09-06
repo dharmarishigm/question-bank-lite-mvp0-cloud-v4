@@ -37,7 +37,12 @@ def _qmark(sql: str) -> str:
             continue
         if char == "'":
             quoted = not quoted
-        out.append('%s' if char == '?' and not quoted else char)
+        if char == '?' and not quoted:
+            out.append('%s')
+        elif char == '%':
+            out.append('%%')
+        else:
+            out.append(char)
         index += 1
     return ''.join(out)
 
@@ -75,6 +80,18 @@ class PostgresConnection:
         pragma=re.match(r'\s*PRAGMA\s+table_info\(([^)]+)\)',sql,re.I)
         if pragma:
             cur=self._connection.execute("SELECT column_name AS name,data_type AS type FROM information_schema.columns WHERE table_schema='public' AND table_name=%s ORDER BY ordinal_position",(pragma.group(1),));return PostgresCursor(cur)
+        table_check = re.match(
+            r"\s*SELECT\s+1\s+FROM\s+sqlite_master\s+WHERE\s+type='table'\s+AND\s+name=(\?|\'([^']+)\')",
+            sql,
+            re.I,
+        )
+        if table_check:
+            table_name = params[0] if table_check.group(1) == '?' else table_check.group(2)
+            cur = self._connection.execute(
+                "SELECT 1 AS present FROM information_schema.tables WHERE table_schema='public' AND table_name=%s",
+                (table_name,),
+            )
+            return PostgresCursor(cur)
         statement=translate_sql(sql)
         insert = re.match(r'^INSERT\s+(?:INTO\s+)?["`]?([A-Za-z_][A-Za-z0-9_]*)', statement, re.I)
         table = insert.group(1).lower() if insert else ''

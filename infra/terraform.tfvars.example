@@ -1,6 +1,7 @@
 project_id="your-project-id"
 region="asia-south1"
 image="asia-south1-docker.pkg.dev/your-project-id/question-bank/cloud-v4:latest"
+app_base_url="https://replace-with-cloud-run-service-url"
 google_client_id="your-client-id.apps.googleusercontent.com"
 admin_emails="admin@example.com"
 documentai_processor_id="your-processor-id"

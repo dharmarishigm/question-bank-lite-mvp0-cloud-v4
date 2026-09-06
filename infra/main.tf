@@ -1,5 +1,5 @@
 locals {
-  apis = toset(["artifactregistry.googleapis.com", "run.googleapis.com", "sqladmin.googleapis.com", "secretmanager.googleapis.com", "storage.googleapis.com", "aiplatform.googleapis.com", "documentai.googleapis.com"])
+  apis = toset(["artifactregistry.googleapis.com", "cloudbuild.googleapis.com", "run.googleapis.com", "sqladmin.googleapis.com", "secretmanager.googleapis.com", "storage.googleapis.com", "aiplatform.googleapis.com", "documentai.googleapis.com"])
   bucket = "${var.project_id}-qb-v4-data"
 }
 resource "google_artifact_registry_repository" "app" {
@@ -47,7 +47,8 @@ resource "google_sql_database_instance" "postgres" {
   database_version = "POSTGRES_17"
   deletion_protection = true
   settings {
-    tier = var.database_tier
+    edition = "ENTERPRISE"
+    tier    = var.database_tier
     availability_type = var.high_availability ? "REGIONAL" : "ZONAL"
     disk_type = "PD_SSD"
     disk_size = 20
@@ -103,7 +104,7 @@ resource "google_secret_manager_secret" "app" {
 resource "google_secret_manager_secret_version" "app" {
   for_each    = nonsensitive(toset(keys(var.secret_env)))
   secret      = google_secret_manager_secret.app[each.key].id
-  secret_data = each.value
+  secret_data = var.secret_env[each.key]
 }
 resource "google_secret_manager_secret_iam_member" "app" {
   for_each  = nonsensitive(toset(keys(var.secret_env)))
@@ -149,6 +150,7 @@ resource "google_cloud_run_v2_service" "app" {
           GOOGLE_CLIENT_ID = var.google_client_id
           ADMIN_EMAILS = var.admin_emails
           DOCUMENTAI_PROCESSOR_ID = var.documentai_processor_id
+          APP_BASE_URL = var.app_base_url
         }
         content {
           name = env.key
@@ -158,9 +160,9 @@ resource "google_cloud_run_v2_service" "app" {
       env {
         name = "DATABASE_URL"
         value_source {
-          secret_key_ref {
-            secret = google_secret_manager_secret.database_url.secret_id
-            version = "latest"
+            secret_key_ref {
+              secret = google_secret_manager_secret.database_url.secret_id
+              version = google_secret_manager_secret_version.database_url.version
           }
         }
       }
@@ -171,7 +173,7 @@ resource "google_cloud_run_v2_service" "app" {
           value_source {
             secret_key_ref {
               secret  = google_secret_manager_secret.app[env.key].secret_id
-              version = "latest"
+              version = google_secret_manager_secret_version.app[env.key].version
             }
           }
         }
@@ -186,7 +188,7 @@ resource "google_cloud_run_v2_service" "app" {
       }
       startup_probe {
         http_get {
-          path = "/api/system/status"
+          path = "/healthz"
           port = 8080
         }
         initial_delay_seconds = 10
@@ -209,7 +211,13 @@ resource "google_cloud_run_v2_service" "app" {
       }
     }
   }
-  depends_on = [google_secret_manager_secret_iam_member.database, google_storage_bucket_iam_member.app]
+  depends_on = [
+    google_secret_manager_secret_iam_member.database,
+    google_secret_manager_secret_iam_member.app,
+    google_secret_manager_secret_version.database_url,
+    google_secret_manager_secret_version.app,
+    google_storage_bucket_iam_member.app,
+  ]
 }
 resource "google_cloud_run_v2_service_iam_member" "public" {
   project = var.project_id

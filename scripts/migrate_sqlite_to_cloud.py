@@ -22,7 +22,7 @@ def migrate_rows(source,destination):
 def migrate_files(root,bucket_name):
     client=storage.Client();bucket=client.bucket(bucket_name);count=0
     for path in root.rglob('*'):
-        if not path.is_file():continue
+        if not path.is_file() or path.suffix.lower() in {'.db', '.sqlite', '.sqlite3'}:continue
         name=path.relative_to(root).as_posix();blob=bucket.blob(name)
         if not blob.exists(client):blob.upload_from_filename(path,content_type=mimetypes.guess_type(path.name)[0]);count+=1
     print(f'objects uploaded: {count}')

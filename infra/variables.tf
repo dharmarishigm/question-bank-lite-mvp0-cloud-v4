@@ -7,6 +7,11 @@ variable "service_name" {
   type    = string
   default = "question-bank-cloud-v4"
 }
+variable "app_base_url" {
+  type        = string
+  default     = ""
+  description = "Public HTTPS origin used for secure authentication cookies"
+}
 variable "image" {
   type        = string
   description = "Artifact Registry image URL deployed to Cloud Run"

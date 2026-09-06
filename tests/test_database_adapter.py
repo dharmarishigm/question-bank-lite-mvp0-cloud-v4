@@ -3,6 +3,7 @@ from database import _qmark, translate_ddl, translate_sql
 
 def test_qmark_translation_preserves_literals_and_escaped_quotes():
     assert _qmark("SELECT '?', 'it''s ?' WHERE id=?") == "SELECT '?', 'it''s ?' WHERE id=%s"
+    assert _qmark("SELECT 1 WHERE name LIKE 'bootstrap:%'") == "SELECT 1 WHERE name LIKE 'bootstrap:%%'"
 
 
 def test_sqlite_insert_and_ddl_are_portable():

@@ -322,7 +322,7 @@ async def protect_legacy_admin_api(request: Request, call_next):
     mock mode is configured. This keeps offline parser unit tests usable while a
     configured application never exposes the legacy question APIs to students.
     """
-    configured = bool(os.getenv("GOOGLE_CLIENT_ID")) or os.getenv("AUTH_MODE") == "mock"
+    configured = bool(os.getenv("GOOGLE_CLIENT_ID") or os.getenv("ADMIN_LOCAL_EMAIL")) or os.getenv("AUTH_MODE") == "mock"
     admin_prefixes = (
         "/api/questions", "/api/facets", "/api/upload", "/api/source",
         "/api/pdf", "/api/ocr", "/api/export", "/api/import",
@@ -1800,6 +1800,11 @@ def import_questions(items: list[Question]):
 
 app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
 
 
 @app.get("/")
