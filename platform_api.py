@@ -37,6 +37,16 @@ CREATE TABLE IF NOT EXISTS exam_questions (
  marks REAL NOT NULL DEFAULT 1, negative_marks REAL NOT NULL DEFAULT 0, section_name TEXT NOT NULL DEFAULT '', required INTEGER NOT NULL DEFAULT 1,
  created_at REAL NOT NULL, UNIQUE(exam_id, question_id), FOREIGN KEY(exam_id) REFERENCES exams(id), FOREIGN KEY(question_id) REFERENCES questions(id));
 CREATE INDEX IF NOT EXISTS idx_exam_questions_exam ON exam_questions(exam_id);
+CREATE TABLE IF NOT EXISTS exam_blueprints (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, exam_id INTEGER, name TEXT NOT NULL, blueprint_json TEXT NOT NULL,
+ created_by INTEGER NOT NULL, created_at REAL NOT NULL, updated_at REAL NOT NULL,
+ FOREIGN KEY(exam_id) REFERENCES exams(id), FOREIGN KEY(created_by) REFERENCES users(id));
+CREATE TABLE IF NOT EXISTS exam_generation_runs (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, exam_id INTEGER, blueprint_id INTEGER NOT NULL, requested_questions INTEGER NOT NULL,
+ selected_questions INTEGER NOT NULL DEFAULT 0, shortage_count INTEGER NOT NULL DEFAULT 0, fallback_count INTEGER NOT NULL DEFAULT 0,
+ selection_seed INTEGER NOT NULL DEFAULT 0, status TEXT NOT NULL, request_json TEXT NOT NULL, result_json TEXT NOT NULL,
+ created_by INTEGER NOT NULL, created_at REAL NOT NULL,
+ FOREIGN KEY(exam_id) REFERENCES exams(id), FOREIGN KEY(blueprint_id) REFERENCES exam_blueprints(id), FOREIGN KEY(created_by) REFERENCES users(id));
 CREATE TABLE IF NOT EXISTS exam_enrollments (
  id INTEGER PRIMARY KEY AUTOINCREMENT, exam_id INTEGER NOT NULL, user_id INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'ENROLLED',
  registered_at REAL NOT NULL, cancelled_at REAL, created_at REAL NOT NULL, updated_at REAL NOT NULL, UNIQUE(exam_id,user_id),
@@ -223,6 +233,85 @@ class ExamIn(BaseModel):
     proctor_required:bool=False;result_release_mode:str='IMMEDIATE'
     allow_retake:bool=False;allow_self_registration:bool=True;allow_registration_link:bool=True
     question_ids:list[int]=Field(default_factory=list)
+
+from exam_generation_service import ExamBlueprint, availability as blueprint_availability, combined as combine_filters, generate as generate_blueprint, load_candidates, matches as question_matches
+
+@router.post('/admin/exam-blueprints/availability')
+async def check_exam_blueprint(request:Request):
+    require_admin(_auth(request,True));blueprint=ExamBlueprint.model_validate(await request.json())
+    with closing(db()) as conn:return blueprint_availability(conn,blueprint)
+
+@router.post('/admin/exam-blueprints/preview')
+async def preview_exam_blueprint(request:Request):
+    require_admin(_auth(request,True));blueprint=ExamBlueprint.model_validate(await request.json())
+    with closing(db()) as conn:
+        try:return generate_blueprint(conn,blueprint)
+        except ValueError as exc:raise HTTPException(409,str(exc))
+
+class BlueprintApproval(BaseModel):
+    blueprint: ExamBlueprint
+    question_ids: list[int] = Field(min_length=1, max_length=200)
+    selection_rule_ids: dict[int,str] = Field(default_factory=dict)
+    status: str = 'DRAFT'
+
+class BlueprintReplacement(BaseModel):
+    blueprint: ExamBlueprint
+    rule_id: str
+    exclude_question_ids: list[int] = Field(default_factory=list)
+
+@router.post('/admin/exam-blueprints/replacement')
+async def replace_blueprint_question(request:Request):
+    require_admin(_auth(request,True));data=BlueprintReplacement.model_validate(await request.json())
+    rule=next((r for r in data.blueprint.rules if r.id==data.rule_id),None)
+    if not rule:raise HTTPException(404,'Blueprint rule not found')
+    replacement=data.blueprint.model_copy(update={'total_questions':1,'rules':[rule.model_copy(update={'count':1})],'exclude_question_ids':data.exclude_question_ids})
+    with closing(db()) as conn:
+        try:return generate_blueprint(conn,replacement)['questions'][0]
+        except (ValueError,IndexError) as exc:raise HTTPException(409,str(exc) or 'No matching replacement is available')
+
+@router.post('/admin/exam-blueprints/approve')
+async def approve_exam_blueprint(request:Request):
+    user=require_admin(_auth(request,True));data=BlueprintApproval.model_validate(await request.json());bp=data.blueprint;now=time.time()
+    if len(data.question_ids)!=bp.total_questions or len(set(data.question_ids))!=len(data.question_ids):raise HTTPException(422,'Selected question count must equal the blueprint total and contain no duplicates')
+    if data.status not in {'DRAFT','PUBLISHED'}:raise HTTPException(422,'Status must be DRAFT or PUBLISHED')
+    with closing(db()) as conn:
+        generated=generate_blueprint(conn,bp);pool={q['id']:q for q in load_candidates(conn,bp)};rule_map={r.id:r for r in bp.rules};counts={r.id:0 for r in bp.rules}
+        selection_rules=data.selection_rule_ids or {q['id']:q['rule_id'] for q in generated['questions']}
+        for qid in data.question_ids:
+            rule_id=selection_rules.get(qid);rule=rule_map.get(rule_id or '')
+            effective=combine_filters(bp.global_filters,rule.filters) if rule else None
+            valid=bool(rule and qid in pool and (question_matches(pool[qid],effective) or (bp.allow_controlled_fallback and (question_matches(pool[qid],effective,'subtopic') or question_matches(pool[qid],effective,'topic')))))
+            if not valid:
+                raise HTTPException(409,f'Question {qid} does not satisfy its blueprint rule')
+            counts[rule_id]+=1
+        if any(counts[r.id]!=r.count for r in bp.rules):raise HTTPException(409,'Selected questions no longer satisfy the blueprint quotas')
+        cur=conn.execute('INSERT INTO exams(name,description,exam_type,subject,level,instructions,duration_minutes,negative_marking,status,max_attempts,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(bp.exam_name,bp.prompt,bp.exam_type,bp.global_filters.subject or '',bp.global_filters.grade or '','',bp.duration_minutes,0,data.status,1,user['id'],now,now));eid=cur.lastrowid
+        questions={qid:pool[qid] for qid in data.question_ids}
+        for order,qid in enumerate(data.question_ids,1):
+            try:marks=max(.01,float(questions[qid].get('marks') or 1))
+            except (TypeError,ValueError):marks=1
+            conn.execute('INSERT INTO exam_questions(exam_id,question_id,display_order,marks,negative_marks,created_at) VALUES(?,?,?,?,0,?)',(eid,qid,order,marks,now))
+        conn.execute('UPDATE exams SET total_marks=(SELECT COALESCE(SUM(marks),0) FROM exam_questions WHERE exam_id=?) WHERE id=?',(eid,eid))
+        raw=bp.model_dump_json();bcur=conn.execute('INSERT INTO exam_blueprints(exam_id,name,blueprint_json,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?)',(eid,bp.exam_name,raw,user['id'],now,now));bid=bcur.lastrowid
+        summary=generated['summary'];rcur=conn.execute('INSERT INTO exam_generation_runs(exam_id,blueprint_id,requested_questions,selected_questions,shortage_count,fallback_count,selection_seed,status,request_json,result_json,created_by,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',(eid,bid,bp.total_questions,len(data.question_ids),0,summary['fallback_matches'],bp.random_seed,'GENERATED',raw,json.dumps(summary),user['id'],now));run_id=rcur.lastrowid
+        if data.status=='PUBLISHED':
+            from exam_conduct import publish_version
+            publish_version(conn,eid,user['id'])
+            conn.execute("UPDATE exam_generation_runs SET status='PUBLISHED' WHERE id=?",(run_id,))
+        conn.commit()
+    return {'id':eid,'blueprint_id':bid,'generation_run_id':run_id,'status':data.status}
+
+@router.get('/admin/question-metadata/facets')
+def question_metadata_facets(request:Request,grade:str='',subject:str='',chapter:str='',topic:str=''):
+    require_admin(_auth(request));conditions=["statement<>''"];params=[]
+    for field,value in (("subject",subject),("chapter",chapter),("topic",topic)):
+        if value:conditions.append(f"lower({field})=lower(?)");params.append(value)
+    if grade:conditions.append("lower(exam || ' ' || tags || ' ' || generation_metadata) LIKE ?");params.append(f"%{grade.lower().replace('class ','grade ')}%")
+    where=' AND '.join(conditions);result={}
+    with closing(db()) as conn:
+        for field,key in (("subject","subjects"),("chapter","chapters"),("topic","topics"),("subtopic","subtopics"),("difficulty","difficulties"),("qtype","question_types"),("source_type","source_types"),("verification_status","verification_statuses")):
+            result[key]=[{'value':r['value'],'count':r['count']} for r in conn.execute(f"SELECT {field} value,COUNT(*) count FROM questions WHERE {where} AND {field}<>'' GROUP BY {field} ORDER BY count DESC,{field}",tuple(params)).fetchall()]
+    return result
 
 def _exam(row, count=0):
     return {**dict(row),'question_count':count}

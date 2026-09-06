@@ -171,12 +171,20 @@
       <div class="section-heading"><div><h2>Generate exam</h2><p class="muted">Generate and start a standard timed paper with navigation, review flags, answer clearing, and final submission.</p></div></div>
 
       <div id="exam-session-empty">
-        <div class="exam-paper-controls">
-          <button id="exam-start-button" class="primary" type="button">Start exam</button>
-          <button id="exam-generate-paper-tab" type="button">Generate 15-question paper</button>
-          <button id="exam-create-managed" type="button">Create managed exam from paper</button>
-        </div>
+        <form id="exam-blueprint-form" class="exam-blueprint-form">
+          <fieldset><legend>Exam information</legend><div class="blueprint-global-grid">
+            <label>Exam name *<input id="blueprint-name" required placeholder="Grade 8 Mathematics Olympiad" /></label><label>Exam type<input id="blueprint-type" placeholder="Olympiad" /></label>
+            <label>Grade / level *<input id="blueprint-grade" required placeholder="Grade 8" /></label><label>Subject *<select id="blueprint-subject" required><option value="">Select subject</option></select></label>
+            <label>Total questions *<input id="blueprint-total" type="number" min="1" max="200" value="15" required /></label><label>Duration (minutes)<input id="blueprint-duration" type="number" min="1" max="1440" value="30" required /></label>
+            <label>Quality<select id="blueprint-verification"><option value="APPROVED,AI_VALIDATED">Approved / AI validated</option><option value="APPROVED">Approved only</option><option value="">All structurally valid</option></select></label><label>Source<select id="blueprint-source"><option value="">All sources</option><option>MANUAL</option><option>DIGITIZED</option><option>AI_GENERATED</option></select></label>
+          </div><label class="wide">Selection prompt<textarea id="blueprint-prompt" rows="3" placeholder="Prioritise multi-step reasoning and practical applications..."></textarea></label></fieldset>
+          <fieldset><legend>Curriculum blueprint</legend><p class="muted">Every row is an exact quota. Blank metadata means any value satisfying the remaining filters.</p><div class="table-wrap"><table class="blueprint-table"><thead><tr><th>Chapter</th><th>Topic</th><th>Subtopic</th><th>Difficulty</th><th>Type</th><th>Count</th><th></th></tr></thead><tbody id="blueprint-rules"></tbody></table></div><div class="blueprint-toolbar"><button id="blueprint-add-rule" type="button">+ Add rule</button><span id="blueprint-count-summary" class="muted"></span></div></fieldset>
+          <details><summary>Selection policy</summary><div class="blueprint-policy"><label class="inline"><input id="blueprint-fallback" type="checkbox" /> Allow controlled subtopic/topic fallback</label><label>Reproducible seed<input id="blueprint-seed" type="number" value="0" /></label></div></details>
+          <div class="exam-paper-controls blueprint-actions"><button id="blueprint-check" type="button">Check availability</button><button id="blueprint-generate" class="primary" type="submit">Generate preview</button></div>
+        </form>
+        <section id="blueprint-availability" class="blueprint-availability" hidden></section><section id="blueprint-summary" class="blueprint-summary" hidden></section>
         <div id="exam-paper-preview-tab" class="exam-paper-preview" aria-live="polite"></div>
+        <div id="blueprint-approval" class="blueprint-approval" hidden><span id="blueprint-selection-count"></span><button id="exam-create-managed" class="primary" type="button">Approve and create durable draft</button><button id="exam-create-publish" type="button">Approve and publish</button></div>
       </div>
 
       <div id="exam-session" class="exam-session" hidden>
@@ -467,6 +475,6 @@
 <div id="notification" class="notification" role="status" aria-live="polite" hidden></div>
 <script src="/static/app.js"></script>
 <script src="/static/pdf-viewer.js"></script>
-<script src="/static/platform-ui.js?v=20260906-result-rendering"></script>
+<script src="/static/platform-ui.js?v=20260906-blueprint-exams"></script>
 </body>
 </html>

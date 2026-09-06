@@ -173,7 +173,13 @@ async def add_questions_from_bank(exam_id:int,request:Request):
     with closing(db()) as conn:
         exam=conn.execute("SELECT * FROM exams WHERE id=?",(exam_id,)).fetchone()
         if not exam:raise HTTPException(404,"Exam not found")
-        rows=conn.execute("SELECT id,marks FROM questions WHERE statement<>'' AND id NOT IN (SELECT question_id FROM exam_questions WHERE exam_id=?) ORDER BY RANDOM() LIMIT ?",(exam_id,limit)).fetchall()
+        subject=str(exam["subject"] or "").strip()
+        rows=conn.execute("""SELECT q.id,q.marks FROM questions q LEFT JOIN
+          (SELECT question_id,COUNT(*) uses FROM exam_questions GROUP BY question_id) u ON u.question_id=q.id
+          WHERE q.statement<>'' AND (?='' OR lower(q.subject)=lower(?))
+          AND q.id NOT IN (SELECT question_id FROM exam_questions WHERE exam_id=?)
+          ORDER BY CASE lower(q.verification_status) WHEN 'approved' THEN 0 WHEN 'ai_validated' THEN 1 ELSE 2 END,
+          q.confidence DESC,COALESCE(u.uses,0),q.id LIMIT ?""",(subject,subject,exam_id,limit)).fetchall()
         start=conn.execute("SELECT COALESCE(MAX(display_order),0) n FROM exam_questions WHERE exam_id=?",(exam_id,)).fetchone()["n"]
         for offset,row in enumerate(rows,1):
             try:marks=float(row["marks"] or 1)

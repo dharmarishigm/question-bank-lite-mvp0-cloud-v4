@@ -67,6 +67,22 @@ main { display: grid; gap: 14px; padding: 14px; width: min(900px, 100%); margin:
 .exam-paper-item { border: 1px solid #e3e6ea; border-radius: 8px; background: #f9fafc; padding: 10px 12px; }
 .exam-paper-meta { display: flex; flex-wrap: wrap; gap: 6px; font-size: 11px; color: #55606e; margin-bottom: 8px; }
 .exam-paper-meta span { background: #eef1f5; border-radius: 999px; padding: 2px 8px; }
+.exam-blueprint-form { display: grid; gap: 14px; }
+.exam-blueprint-form fieldset { border: 1px solid #dfe5ec; border-radius: 10px; padding: 14px; }
+.exam-blueprint-form legend { padding: 0 7px; font-weight: 700; color: #213b61; }
+.blueprint-global-grid { display: grid; grid-template-columns: repeat(4,minmax(140px,1fr)); gap: 10px; }
+.blueprint-global-grid label,.blueprint-policy label { display: grid; gap: 4px; }
+.blueprint-table input,.blueprint-table select { min-width: 110px; width: 100%; }
+.blueprint-table th { white-space: nowrap; }
+.blueprint-toolbar,.blueprint-policy,.blueprint-approval { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.blueprint-toolbar { margin-top: 10px; justify-content: space-between; }
+.blueprint-actions { position: sticky; bottom: 10px; z-index: 5; background: #fff; border: 1px solid #dfe5ec; border-radius: 10px; padding: 10px; box-shadow: 0 8px 24px #12263f1a; }
+.blueprint-availability,.blueprint-summary { margin-top: 14px; border: 1px solid #dfe5ec; border-radius: 10px; padding: 12px; }
+.blueprint-shortage { color: #a33622; font-weight: 700; }.blueprint-ready { color: #18704a; font-weight: 700; }
+.blueprint-approval { position: sticky; bottom: 10px; background: #eef5ff; border: 1px solid #bed3f5; border-radius: 10px; padding: 12px; z-index: 6; }
+.blueprint-question-select { margin-right: 8px; }
+@media(max-width:900px){.blueprint-global-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.blueprint-table{min-width:850px}}
+@media(max-width:560px){.blueprint-global-grid{grid-template-columns:1fr}}
 .exam-option-list { list-style: none; padding-left: 0; margin: 12px 0 0; display: grid; gap: 6px; }
 .exam-option-list li { display: flex; align-items: flex-start; gap: 8px; }
 .exam-option-list .option-label { min-width: 24px; color: #2f6fed; font-weight: 600; }

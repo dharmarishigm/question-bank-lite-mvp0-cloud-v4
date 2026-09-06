@@ -100,6 +100,30 @@ class PlatformSecurityTests(unittest.TestCase):
         self.assertEqual(question_ids,[admin.get(f'/api/admin/exams/{eid}/paper').json()['questions'][0]['id']])
         published=admin.put(f'/api/admin/exams/{eid}/state',headers={'X-CSRF-Token':self.csrf(admin)},json={'status':'PUBLISHED'});self.assertEqual(published.status_code,200,published.text)
 
+    def test_blueprint_generation_is_metadata_driven_and_durable(self):
+        admin,_=self.login('admin@example.test')
+        with patch.dict(os.environ,{'AUTH_MODE':''}):
+            algebra=[app.create_question(app.Question(subject='Mathematics',chapter='Algebra',topic='Equations',exam='Grade 8 Olympiad',difficulty='hard',qtype='mcq_single',statement=f'Algebra problem {i}?',options=['One','Two'],answer='A',verification_status='APPROVED',confidence=.95)) for i in range(3)]
+            geometry=[app.create_question(app.Question(subject='Mathematics',chapter='Geometry',exam='Grade 8 Olympiad',difficulty='hard',qtype='mcq_single',statement=f'Geometry problem {i}?',options=['One','Two'],answer='B',verification_status='APPROVED',confidence=.9)) for i in range(2)]
+            app.create_question(app.Question(subject='Science',chapter='Algebra',exam='Grade 8 Olympiad',difficulty='hard',qtype='mcq_single',statement='Wrong subject?',options=['One','Two'],answer='A',verification_status='APPROVED'))
+            app.create_question(app.Question(subject='Mathematics',chapter='Algebra',exam='Grade 9 Olympiad',difficulty='hard',qtype='mcq_single',statement='Wrong grade?',options=['One','Two'],answer='A',verification_status='APPROVED'))
+        blueprint={'exam_name':'Grade 8 Mathematics Olympiad','exam_type':'Olympiad','total_questions':3,'duration_minutes':45,'global_filters':{'grade':'Grade 8','subject':'Mathematics','verification_statuses':['APPROVED']},'rules':[{'id':'algebra','count':2,'filters':{'chapter':'Algebra','difficulty':'hard','question_type':'mcq_single'}},{'id':'geometry','count':1,'filters':{'chapter':'Geometry','difficulty':'hard','question_type':'mcq_single'}}],'random_seed':42}
+        available=self.post(admin,'/api/admin/exam-blueprints/availability',json=blueprint);self.assertEqual(available.status_code,200,available.text);self.assertTrue(available.json()['ready']);self.assertEqual([x['available'] for x in available.json()['rules']],[3,2])
+        first=self.post(admin,'/api/admin/exam-blueprints/preview',json=blueprint);second=self.post(admin,'/api/admin/exam-blueprints/preview',json=blueprint);self.assertEqual(first.status_code,200,first.text);self.assertEqual([q['id'] for q in first.json()['questions']],[q['id'] for q in second.json()['questions']]);self.assertEqual([q['chapter'] for q in first.json()['questions']],['Algebra','Algebra','Geometry'])
+        approved=self.post(admin,'/api/admin/exam-blueprints/approve',json={'blueprint':blueprint,'question_ids':[q['id'] for q in first.json()['questions']],'status':'PUBLISHED'});self.assertEqual(approved.status_code,200,approved.text)
+        paper=admin.get(f"/api/admin/exams/{approved.json()['id']}/paper").json();self.assertEqual(len(paper['questions']),3)
+        with app.connect() as conn:conn.execute("UPDATE questions SET statement='Changed after publication' WHERE id=?",(algebra[0]['id'],));conn.commit()
+        self.assertNotIn('Changed after publication',str(admin.get(f"/api/admin/exams/{approved.json()['id']}/paper").json()))
+
+    def test_blueprint_shortage_never_fills_from_unrelated_questions(self):
+        admin,_=self.login('admin@example.test')
+        with patch.dict(os.environ,{'AUTH_MODE':''}):
+            app.create_question(app.Question(subject='Mathematics',chapter='Geometry',exam='Grade 8',difficulty='hard',statement='Only geometry?',options=['A','B'],answer='A',verification_status='APPROVED'))
+            app.create_question(app.Question(subject='Mathematics',chapter='Algebra',exam='Grade 8',difficulty='hard',statement='Unrelated algebra?',options=['A','B'],answer='A',verification_status='APPROVED'))
+        bp={'exam_name':'Shortage','total_questions':2,'global_filters':{'grade':'Grade 8','subject':'Mathematics','verification_statuses':['APPROVED']},'rules':[{'id':'geometry','count':2,'filters':{'chapter':'Geometry','difficulty':'hard'}}]}
+        availability=self.post(admin,'/api/admin/exam-blueprints/availability',json=bp).json();self.assertFalse(availability['ready']);self.assertEqual(availability['rules'][0]['available'],1)
+        generated=self.post(admin,'/api/admin/exam-blueprints/preview',json=bp);self.assertEqual(generated.status_code,409);self.assertIn('Only 1 matching',generated.text)
+
     def test_admin_pending_registration_links_only_matching_verified_login(self):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):q=app.create_question(app.Question(statement='Q',answer='A'))

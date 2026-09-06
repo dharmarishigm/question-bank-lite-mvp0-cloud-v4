@@ -94,6 +94,11 @@ CREATE TABLE IF NOT EXISTS questions (
 );
 CREATE INDEX IF NOT EXISTS idx_questions_subject ON questions(subject);
 CREATE INDEX IF NOT EXISTS idx_questions_chapter ON questions(chapter);
+CREATE INDEX IF NOT EXISTS idx_questions_topic ON questions(topic);
+CREATE INDEX IF NOT EXISTS idx_questions_difficulty ON questions(difficulty);
+CREATE INDEX IF NOT EXISTS idx_questions_qtype ON questions(qtype);
+CREATE INDEX IF NOT EXISTS idx_questions_verification ON questions(verification_status);
+CREATE INDEX IF NOT EXISTS idx_questions_source_type ON questions(source_type);
 
 CREATE TABLE IF NOT EXISTS source_documents (
     id TEXT PRIMARY KEY,
@@ -1237,7 +1242,9 @@ def _exam_question_from_db(row: sqlite3.Row, number: int) -> dict:
 def _sample_exam_questions() -> list[dict]:
     with closing(connect()) as conn:
         rows = conn.execute(
-            "SELECT * FROM questions WHERE TRIM(statement) != '' AND options IS NOT NULL AND options != '[]' ORDER BY RANDOM() LIMIT 15"
+            """SELECT * FROM questions WHERE TRIM(statement) != '' AND options IS NOT NULL AND options != '[]'
+            ORDER BY CASE lower(verification_status) WHEN 'approved' THEN 0 WHEN 'ai_validated' THEN 1 ELSE 2 END,
+            confidence DESC,id LIMIT 15"""
         ).fetchall()
     questions = [_exam_question_from_db(row, idx + 1) for idx, row in enumerate(rows)]
     if len(questions) >= 15:
