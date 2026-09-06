@@ -142,14 +142,33 @@ def generate_questions(request: GenerationRequest, client=None) -> tuple[Generat
         from google.genai import types
         client=genai.Client(vertexai=True,project=gcp_project_id(),location=gcp_region(),http_options=types.HttpOptions(api_version="v1",timeout=180000))
     from google.genai import types
-    questions=[];usage={"prompt_token_count":0,"candidates_token_count":0,"total_token_count":0};batch_size=max(1,min(10,int(os.getenv("AI_GENERATION_BATCH_SIZE","10"))))
-    for offset in range(0,request.count,batch_size):
-        size=min(batch_size,request.count-offset);batch_request=request.model_copy(update={"count":size})
-        response=client.models.generate_content(model=model,contents=public_prompt_preview(batch_request),config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION,temperature=0.4,automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),response_mime_type="application/json",response_schema=GeneratedQuestionBatch,max_output_tokens=min(32768,4096+size*1800)))
-        batch=parse_generated_batch(response)
-        if len(batch.questions)!=size:raise ValueError(f"Gemini returned {len(batch.questions)} questions in batch {offset//batch_size+1}; expected {size}")
-        for question in batch.questions:validate_question(question)
-        questions.extend(batch.questions);usage_obj=getattr(response,"usage_metadata",None)
+    questions=[];usage={"prompt_token_count":0,"candidates_token_count":0,"total_token_count":0};batch_size=max(1,min(5,int(os.getenv("AI_GENERATION_BATCH_SIZE","5"))))
+
+    def account(response) -> None:
+        usage_obj=getattr(response,"usage_metadata",None)
         if usage_obj:
             for key in usage:usage[key]+=int(getattr(usage_obj,key,0) or 0)
+
+    def generate_batch(batch_request: GenerationRequest, retries: int = 2) -> list[GeneratedQuestion]:
+        last_error=None
+        for attempt in range(retries+1):
+            prompt=public_prompt_preview(batch_request)
+            if attempt:
+                prompt += "\n\nRETRY REQUIREMENT\nThe prior response was invalid or truncated. Return complete valid JSON. Keep statements, options, and solutions concise. Escape LaTeX backslashes and chemical notation correctly; do not put raw line breaks inside JSON strings."
+            response=client.models.generate_content(model=model,contents=prompt,config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION,temperature=0.25 if attempt else 0.4,automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),response_mime_type="application/json",response_schema=GeneratedQuestionBatch,max_output_tokens=32768))
+            account(response)
+            try:
+                batch=parse_generated_batch(response)
+                if len(batch.questions)!=batch_request.count:raise ValueError(f"Gemini returned {len(batch.questions)} questions; expected {batch_request.count}")
+                for question in batch.questions:validate_question(question)
+                return batch.questions
+            except ValueError as exc:last_error=exc
+        if batch_request.count>1:
+            left=batch_request.count//2
+            return generate_batch(batch_request.model_copy(update={"count":left}))+generate_batch(batch_request.model_copy(update={"count":batch_request.count-left}))
+        raise ValueError(f"Gemini could not return one complete structured question after {retries+1} attempts: {last_error}") from last_error
+
+    for offset in range(0,request.count,batch_size):
+        size=min(batch_size,request.count-offset)
+        questions.extend(generate_batch(request.model_copy(update={"count":size})))
     return GeneratedQuestionBatch(questions=questions),usage,model

@@ -5,7 +5,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import app
-from llm_generate import GeneratedOption, GeneratedQuestion, GeneratedQuestionBatch, GenerationRequest, parse_generated_batch, public_prompt_preview, validate_question
+from llm_generate import GeneratedOption, GeneratedQuestion, GeneratedQuestionBatch, GenerationRequest, generate_questions, parse_generated_batch, public_prompt_preview, validate_question
 from platform_api import init_platform
 
 
@@ -33,6 +33,18 @@ class PromptGenerationTests(unittest.TestCase):
         batch=parse_generated_batch(response)
         self.assertEqual(batch.questions[0].statement,'Choose');self.assertEqual(batch.questions[0].answer,'B')
         self.assertEqual(batch.questions[0].options[0].label,'A');self.assertEqual(batch.questions[0].solution,'Reason')
+
+    def test_generation_retries_truncated_math_json(self):
+        malformed=type('Response',(),{'parsed':None,'text':'{"questions":[{"statement":"Solve $x^2','usage_metadata':None})()
+        valid=type('Response',(),{'parsed':None,'text':'{"questions":[{"statement":"Solve $x^2=4$.","options":["1","2"],"answer":"B","solution":"$x=2$ for the positive root."}]}','usage_metadata':None})()
+        class Models:
+            def __init__(self):self.responses=[malformed,valid];self.calls=[]
+            def generate_content(self,**kwargs):self.calls.append(kwargs);return self.responses.pop(0)
+        client=type('Client',(),{'models':Models()})()
+        with patch('llm_generate.gcp_project_id',return_value='test-project'):
+            batch,_,_=generate_questions(self.request(),client=client)
+        self.assertEqual(len(batch.questions),1);self.assertEqual(batch.questions[0].answer,'B');self.assertEqual(len(client.models.calls),2)
+        self.assertIn('prior response was invalid or truncated',client.models.calls[1]['contents'])
 
     def test_generation_endpoint_persists_canonical_question_and_lineage(self):
         with tempfile.TemporaryDirectory() as directory:
