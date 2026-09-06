@@ -1064,8 +1064,11 @@ def generate_ai_questions(payload: GenerationRequest, request: Request):
         review=[];rejected=0;seen=set()
         for generated in batch.questions:
             if generated.visual_required and generated.visual_spec:
-                from visual_renderer import render_visual_spec
-                url=render_visual_spec(generated.visual_spec.model_dump(),UPLOAD_DIR);generated.visual_assets=[{"type":generated.visual_type or "diagram","asset":url,"description":"AI-generated question and answer figures"}];generated.content_blocks=build_content_blocks(generated.statement,generated.visual_assets)
+                from visual_renderer import render_visual_spec,render_visual_panels
+                spec=generated.visual_spec.model_dump();url=render_visual_spec(spec,UPLOAD_DIR);panels=render_visual_panels(spec,UPLOAD_DIR)
+                original_options={option.label:option.text for option in generated.options};generated.metadata={**generated.metadata,"visual_option_text":original_options,"visual_panel_assets":panels}
+                generated.options=[type(option)(label=option.label,text=f"![Option {option.label} visual diagram]({panels[option.label]})") for option in generated.options]
+                generated.visual_assets=[{"type":generated.visual_type or "diagram","asset":panels["question"],"description":"AI-generated question figure"},{"type":"answer_figures","asset":url,"description":"AI-generated question with answer figures"}];generated.content_blocks=build_content_blocks(generated.statement,generated.visual_assets)
             fp=fingerprint(generated.statement)
             with closing(connect()) as conn: duplicate=conn.execute("SELECT 1 FROM questions WHERE generation_fingerprint=? OR lower(trim(statement))=lower(trim(?)) LIMIT 1",(fp,generated.statement)).fetchone()
             if duplicate or fp in seen: rejected+=1;continue

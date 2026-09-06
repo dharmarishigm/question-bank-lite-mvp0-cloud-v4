@@ -59,6 +59,7 @@ body { background: var(--canvas); color: var(--ink); font: 14px/1.45 Inter, ui-s
 .ai-guidance { display:flex; align-items:center; justify-content:space-between; gap:1rem; margin:1rem 0; padding:1rem 1.25rem; }
 .ai-guidance p { margin:.25rem 0 0; }
 @media (max-width:700px){.ai-guidance{align-items:stretch;flex-direction:column}.ai-guidance button{width:100%}}
+.ai-question-options img,.question-options img,.option img{display:block;width:min(100%,220px);height:180px;object-fit:contain;margin:.5rem auto;background:#fff;border:1px solid var(--line);border-radius:.5rem}
 .pdf-viewer { margin-top: 14px; }.pdf-viewer-toolbar { top: var(--header); }
 #pdf-modal.modal:not([hidden]) { margin-top: 16px; }#pdf-modal .modal-box { width: 100%; margin: 0; padding: 16px; }
 .pdf-item { grid-template-columns: minmax(0,1.15fr) minmax(320px,.85fr); }

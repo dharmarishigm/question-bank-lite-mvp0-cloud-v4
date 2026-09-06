@@ -25,3 +25,15 @@ def render_visual_spec(spec,output_dir):
         x=(i%3)*220;y=(i//3)*240;shapes=''.join(_primitive(p) for p in panel.get('primitives',[]) if isinstance(p,dict));cells.append(f'<g transform="translate({x},{y})"><text x="100" y="18" text-anchor="middle" font-weight="bold">{label}</text><rect x="10" y="28" width="190" height="190" fill="white" stroke="#94a3b8"/><g transform="translate(10,28) scale(.475)">{shapes}</g></g>')
     svg=f'<svg xmlns="http://www.w3.org/2000/svg" width="660" height="480" viewBox="0 0 660 480"><rect width="100%" height="100%" fill="white"/>{"".join(cells)}</svg>'
     name='generated-visual-'+hashlib.sha256(json.dumps(spec,sort_keys=True).encode()).hexdigest()[:16]+'.svg';Path(output_dir).mkdir(parents=True,exist_ok=True);(Path(output_dir)/name).write_text(svg);return '/uploads/'+name
+
+def render_visual_panels(spec,output_dir):
+    """Render question and options separately so MCQ options remain durable images."""
+    panels={'question':spec.get('question_figure') or {}}
+    panels.update({key:(spec.get('options') or {}).get(key) or {} for key in 'ABCD'})
+    digest=hashlib.sha256(json.dumps(spec,sort_keys=True).encode()).hexdigest()[:16];result={}
+    Path(output_dir).mkdir(parents=True,exist_ok=True)
+    for label,panel in panels.items():
+        shapes=''.join(_primitive(p) for p in panel.get('primitives',[]) if isinstance(p,dict))
+        svg=f'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400"><rect width="100%" height="100%" fill="white"/>{shapes}</svg>'
+        name=f'generated-visual-{digest}-{label.lower()}.svg';(Path(output_dir)/name).write_text(svg);result[label]='/uploads/'+name
+    return result

@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 import app
 from llm_generate import GeneratedOption, GeneratedQuestion, GeneratedQuestionBatch, GenerationRequest, PromptGuidanceRequest, generate_prompt_guidance, generate_questions, parse_generated_batch, public_prompt_preview, validate_question
 from platform_api import init_platform
+from visual_renderer import render_visual_panels
 
 
 class PromptGenerationTests(unittest.TestCase):
@@ -53,6 +54,14 @@ class PromptGenerationTests(unittest.TestCase):
         with patch('llm_generate.gcp_project_id',return_value='test-project'):
             guidance,model=generate_prompt_guidance(PromptGuidanceRequest(exam_name='Olympiad',subject='Science',level='Grade 4'),client=client)
         self.assertIn('Grade 4',guidance.syllabus);self.assertIn('four distinct options',guidance.generation_prompt);self.assertTrue(model)
+
+    def test_visual_question_and_each_option_render_as_separate_svg(self):
+        panel={'primitives':[{'type':'LINE','x1':10,'y1':10,'x2':100,'y2':100}]}
+        spec={'question_figure':panel,'options':{key:panel for key in 'ABCD'}}
+        with tempfile.TemporaryDirectory() as directory:
+            assets=render_visual_panels(spec,directory)
+            self.assertEqual(set(assets),{'question','A','B','C','D'})
+            self.assertTrue(all((Path(directory)/url.rsplit('/',1)[-1]).exists() for url in assets.values()))
 
     def test_generation_endpoint_persists_canonical_question_and_lineage(self):
         with tempfile.TemporaryDirectory() as directory:
