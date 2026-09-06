@@ -83,6 +83,7 @@ class PlatformSecurityTests(unittest.TestCase):
         catalog=self.client.get('/api/public/exams')
         self.assertEqual(catalog.status_code,200)
         self.assertEqual([row['id'] for row in catalog.json()],[opened['id']])
+        self.assertTrue(catalog.json()[0]['allow_self_registration'])
         raw=catalog.text
         self.assertNotIn('Private answer test',raw)
         self.assertNotIn('Secret solution',raw)

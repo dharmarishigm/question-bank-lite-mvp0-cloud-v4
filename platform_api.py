@@ -342,10 +342,10 @@ def public_exams():
     """Return only non-sensitive metadata for assessments open to learners."""
     with closing(db()) as conn:
         rows=conn.execute("""SELECT e.id,e.name,e.description,e.exam_type,e.subject,e.level,
-          e.duration_minutes,e.proctor_required,COUNT(eq.id) question_count
+          e.duration_minutes,e.proctor_required,e.allow_self_registration,COUNT(eq.id) question_count
           FROM exams e LEFT JOIN exam_questions eq ON eq.exam_id=e.id
           WHERE e.status='OPEN' GROUP BY e.id ORDER BY e.updated_at DESC LIMIT 12""").fetchall()
-    return [{**dict(row),'proctor_required':bool(row['proctor_required'])} for row in rows]
+    return [{**dict(row),'proctor_required':bool(row['proctor_required']),'allow_self_registration':bool(row['allow_self_registration'])} for row in rows]
 
 @router.get('/exams')
 def exams(request:Request):
