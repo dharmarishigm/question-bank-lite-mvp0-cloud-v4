@@ -51,7 +51,9 @@ class PlatformSecurityTests(unittest.TestCase):
         response=self.client.get('/')
         self.assertEqual(response.status_code,200)
         html=response.text
-        self.assertIn('<title>MeritIQra | AI-Powered Question Bank',html)
+        self.assertIn('<title>MeritIQra | AI-Powered Exam, Practice &amp; Assessment Platform',html)
+        self.assertIn('AI-Powered Assessment Intelligence &amp; Examination Platform',html)
+        self.assertIn('Know Where You Stand. Know How to Move Ahead.',html)
         self.assertIn('name="description"',html)
         self.assertIn('rel="canonical"',html)
         self.assertIn('property="og:title"',html)
