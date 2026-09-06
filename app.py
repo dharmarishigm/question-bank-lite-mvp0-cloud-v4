@@ -1964,7 +1964,7 @@ def sitemap():
 
 @app.get("/{public_path:path}", include_in_schema=False)
 def public_page(public_path: str):
-    public_routes = {"practice-exams", "exams", "features", "ai-question-bank", "ai-question-generation", "online-exam-platform", "assessment-platform", "for-students", "for-schools", "for-organizations", "how-it-works", "about"}
+    public_routes = {"home", "practice-exams", "exams", "features", "ai-question-bank", "ai-question-generation", "online-exam-platform", "assessment-platform", "for-students", "for-schools", "for-organizations", "how-it-works", "about"}
     if public_path in public_routes:
         return FileResponse(os.path.join(BASE_DIR, "static", "public.html"))
     if public_path.startswith("register/exam/"):

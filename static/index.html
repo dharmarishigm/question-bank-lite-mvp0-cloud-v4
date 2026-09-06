@@ -39,6 +39,7 @@
 <header id="app-header" hidden>
   <div class="brand"><span class="brand-symbol" aria-hidden="true"><img src="/static/meritiqra-logo.png?v=20260907-updated" alt="" /></span><div><strong class="app-brand-name">MeritIQra</strong><span class="brand-caption">AI-Powered Intelligence Platform</span></div></div>
   <div class="spacer"></div>
+  <a class="btn workspace-home" href="/home">MeritIQra Home</a>
   <div class="header-actions">
     <label class="btn primary" for="pdf-file">Upload document</label>
     <span id="upload-status" class="upload-status" hidden>
@@ -198,7 +199,9 @@
             <span id="exam-progress-text"></span>
           </div>
           <div class="exam-timer" id="exam-timer">30:00</div>
+          <a id="exam-home" class="btn exam-home" href="/home">Home</a>
         </div>
+        <div id="exam-security-notice" class="exam-security-notice" role="status">Secure exam mode · Fullscreen required · Copying, tab switching and leaving the browser are monitored.</div>
 
         <div class="exam-body-layout">
           <aside class="exam-question-nav" id="exam-question-nav"></aside>

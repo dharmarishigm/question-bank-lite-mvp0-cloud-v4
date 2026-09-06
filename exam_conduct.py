@@ -1,6 +1,6 @@
 """Secure exam eligibility, proctor access, snapshots and monitoring."""
 from __future__ import annotations
-import hashlib,json,re,secrets,sqlite3,string,time
+import hashlib,json,os,re,secrets,sqlite3,string,time
 from contextlib import closing
 from fastapi import APIRouter,HTTPException,Request
 
@@ -108,6 +108,23 @@ async def start(exam_id:int,request:Request):
         except sqlite3.IntegrityError:conn.rollback();active=conn.execute("SELECT id FROM exam_sessions WHERE exam_id=? AND user_id=? AND status='IN_PROGRESS' ORDER BY id DESC LIMIT 1",(exam_id,user["id"])).fetchone();
         if active:return {"session_id":active["id"],"resumed":True}
         raise HTTPException(409,"Could not start examination")
+
+@router.post("/sessions/{session_id}/security-events")
+async def security_event(session_id:int,request:Request):
+    from platform_api import _auth,_submit
+    user=_auth(request,True);body=await request.json();kind=str(body.get('event_type','')).upper()
+    allowed={'COPY_ATTEMPT','CUT_ATTEMPT','PASTE_ATTEMPT','CONTEXT_MENU','PRINT_ATTEMPT','DEVTOOLS_SHORTCUT','TAB_SWITCH','WINDOW_BLUR','FULLSCREEN_EXIT','NAVIGATION_ATTEMPT'}
+    if kind not in allowed:raise HTTPException(422,'Invalid security event')
+    with closing(db()) as conn:
+        session=conn.execute("SELECT * FROM exam_sessions WHERE id=? AND user_id=?",(session_id,user['id'])).fetchone()
+        if not session:raise HTTPException(404,'Active exam session not found')
+        if session['status']!='IN_PROGRESS':return {'recorded':False,'status':session['status']}
+        audit(conn,'SECURITY_VIOLATION',exam_id=session['exam_id'],user_id=user['id'],session_id=session_id,metadata={'type':kind})
+        count=conn.execute("SELECT COUNT(*) n FROM exam_audit_log WHERE session_id=? AND event_type='SECURITY_VIOLATION'",(session_id,)).fetchone()['n']
+        maximum=max(1,int(os.getenv('EXAM_SECURITY_MAX_VIOLATIONS','3')))
+        if count>=maximum:_submit(conn,session,'AUTO_SUBMITTED')
+        else:conn.commit()
+    return {'recorded':True,'violations':count,'maximum':maximum,'auto_submitted':count>=maximum}
 
 @router.post("/admin/exams/{exam_id}/proctor-codes")
 async def generate_code(exam_id:int,request:Request):

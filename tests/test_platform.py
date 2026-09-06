@@ -144,6 +144,12 @@ class PlatformSecurityTests(unittest.TestCase):
         started_a=self.post(alice,f'/api/student/exams/{eid}/start',json={'proctor_code':code});self.assertEqual(started_a.status_code,200,started_a.text);a_sid=started_a.json()['session_id']
         resumed=self.post(alice,f'/api/student/exams/{eid}/start',json={});self.assertEqual(resumed.json(),{'session_id':a_sid,'resumed':True})
         started_b=self.post(bob,f'/api/student/exams/{eid}/start',json={'proctor_code':code});b_sid=started_b.json()['session_id'];self.assertNotEqual(a_sid,b_sid)
+        self.assertEqual(self.post(alice,f'/api/sessions/{b_sid}/security-events',json={'event_type':'COPY_ATTEMPT'}).status_code,404)
+        for number in range(1,4):
+            violation=self.post(bob,f'/api/sessions/{b_sid}/security-events',json={'event_type':'TAB_SWITCH'})
+            self.assertEqual(violation.status_code,200,violation.text);self.assertEqual(violation.json()['violations'],number)
+        self.assertTrue(violation.json()['auto_submitted'])
+        self.assertEqual(bob.get(f'/api/sessions/{b_sid}').json()['session']['status'],'AUTO_SUBMITTED')
         active=alice.get(f'/api/sessions/{a_sid}');self.assertEqual(active.status_code,200);self.assertNotIn('solution',active.text);self.assertNotIn('"answer"',active.text)
         self.assertEqual(bob.get(f'/api/sessions/{a_sid}').status_code,404)
         self.assertEqual(bob.put(f'/api/sessions/{a_sid}/answers/{q["id"]}',headers={'X-CSRF-Token':self.csrf(bob)},json={'selected_answer':'B'}).status_code,404)
