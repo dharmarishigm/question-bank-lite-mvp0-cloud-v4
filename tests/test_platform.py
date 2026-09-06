@@ -41,10 +41,52 @@ class PlatformSecurityTests(unittest.TestCase):
             client=TestClient(app.app)
             try:
                 self.assertTrue(client.get('/api/auth/config').json()['local_admin'])
+                self.assertNotIn('local_admin_email',client.get('/api/auth/config').json())
                 self.assertEqual(client.post('/api/auth/admin-login',json={'email':'admin@example.test','password':'wrong'}).status_code,401)
                 signed_in=client.post('/api/auth/admin-login',json={'email':'admin@example.test','password':'strong-test-password'})
                 self.assertEqual(signed_in.status_code,200,signed_in.text);self.assertEqual(signed_in.json()['role'],'ADMIN')
             finally:client.close()
+
+    def test_public_site_seo_and_private_navigation_boundary(self):
+        response=self.client.get('/')
+        self.assertEqual(response.status_code,200)
+        html=response.text
+        self.assertIn('<title>MeritIQra | AI-Powered Question Bank',html)
+        self.assertIn('name="description"',html)
+        self.assertIn('rel="canonical"',html)
+        self.assertIn('property="og:title"',html)
+        self.assertEqual(html.count('<h1>'),1)
+        self.assertIn('id="public-site"',html)
+        self.assertNotIn('id="admin-nav"',html)
+        self.assertNotIn('id="student-nav"',html)
+        self.assertNotIn('Generate Questions by AI',html)
+        self.assertNotIn('value="admin@example.test"',html)
+        robots=self.client.get('/robots.txt')
+        self.assertEqual(robots.status_code,200)
+        self.assertIn('Disallow: /admin',robots.text)
+        sitemap=self.client.get('/sitemap.xml')
+        self.assertEqual(sitemap.status_code,200)
+        self.assertIn('https://meritiqra.com/features',sitemap.text)
+        self.assertNotIn('/admin',sitemap.text)
+        self.assertNotIn('/student',sitemap.text)
+        admin,_=self.login('admin@example.test')
+        private_html=admin.get('/').text
+        self.assertIn('id="admin-nav"',private_html)
+        self.assertNotIn('id="public-site"',private_html)
+
+    def test_public_exam_catalog_exposes_only_safe_open_metadata(self):
+        admin,_=self.login('admin@example.test')
+        with patch.dict(os.environ,{'AUTH_MODE':''}):
+            q=app.create_question(app.Question(statement='Private answer test',options=['A','B'],answer='B',solution='Secret solution'))
+        opened=self.post(admin,'/api/admin/exams',json={'name':'Open Assessment','status':'OPEN','question_ids':[q['id']]}).json()
+        self.post(admin,'/api/admin/exams',json={'name':'Draft Assessment','status':'DRAFT'})
+        catalog=self.client.get('/api/public/exams')
+        self.assertEqual(catalog.status_code,200)
+        self.assertEqual([row['id'] for row in catalog.json()],[opened['id']])
+        raw=catalog.text
+        self.assertNotIn('Private answer test',raw)
+        self.assertNotIn('Secret solution',raw)
+        self.assertNotIn('answer',raw.lower())
     def test_isolated_exam_sessions_answers_and_results(self):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):

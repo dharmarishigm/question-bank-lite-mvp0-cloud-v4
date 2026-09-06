@@ -21,7 +21,7 @@ from typing import Optional
 from xml.etree import ElementTree as ET
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
@@ -1937,8 +1937,39 @@ def healthz():
 
 
 @app.get("/")
-def index():
+def index(request: Request):
+    # Select the document at the server boundary. Anonymous visitors never
+    # receive administrator or student application markup.
+    from platform_api import current_user
+    try:
+        current_user(request.cookies.get("qb_session"))
+    except HTTPException:
+        return FileResponse(os.path.join(BASE_DIR, "static", "public.html"))
     return FileResponse(os.path.join(BASE_DIR, "static", "index.html"))
+
+
+@app.get("/robots.txt", response_class=PlainTextResponse)
+def robots():
+    base = os.getenv("PUBLIC_BASE_URL") or os.getenv("APP_BASE_URL") or "https://meritiqra.com"
+    return "\n".join(("User-agent: *", "Allow: /", "Disallow: /admin", "Disallow: /student", "Disallow: /api/", "Disallow: /register/", f"Sitemap: {base.rstrip('/')}/sitemap.xml", ""))
+
+
+@app.get("/sitemap.xml")
+def sitemap():
+    base = (os.getenv("PUBLIC_BASE_URL") or os.getenv("APP_BASE_URL") or "https://meritiqra.com").rstrip('/')
+    paths = ("/", "/practice-exams", "/features", "/how-it-works", "/for-students", "/for-schools", "/for-organizations", "/about")
+    xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + ''.join(f'<url><loc>{base}{path}</loc></url>' for path in paths) + '</urlset>'
+    return Response(xml, media_type="application/xml")
+
+
+@app.get("/{public_path:path}", include_in_schema=False)
+def public_page(public_path: str):
+    public_routes = {"practice-exams", "exams", "features", "ai-question-bank", "ai-question-generation", "online-exam-platform", "assessment-platform", "for-students", "for-schools", "for-organizations", "how-it-works", "about"}
+    if public_path in public_routes:
+        return FileResponse(os.path.join(BASE_DIR, "static", "public.html"))
+    if public_path.startswith("register/exam/"):
+        return FileResponse(os.path.join(BASE_DIR, "static", "index.html"))
+    raise HTTPException(404, "Page not found")
 
 
 @app.get("/register/exam/{token}")

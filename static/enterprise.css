@@ -72,7 +72,7 @@ body { background: var(--canvas); color: var(--ink); font: 14px/1.45 Inter, ui-s
 .login-screen { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: radial-gradient(circle at 15% 10%,#dff5ed,#f5f9fc 43%,#e9f1fb); z-index: 100; }
 .login-card { width: min(410px,100%); max-height: calc(100vh - 32px); overflow: auto; padding: 30px 36px 36px; text-align: center; background: #ffffffed; backdrop-filter: blur(18px); border: 1px solid #d5e4ef; border-radius: 22px; box-shadow: 0 28px 90px #0b3c6430; }
 .brand-logo-full { display: block; width: min(260px,82%); height: auto; margin: -8px auto 0; object-fit: contain; object-position: center; }
-.login-card h1 { margin: 12px 0 4px; color: #073d78; font-size: 22px; letter-spacing: -.02em; }.login-card > p { color: var(--muted); margin: 0 0 24px; }.login-card #google-signin { display: flex; justify-content: center; }
+.login-card h1,.login-card h2 { margin: 12px 0 4px; color: #073d78; font-size: 22px; letter-spacing: -.02em; }.login-card > p { color: var(--muted); margin: 0 0 24px; }.login-card #google-signin { display: flex; justify-content: center; }
 .portal-label { display: inline-flex; padding: 4px 9px; color: #087263; background: #e4f7ef; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .login-card > button { width: 100%; margin-top: 8px; }
 .bootstrap-form { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; text-align: left; border-top: 1px solid var(--line); }
@@ -117,3 +117,4 @@ body { background: var(--canvas); color: var(--ink); font: 14px/1.45 Inter, ui-s
 .footer-brand { display: flex; align-items: center; gap: 11px; }.footer-brand > div { display: grid; }.footer-brand strong { color: #073d78; font-size: 17px; }.footer-brand span { font-size: 11px; }
 .footer-meta { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 18px; font-size: 11px; }.footer-meta a { color: #087263; font-weight: 700; text-decoration: none; }.footer-meta a:hover { text-decoration: underline; }
 @media(max-width:700px){.site-footer{align-items:flex-start;flex-direction:column}.footer-meta{justify-content:flex-start}.brand-logo-full{width:150px;height:150px}.login-card{padding:24px}}
+#app-header .app-brand-name { display:block; color:#073d78; font-size:19px; font-weight:800; letter-spacing:-.025em; }

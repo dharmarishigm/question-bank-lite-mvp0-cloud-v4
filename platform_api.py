@@ -155,7 +155,9 @@ def _auth(request: Request, csrf: bool=False):
 @router.get('/auth/config')
 def auth_config(request:Request):
     local_email=os.getenv('ADMIN_LOCAL_EMAIL','').strip().lower()
-    return {'client_id':os.getenv('GOOGLE_CLIENT_ID',''),'mock':os.getenv('AUTH_MODE')=='mock' and os.getenv('APP_ENV') in {'test','development'},'bootstrap_available':_bootstrap_available(request),'local_admin':bool(local_email and os.getenv('ADMIN_LOCAL_PASSWORD')),'local_admin_email':local_email}
+    # Authentication configuration is intentionally neutral. Administrator
+    # identity remains server-side and is resolved only after authentication.
+    return {'client_id':os.getenv('GOOGLE_CLIENT_ID',''),'mock':os.getenv('AUTH_MODE')=='mock' and os.getenv('APP_ENV') in {'test','development'},'bootstrap_available':_bootstrap_available(request),'local_admin':bool(local_email and os.getenv('ADMIN_LOCAL_PASSWORD'))}
 @router.get('/auth/me')
 def auth_me(request:Request): return _public_user(_auth(request))
 @router.post('/auth/google')
@@ -334,6 +336,16 @@ def question_metadata_facets(request:Request,grade:str='',subject:str='',chapter
 
 def _exam(row, count=0):
     return {**dict(row),'question_count':count}
+
+@router.get('/public/exams')
+def public_exams():
+    """Return only non-sensitive metadata for assessments open to learners."""
+    with closing(db()) as conn:
+        rows=conn.execute("""SELECT e.id,e.name,e.description,e.exam_type,e.subject,e.level,
+          e.duration_minutes,e.proctor_required,COUNT(eq.id) question_count
+          FROM exams e LEFT JOIN exam_questions eq ON eq.exam_id=e.id
+          WHERE e.status='OPEN' GROUP BY e.id ORDER BY e.updated_at DESC LIMIT 12""").fetchall()
+    return [{**dict(row),'proctor_required':bool(row['proctor_required'])} for row in rows]
 
 @router.get('/exams')
 def exams(request:Request):
