@@ -337,7 +337,7 @@ def _exam(row, count=0):
 
 @router.get('/exams')
 def exams(request:Request):
-    user=_auth(request); where='' if user['role'] in {'ADMIN','PROCTOR'} else " WHERE e.status IN ('PUBLISHED','OPEN')"
+    user=_auth(request); where='' if user['role'] in {'ADMIN','PROCTOR'} else " WHERE e.status='OPEN'"
     with closing(db()) as conn: rows=conn.execute(f'SELECT e.*,COUNT(eq.id) question_count FROM exams e LEFT JOIN exam_questions eq ON eq.exam_id=e.id{where} GROUP BY e.id ORDER BY e.created_at DESC').fetchall()
     return [_exam(r,r['question_count']) for r in rows]
 @router.get('/exams/{exam_id}')
@@ -345,7 +345,7 @@ def exam_detail(exam_id:int,request:Request):
     user=_auth(request)
     with closing(db()) as conn:
         row=conn.execute('SELECT e.*,COUNT(eq.id) question_count FROM exams e LEFT JOIN exam_questions eq ON eq.exam_id=e.id WHERE e.id=? GROUP BY e.id',(exam_id,)).fetchone()
-    if not row or (user['role'] not in {'ADMIN','PROCTOR'} and row['status'] not in {'PUBLISHED','OPEN'}): raise HTTPException(404,'Exam not found')
+    if not row or (user['role'] not in {'ADMIN','PROCTOR'} and row['status']!='OPEN'): raise HTTPException(404,'Exam not found')
     return dict(row)
 @router.post('/admin/exams')
 async def create_exam(request:Request):
@@ -573,4 +573,4 @@ def dashboard(request:Request):
     with closing(db()) as conn:
         if user['role']=='ADMIN':
             return {'questions':conn.execute('SELECT COUNT(*) n FROM questions').fetchone()['n'],'published_exams':conn.execute("SELECT COUNT(*) n FROM exams WHERE status='PUBLISHED'").fetchone()['n'],'students':conn.execute("SELECT COUNT(*) n FROM users WHERE role='STUDENT'").fetchone()['n'],'active_sessions':conn.execute("SELECT COUNT(*) n FROM exam_sessions WHERE status='IN_PROGRESS'").fetchone()['n'],'completed_attempts':conn.execute("SELECT COUNT(*) n FROM exam_sessions WHERE status IN ('SUBMITTED','AUTO_SUBMITTED')").fetchone()['n']}
-        return {'available_exams':conn.execute("SELECT COUNT(*) n FROM exams WHERE status='PUBLISHED'").fetchone()['n'],'enrolled_exams':conn.execute('SELECT COUNT(*) n FROM exam_enrollments WHERE user_id=?',(user['id'],)).fetchone()['n'],'completed_exams':conn.execute("SELECT COUNT(*) n FROM exam_sessions WHERE user_id=? AND status IN ('SUBMITTED','AUTO_SUBMITTED')",(user['id'],)).fetchone()['n']}
+        return {'available_exams':conn.execute("SELECT COUNT(*) n FROM exams WHERE status='OPEN'").fetchone()['n'],'enrolled_exams':conn.execute("SELECT COUNT(*) n FROM exam_enrollments r JOIN exams e ON e.id=r.exam_id WHERE r.user_id=? AND e.status='OPEN'",(user['id'],)).fetchone()['n'],'completed_exams':conn.execute("SELECT COUNT(*) n FROM exam_sessions WHERE user_id=? AND status IN ('SUBMITTED','AUTO_SUBMITTED')",(user['id'],)).fetchone()['n']}

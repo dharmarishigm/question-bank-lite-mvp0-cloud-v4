@@ -50,7 +50,7 @@ class PlatformSecurityTests(unittest.TestCase):
         with patch.dict(os.environ,{'AUTH_MODE':''}):
             q1=app.create_question(app.Question(statement='2+2?',options=['3','4'],answer='B'))
             q2=app.create_question(app.Question(statement='3+3?',options=['5','6'],answer='B'))
-        created=self.post(admin,'/api/admin/exams',json={'name':'Grade 8 Mathematics Olympiad','status':'PUBLISHED','question_ids':[q1['id'],q2['id']],'duration_minutes':30}).json();eid=created['id']
+        created=self.post(admin,'/api/admin/exams',json={'name':'Grade 8 Mathematics Olympiad','status':'OPEN','question_ids':[q1['id'],q2['id']],'duration_minutes':30}).json();eid=created['id']
         alice,_=self.login('alice@example.test');bob,_=self.login('bob@example.test')
         self.assertEqual(len(alice.get('/api/exams').json()),1)
         self.post(alice,f'/api/exams/{eid}/enroll');self.post(alice,f'/api/exams/{eid}/enroll')
@@ -188,6 +188,7 @@ class PlatformSecurityTests(unittest.TestCase):
         wrong,_=self.login('student2@example.test');self.assertEqual(wrong.get('/api/my/exams').json(),[])
         student=TestClient(app.app);self.addCleanup(student.close)
         login=student.post('/api/auth/student-registration-login',json={'email':'student1@example.test','date_of_birth':'2012-05-04','phone_number':'+91 9876543210'});self.assertEqual(login.status_code,200,login.text);self.assertEqual(login.json()['role'],'STUDENT');self.assertEqual(len(student.get('/api/my/exams').json()),1)
+        self.assertEqual(student.get('/api/exams').json(),[])
         profile=student.get('/api/student/profile').json();self.assertEqual(profile['school_name'],'Example School');self.assertEqual(profile['profile_completed'],1)
         returning=TestClient(app.app);self.addCleanup(returning.close)
         again=returning.post('/api/auth/student-registration-login',json={'email':'student1@example.test','date_of_birth':'2012-05-04','phone_number':'919876543210'});self.assertEqual(again.status_code,200,again.text);self.assertEqual(len(returning.get('/api/my/exams').json()),1)

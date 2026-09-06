@@ -547,19 +547,19 @@ EXPLANATION_LANGUAGES = {
 
 class ExplanationDistractor(BaseModel):
     option: str = ''
-    reason: str
+    reason: str = Field(description='Two or more sentences explaining the misconception and why this option does not answer the question.')
 
 
 class StructuredExplanation(BaseModel):
-    title: str
-    summary: str
-    concept: str
-    steps: list[str] = Field(default_factory=list)
-    correct_answer: str
-    distractors: list[ExplanationDistractor] = Field(default_factory=list)
-    background: str = ''
-    memory_tip: str = ''
-    references: list[str] = Field(default_factory=list)
+    title: str = Field(description='A clear, engaging lesson title.')
+    summary: str = Field(description='A useful two-to-three sentence overview of what the student will understand.')
+    concept: str = Field(description='A thorough concept explanation with intuition, definitions, and any relevant formula; at least two substantial paragraphs.')
+    steps: list[str] = Field(description='Four to six complete reasoning steps that solve or analyse the question in sequence.')
+    correct_answer: str = Field(description='A detailed explanation connecting the concept and reasoning directly to the stored correct answer.')
+    distractors: list[ExplanationDistractor] = Field(description='One entry for every incorrect displayed option, or an empty list when the question has no options.')
+    background: str = Field(description='Two or more sentences of useful prerequisite or real-world context.')
+    memory_tip: str = Field(description='A memorable rule, analogy, or exam shortcut in one or two complete sentences.')
+    references: list[str] = Field(description='Zero to three cautious textbook topics, chapters, channels, or search phrases; never invent links.')
 
 
 def explanation_markdown(payload: dict) -> str:
@@ -888,6 +888,10 @@ def explain_question(qid: int, language: str = 'en'):
     subject = (question.get("subject") or "").strip()
     chapter = (question.get("chapter") or "").strip()
     solution = (question.get("solution") or "").strip()
+    bilingual_instruction = (
+        "0a. Use natural bilingual Telugu-English teaching: explain sentences mainly in Telugu, retain familiar English academic terms, and show important Telugu technical terms with English in parentheses. Aim for roughly 60% Telugu and 40% English where that improves understanding. Each major section must contain complete explanatory sentences, not labels or one-line fragments.\n"
+        if language == 'te' else ''
+    )
     prompt = (
         "You are a high-quality exam tutor. Explain this question as a concept-first learning explanation, not just a final-answer note.\n\n"
         f"Required explanation language: {language_details['name']} ({language_details['native_name']}).\n"
@@ -898,15 +902,16 @@ def explain_question(qid: int, language: str = 'en'):
         f"Stored answer: {answer or 'Not explicitly available'}\n"
         f"Solution/hint: {solution or 'No solution text stored'}\n\n"
         "Instructions:\n"
-        f"0. Write the complete explanation in {language_details['name']}. Keep formulas, symbols, scientific names, and option labels unchanged. When a technical term may be unfamiliar, write the {language_details['name']} term followed by its English term in parentheses the first time.\n"
+        f"0. Write a complete, detailed explanation in {language_details['name']} with the same depth, number of sections, and teaching quality you would provide in English. Do not shorten the response because the selected language is {language_details['name']}. Keep formulas, symbols, scientific names, and option labels unchanged.\n"
+        f"{bilingual_instruction}"
         "1. Identify the underlying concept, law, formula, principle, or reasoning pattern in this question.\n"
-        "2. Explain the concept in a student-friendly way, with clear intuition and a short physical/mathematical idea behind it.\n"
+        "2. Explain the concept in a student-friendly way with clear intuition, definitions, and the physical, mathematical, scientific, or logical idea behind it.\n"
         "3. Relate the concept to each option: explain why the correct option fits and why the other options are likely wrong or less suitable.\n"
         "4. Give the background information needed to understand the topic, but keep it concise and relevant.\n"
         "5. If the stored answer is missing or ambiguous, say so clearly and explain the likely correct approach without inventing a new answer.\n"
         "6. Add a short 'Relevant references' section with book and YouTube suggestions only when they are broadly appropriate for the topic.\n"
         "7. Do not fabricate exact URLs, page numbers, or false statements about a specific video. Prefer general references like 'NCERT chapter on X', 'HC Verma chapter on Y', or search terms such as 'X explained by Khan Academy'.\n"
-        "8. Make the summary immediately useful, make each reasoning step short, and end with a memorable exam tip.\n"
+        "8. Provide a two-to-three sentence summary, a thorough concept section, four-to-six reasoning steps, detailed answer analysis, useful background, and a memorable exam tip.\n"
         "9. Return every field in the requested structured schema.\n"
         "10. Use valid LaTeX delimiters for formulas and tie each distractor explanation to its displayed option label."
     )
