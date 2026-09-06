@@ -124,6 +124,15 @@ class PlatformSecurityTests(unittest.TestCase):
         availability=self.post(admin,'/api/admin/exam-blueprints/availability',json=bp).json();self.assertFalse(availability['ready']);self.assertEqual(availability['rules'][0]['available'],1)
         generated=self.post(admin,'/api/admin/exam-blueprints/preview',json=bp);self.assertEqual(generated.status_code,409);self.assertIn('Only 1 matching',generated.text)
 
+    def test_saved_draft_template_can_receive_generated_question_paper(self):
+        admin,_=self.login('admin@example.test')
+        with patch.dict(os.environ,{'AUTH_MODE':''}):q=app.create_question(app.Question(subject='Science',chapter='Light',exam='Class 8',statement='Reflection question?',options=['A','B'],answer='A',verification_status='APPROVED'))
+        eid=self.post(admin,'/api/admin/exams',json={'name':'Saved Science Template','subject':'Science','level':'Grade 8','status':'DRAFT'}).json()['id']
+        bp={'exam_id':eid,'exam_name':'Saved Science Template','total_questions':1,'global_filters':{'grade':'Grade 8','subject':'Science','verification_statuses':['APPROVED']},'rules':[{'id':'light','count':1,'filters':{'chapter':'Light'}}]}
+        preview=self.post(admin,'/api/admin/exam-blueprints/preview',json=bp);self.assertEqual(preview.status_code,200,preview.text)
+        approved=self.post(admin,'/api/admin/exam-blueprints/approve',json={'blueprint':bp,'question_ids':[q['id']],'status':'DRAFT'});self.assertEqual(approved.status_code,200,approved.text);self.assertEqual(approved.json()['id'],eid)
+        self.assertEqual(admin.get(f'/api/exams/{eid}').json()['question_count'],1)
+
     def test_admin_pending_registration_links_only_matching_verified_login(self):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):q=app.create_question(app.Question(statement='Q',answer='A'))

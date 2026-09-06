@@ -285,7 +285,13 @@ async def approve_exam_blueprint(request:Request):
                 raise HTTPException(409,f'Question {qid} does not satisfy its blueprint rule')
             counts[rule_id]+=1
         if any(counts[r.id]!=r.count for r in bp.rules):raise HTTPException(409,'Selected questions no longer satisfy the blueprint quotas')
-        cur=conn.execute('INSERT INTO exams(name,description,exam_type,subject,level,instructions,duration_minutes,negative_marking,status,max_attempts,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(bp.exam_name,bp.prompt,bp.exam_type,bp.global_filters.subject or '',bp.global_filters.grade or '','',bp.duration_minutes,0,data.status,1,user['id'],now,now));eid=cur.lastrowid
+        if bp.exam_id:
+            exam=conn.execute('SELECT * FROM exams WHERE id=?',(bp.exam_id,)).fetchone()
+            if not exam:raise HTTPException(404,'Saved exam template not found')
+            if exam['status']!='DRAFT' or conn.execute('SELECT 1 FROM exam_sessions WHERE exam_id=?',(bp.exam_id,)).fetchone():raise HTTPException(409,'Only an unused draft exam template can receive a generated question paper')
+            eid=bp.exam_id;conn.execute('DELETE FROM exam_questions WHERE exam_id=?',(eid,));conn.execute('UPDATE exams SET name=?,description=?,exam_type=?,subject=?,level=?,duration_minutes=?,status=?,updated_at=? WHERE id=?',(bp.exam_name,bp.prompt,bp.exam_type,bp.global_filters.subject or '',bp.global_filters.grade or '',bp.duration_minutes,data.status,now,eid))
+        else:
+            cur=conn.execute('INSERT INTO exams(name,description,exam_type,subject,level,instructions,duration_minutes,negative_marking,status,max_attempts,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(bp.exam_name,bp.prompt,bp.exam_type,bp.global_filters.subject or '',bp.global_filters.grade or '','',bp.duration_minutes,0,data.status,1,user['id'],now,now));eid=cur.lastrowid
         questions={qid:pool[qid] for qid in data.question_ids}
         for order,qid in enumerate(data.question_ids,1):
             try:marks=max(.01,float(questions[qid].get('marks') or 1))

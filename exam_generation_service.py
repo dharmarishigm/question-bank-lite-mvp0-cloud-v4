@@ -27,6 +27,7 @@ class ExamBlueprintRule(BaseModel):
 
 
 class ExamBlueprint(BaseModel):
+    exam_id: int | None = Field(default=None, ge=1)
     exam_name: str = Field(min_length=1, max_length=200)
     exam_type: str = ""
     total_questions: int = Field(ge=1, le=200)
