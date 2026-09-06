@@ -440,9 +440,8 @@ document.querySelectorAll('.toolbar').forEach((bar) => {
 });
 
 async function openExplainModal(questionId) {
-  const q = questions.find((item) => String(item.id) === String(questionId));
-  if (!q) return;
   const explainContent = $('explain-content');
+  $('explain-like').hidden = false;
   explainContent.textContent = 'Preparing an explanation...';
   $('explain-modal').hidden = false;
   $('explain-like').dataset.questionId = String(questionId);

@@ -65,7 +65,8 @@ class PlatformSecurityTests(unittest.TestCase):
         self.assertEqual(alice.put(f'/api/sessions/{a_sid}/answers/{q2["id"]}',headers={'X-CSRF-Token':self.csrf(alice)},json={'selected_answer':'B'}).status_code,409)
         results=alice.get('/api/my/results').json();self.assertEqual(len(results),1);self.assertEqual(results[0]['score'],1)
         self.assertEqual(bob.get(f'/api/my/results/{a_sid}').status_code,404)
-        detail=alice.get(f'/api/my/results/{a_sid}');self.assertEqual(detail.status_code,200);self.assertIn('answer',detail.text)
+        detail=alice.get(f'/api/my/results/{a_sid}');self.assertEqual(detail.status_code,200);self.assertIn('answer',detail.text);self.assertEqual(detail.json()['questions'][0]['id'],q1['id'])
+        self.assertEqual(bob.get(f'/api/student/questions/{q1["id"]}/explain').status_code,404)
         self.assertEqual(len(bob.get('/api/my/results').json()),0)
 
     def test_proctored_exam_enforces_registration_code_snapshot_and_isolation(self):
@@ -123,6 +124,8 @@ class PlatformSecurityTests(unittest.TestCase):
         student=TestClient(app.app);self.addCleanup(student.close)
         login=student.post('/api/auth/student-registration-login',json={'email':'student1@example.test','date_of_birth':'2012-05-04','phone_number':'+91 9876543210'});self.assertEqual(login.status_code,200,login.text);self.assertEqual(login.json()['role'],'STUDENT');self.assertEqual(len(student.get('/api/my/exams').json()),1)
         profile=student.get('/api/student/profile').json();self.assertEqual(profile['school_name'],'Example School');self.assertEqual(profile['profile_completed'],1)
+        returning=TestClient(app.app);self.addCleanup(returning.close)
+        again=returning.post('/api/auth/student-registration-login',json={'email':'student1@example.test','date_of_birth':'2012-05-04','phone_number':'919876543210'});self.assertEqual(again.status_code,200,again.text);self.assertEqual(len(returning.get('/api/my/exams').json()),1)
 
     def test_published_version_is_immutable_and_retake_creates_new_attempt(self):
         admin,_=self.login('admin@example.test')

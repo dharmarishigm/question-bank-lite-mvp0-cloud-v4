@@ -195,7 +195,7 @@ async def admin_login(request:Request,response:Response):
 async def student_registration_login(request:Request,response:Response):
     data=await request.json();email=str(data.get('email','')).strip().lower();dob=str(data.get('date_of_birth','')).strip();phone=re.sub(r'\D','',str(data.get('phone_number','')));now=time.time()
     with closing(db()) as conn:
-        pending=conn.execute("SELECT * FROM pending_exam_registrations WHERE lower(registered_email)=? AND status='PENDING' ORDER BY id DESC",(email,)).fetchall()
+        pending=conn.execute("SELECT * FROM pending_exam_registrations WHERE lower(registered_email)=? AND status IN ('PENDING','LINKED') ORDER BY id DESC",(email,)).fetchall()
         match=next((r for r in pending if r['date_of_birth']==dob and re.sub(r'\D','',r['phone_number'])==phone),None)
         if not match:raise HTTPException(401,'Registration details do not match. Use the email, date of birth and phone entered during registration.')
         user=conn.execute("SELECT * FROM users WHERE lower(email)=?",(email,)).fetchone()
@@ -205,7 +205,7 @@ async def student_registration_login(request:Request,response:Response):
         else:
             uid=user['id'];conn.execute("UPDATE users SET display_name=?,date_of_birth=?,phone_number=?,school_name=?,profile_completed=1,last_login_at=?,updated_at=? WHERE id=?",(match['full_name'],match['date_of_birth'],match['phone_number'],match['school_name'],now,now,uid))
         for registration in pending:
-            if registration['date_of_birth']==dob and re.sub(r'\D','',registration['phone_number'])==phone:
+            if registration['status']=='PENDING' and registration['date_of_birth']==dob and re.sub(r'\D','',registration['phone_number'])==phone:
                 conn.execute("INSERT INTO exam_enrollments(exam_id,user_id,status,registered_at,created_at,updated_at,registered_email,registration_source,created_by,full_name_snapshot,registration_link_id) VALUES(?,?,'ENROLLED',?,?,?,?,?,?,?,?) ON CONFLICT(exam_id,user_id) DO UPDATE SET status='ENROLLED',updated_at=excluded.updated_at",(registration['exam_id'],uid,now,now,now,email,registration['registration_source'],registration['created_by'],registration['full_name'],registration['registration_link_id']));conn.execute("UPDATE pending_exam_registrations SET status='LINKED',updated_at=? WHERE id=?",(now,registration['id']))
         raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(24);conn.execute('INSERT INTO app_sessions(token_hash,user_id,csrf_token,expires_at,created_at) VALUES(?,?,?,?,?)',(_hash(raw),uid,csrf,now+SESSION_SECONDS,now));conn.commit();user=conn.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
     secure=os.getenv('APP_BASE_URL','').startswith('https://');response.set_cookie('qb_session',raw,max_age=SESSION_SECONDS,httponly=True,samesite='lax',secure=secure);response.set_cookie('qb_csrf',csrf,max_age=SESSION_SECONDS,httponly=False,samesite='lax',secure=secure);return _public_user(user)
@@ -331,7 +331,12 @@ def start_exam(exam_id:int,request:Request):
         if (exam['exam_start_at'] and now<exam['exam_start_at']) or (exam['exam_end_at'] and now>exam['exam_end_at']):raise HTTPException(403,'Exam is outside its permitted start window')
         attempt=conn.execute('SELECT COUNT(*) n FROM exam_sessions WHERE exam_id=? AND user_id=?',(exam_id,user['id'])).fetchone()['n']+1
         if attempt>exam['max_attempts']:raise HTTPException(409,'Attempt limit reached')
-        cur=conn.execute("INSERT INTO exam_sessions(exam_id,user_id,registration_id,attempt_number,status,started_at,expires_at,duration_minutes,created_at,updated_at) VALUES(?,?,?,?,'IN_PROGRESS',?,?,?,?,?)",(exam_id,user['id'],reg['id'],attempt,now,now+exam['duration_minutes']*60,exam['duration_minutes'],now,now));conn.commit();return {'session_id':cur.lastrowid,'resumed':False}
+        version=conn.execute('SELECT * FROM exam_versions WHERE id=?',(exam['current_version_id'],)).fetchone() if exam['current_version_id'] else None
+        if version:snapshot=json.loads(version['question_snapshot_json']);version_id=version['id']
+        else:
+            from exam_conduct import _snapshot
+            snapshot=_snapshot(conn,exam_id);version_id=None
+        cur=conn.execute("INSERT INTO exam_sessions(exam_id,user_id,registration_id,attempt_number,status,started_at,expires_at,duration_minutes,question_set_json,exam_version_id,created_at,updated_at) VALUES(?,?,?,?,'IN_PROGRESS',?,?,?,?,?,?,?)",(exam_id,user['id'],reg['id'],attempt,now,now+exam['duration_minutes']*60,exam['duration_minutes'],json.dumps(snapshot),version_id,now,now));conn.commit();return {'session_id':cur.lastrowid,'resumed':False}
 @router.get('/sessions/{sid}')
 def get_session(sid:int,request:Request):
     user=_auth(request)
@@ -382,8 +387,29 @@ def result_detail(sid:int,request:Request):
         questions=[]
         if released:
             for q in snapshot:
-                a=answers.get(q['id'],{});questions.append({'statement':q['statement'],'options':q['options'],'answer':q.get('answer',''),'solution':q.get('solution',''),'selected_answer':a.get('selected_answer',''),'is_correct':a.get('is_correct'),'marks_awarded':a.get('marks_awarded',0)})
+                a=answers.get(q['id'],{});questions.append({'id':q['id'],'statement':q['statement'],'options':q['options'],'answer':q.get('answer',''),'solution':q.get('solution',''),'selected_answer':a.get('selected_answer',''),'is_correct':a.get('is_correct'),'marks_awarded':a.get('marks_awarded',0)})
     return {'session':dict(s),'released':released,'message':None if released else 'Exam submitted. Result pending.','questions':questions}
+
+@router.get('/student/results/{sid}/questions/{qid}/explain')
+def explain_attempt_question(sid:int,qid:int,request:Request):
+    user=_auth(request)
+    with closing(db()) as conn:
+        session=conn.execute("SELECT * FROM exam_sessions WHERE id=? AND user_id=? AND status IN ('SUBMITTED','AUTO_SUBMITTED')",(sid,user['id'])).fetchone()
+        if not session:raise HTTPException(404,'Completed attempt not found')
+        snapshot=json.loads(session['question_set_json'] or '[]')
+        if not any(int(q.get('id',0))==qid for q in snapshot):raise HTTPException(404,'Question not found in this attempt')
+    from app import explain_question
+    return explain_question(qid)
+
+@router.get('/student/questions/{qid}/explain')
+def explain_owned_attempt_question(qid:int,request:Request):
+    user=_auth(request)
+    with closing(db()) as conn:
+        rows=conn.execute("SELECT question_set_json FROM exam_sessions WHERE user_id=? AND status IN ('SUBMITTED','AUTO_SUBMITTED')",(user['id'],)).fetchall()
+        found=any(any(int(q.get('id',0))==qid for q in json.loads(row['question_set_json'] or '[]')) for row in rows)
+    if not found:raise HTTPException(404,'Question not found in your completed attempts')
+    from app import explain_question
+    return explain_question(qid)
 
 @router.get('/admin/results')
 def admin_results(request:Request):
