@@ -77,6 +77,9 @@ class PlatformSecurityTests(unittest.TestCase):
         private_html=admin.get('/').text
         self.assertIn('id="admin-nav"',private_html)
         self.assertNotIn('id="public-site"',private_html)
+        self.assertIn('oncopy="return false"',private_html)
+        self.assertIn('secure-exam-v2',private_html)
+        self.assertEqual(admin.get('/').headers.get('cache-control'),'no-store')
 
     def test_public_exam_catalog_exposes_only_safe_open_metadata(self):
         admin,_=self.login('admin@example.test')

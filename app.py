@@ -1944,8 +1944,8 @@ def index(request: Request):
     try:
         current_user(request.cookies.get("qb_session"))
     except HTTPException:
-        return FileResponse(os.path.join(BASE_DIR, "static", "public.html"))
-    return FileResponse(os.path.join(BASE_DIR, "static", "index.html"))
+        return FileResponse(os.path.join(BASE_DIR, "static", "public.html"), headers={"Cache-Control":"no-cache"})
+    return FileResponse(os.path.join(BASE_DIR, "static", "index.html"), headers={"Cache-Control":"no-store"})
 
 
 @app.get("/robots.txt", response_class=PlainTextResponse)
@@ -1968,7 +1968,7 @@ def public_page(public_path: str):
     if public_path in public_routes:
         return FileResponse(os.path.join(BASE_DIR, "static", "public.html"))
     if public_path.startswith("register/exam/"):
-        return FileResponse(os.path.join(BASE_DIR, "static", "index.html"))
+        return FileResponse(os.path.join(BASE_DIR, "static", "index.html"), headers={"Cache-Control":"no-store"})
     raise HTTPException(404, "Page not found")
 
 

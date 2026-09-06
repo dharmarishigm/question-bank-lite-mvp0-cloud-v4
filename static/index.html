@@ -12,7 +12,7 @@
 <script defer src="/static/vendor/contrib/mhchem.min.js"></script>
 <script defer src="/static/vendor/contrib/auto-render.min.js"></script>
 <link rel="stylesheet" href="/static/app.css" />
-<link rel="stylesheet" href="/static/enterprise.css?v=20260907-logo-fit" />
+<link rel="stylesheet" href="/static/enterprise.css?v=20260907-secure-exam-v2" />
 </head>
 <body>
 <div id="public-registration" class="login-screen" hidden><section class="login-card registration-card"><img class="brand-logo-full" src="/static/meritiqra-logo.png?v=20260907-updated" alt="MeritIQra — Think Sharper. Reach Higher. Amplified by AI." /><span class="portal-label">Exam registration</span><h2 id="public-exam-name">Exam registration</h2><p id="public-exam-summary"></p><div class="registration-choice"><button id="public-new-registration" class="primary">New registration</button><button id="public-continue-login">Already registered? Login</button></div><form id="public-registration-form" class="bootstrap-form"><label>Full name<input name="full_name" autocomplete="name" required maxlength="120" /></label><label>Email address<input name="email" type="email" autocomplete="email" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Phone number<input name="phone_number" type="tel" autocomplete="tel" pattern="[+0-9 ()-]{7,20}" required /></label><label>School name<input name="school_name" required maxlength="160" /></label><button class="primary" type="submit">Register for exam</button></form><p id="public-registration-message" role="status"></p><form id="public-student-login-form" class="bootstrap-form" hidden><h2>Student login</h2><label>Registered email<input name="email" type="email" autocomplete="username" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Registered phone number<input name="phone_number" type="tel" autocomplete="tel" required /></label><button class="primary" type="submit">Open student portal</button></form></section></div>
@@ -192,7 +192,7 @@
         <div id="blueprint-approval" class="blueprint-approval" hidden><span id="blueprint-selection-count"></span><button id="exam-create-managed" class="primary" type="button">Approve and create durable draft</button><button id="exam-create-publish" type="button">Approve and publish</button></div>
       </div>
 
-      <div id="exam-session" class="exam-session" hidden>
+      <div id="exam-session" class="exam-session" oncopy="return false" oncut="return false" onpaste="return false" oncontextmenu="return false" onselectstart="return false" ondragstart="return false" hidden>
         <div class="exam-header-bar">
           <div class="exam-status-group">
             <strong>Exam in progress</strong>
@@ -486,6 +486,6 @@
 <div id="notification" class="notification" role="status" aria-live="polite" hidden></div>
 <script src="/static/app.js?v=20260906-meritiqra-brand"></script>
 <script src="/static/pdf-viewer.js"></script>
-<script src="/static/platform-ui.js?v=20260906-telugu-depth-open-exams"></script>
+<script src="/static/platform-ui.js?v=20260907-secure-exam-v2"></script>
 </body>
 </html>
