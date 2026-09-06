@@ -545,6 +545,53 @@ EXPLANATION_LANGUAGES = {
 }
 
 
+class ExplanationDistractor(BaseModel):
+    option: str = ''
+    reason: str
+
+
+class StructuredExplanation(BaseModel):
+    title: str
+    summary: str
+    concept: str
+    steps: list[str] = Field(default_factory=list)
+    correct_answer: str
+    distractors: list[ExplanationDistractor] = Field(default_factory=list)
+    background: str = ''
+    memory_tip: str = ''
+    references: list[str] = Field(default_factory=list)
+
+
+def explanation_markdown(payload: dict) -> str:
+    sections = [f"# {payload.get('title') or 'Concept explanation'}", payload.get('summary', '')]
+    mapping = (
+        ('Concept', payload.get('concept', '')),
+        ('Step-by-step reasoning', '\n'.join(f"{index}. {step}" for index, step in enumerate(payload.get('steps') or [], 1))),
+        ('Why this answer is correct', payload.get('correct_answer', '')),
+        ('Why the other options are less likely', '\n'.join(
+            f"- **{item.get('option', 'Option')}**: {item.get('reason', '')}" for item in payload.get('distractors') or []
+        )),
+        ('Background', payload.get('background', '')),
+        ('Memory tip', payload.get('memory_tip', '')),
+        ('Relevant references', '\n'.join(f"- {item}" for item in payload.get('references') or [])),
+    )
+    for heading, content in mapping:
+        if str(content or '').strip():
+            sections.extend((f"## {heading}", str(content).strip()))
+    return '\n\n'.join(part for part in sections if str(part).strip())
+
+
+def decode_explanation(value: str) -> tuple[str, Optional[dict]]:
+    try:
+        payload = json.loads(value)
+        if isinstance(payload, dict) and payload.get('title') and payload.get('concept'):
+            validated = StructuredExplanation.model_validate(payload).model_dump()
+            return explanation_markdown(validated), validated
+    except (TypeError, ValueError):
+        pass
+    return value, None
+
+
 def normalize_explanation_language(language: str) -> str:
     normalized = (language or 'en').strip().lower().replace('_', '-').split('-', 1)[0]
     if normalized not in EXPLANATION_LANGUAGES:
@@ -566,20 +613,24 @@ def get_cached_question_explanation(question_id: int, language: str = 'en') -> O
             ).fetchone()
     if row is None:
         return None
+    markdown, structured = decode_explanation(row["explanation"])
     return {
         "question_id": row["question_id"],
         "language": row["language"],
-        "explanation": row["explanation"],
+        "explanation": markdown,
+        "structured": structured,
         "liked": bool(row["liked"]),
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
     }
 
 
-def save_question_explanation(question_id: int, explanation: str, *, language: str = 'en', liked: bool = True) -> dict:
+def save_question_explanation(question_id: int, explanation: str, *, language: str = 'en', liked: bool = True, structured: Optional[dict] = None) -> dict:
     text = (explanation or '').strip()
     if not text:
         raise ValueError('Explanation text is required before caching.')
+    validated_structured = StructuredExplanation.model_validate(structured).model_dump() if structured else None
+    stored_text = json.dumps(validated_structured, ensure_ascii=False) if validated_structured else text
     now = time.time()
     language = normalize_explanation_language(language)
     with closing(connect()) as conn:
@@ -587,15 +638,15 @@ def save_question_explanation(question_id: int, explanation: str, *, language: s
         if existing:
             conn.execute(
                 "UPDATE question_explanation_translations SET explanation = ?, liked = ?, updated_at = ? WHERE question_id = ? AND language = ?",
-                (text, 1 if liked else 0, now, question_id, language),
+                (stored_text, 1 if liked else 0, now, question_id, language),
             )
         else:
             conn.execute(
                 "INSERT INTO question_explanation_translations (question_id, language, explanation, liked, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-                (question_id, language, text, 1 if liked else 0, now, now),
+                (question_id, language, stored_text, 1 if liked else 0, now, now),
             )
         conn.commit()
-    return {"question_id": question_id, "language": language, "explanation": text, "liked": bool(liked)}
+    return {"question_id": question_id, "language": language, "explanation": explanation_markdown(validated_structured) if validated_structured else text, "structured": validated_structured, "liked": bool(liked)}
 
 
 def _snapshot(conn: sqlite3.Connection, qid: int, reason: str) -> None:
@@ -817,8 +868,10 @@ def explain_question(qid: int, language: str = 'en'):
     language = normalize_explanation_language(language)
     language_details = EXPLANATION_LANGUAGES[language]
     cached = get_cached_question_explanation(qid, language)
-    if cached and cached.get('liked'):
-        return {"explanation": cached['explanation'], "language": language, "cached": True}
+    # Legacy saves contain flattened innerText and cannot reproduce the original
+    # layout. Regenerate them once using the structured contract.
+    if cached and cached.get('liked') and cached.get('structured'):
+        return {"explanation": cached['explanation'], "structured": cached.get('structured'), "language": language, "cached": True}
 
     with closing(connect()) as conn:
         row = conn.execute("SELECT * FROM questions WHERE id = ?", (qid,)).fetchone()
@@ -853,15 +906,9 @@ def explain_question(qid: int, language: str = 'en'):
         "5. If the stored answer is missing or ambiguous, say so clearly and explain the likely correct approach without inventing a new answer.\n"
         "6. Add a short 'Relevant references' section with book and YouTube suggestions only when they are broadly appropriate for the topic.\n"
         "7. Do not fabricate exact URLs, page numbers, or false statements about a specific video. Prefer general references like 'NCERT chapter on X', 'HC Verma chapter on Y', or search terms such as 'X explained by Khan Academy'.\n"
-        "8. Use clean markdown headings and bullet points.\n"
-        "9. Use **bold** for the key ideas, the correct option reasoning, and important background points.\n"
-        "10. Return only the explanation text; no extra JSON, no meta commentary, no disclaimers unless necessary.\n\n"
-        "Format:\n"
-        "## Concept\n<clear explanation>\n\n"
-        "## Why this answer is correct\n<connect the concept to the correct option>\n\n"
-        "## Why the other options are less likely\n<brief explanation for each option if useful>\n\n"
-        "## Background\n<short contextual knowledge>\n\n"
-        "## Relevant references\n- Book: <broadly relevant textbook or standard reference>\n- YouTube: <search term or channel-style suggestion>\n- If no reliable reference is appropriate, say 'No specific textbook or video reference is strongly required for this concept.'"
+        "8. Make the summary immediately useful, make each reasoning step short, and end with a memorable exam tip.\n"
+        "9. Return every field in the requested structured schema.\n"
+        "10. Use valid LaTeX delimiters for formulas and tie each distractor explanation to its displayed option label."
     )
 
     try:
@@ -878,10 +925,20 @@ def explain_question(qid: int, language: str = 'en'):
             contents=[prompt],
             config=types.GenerateContentConfig(
                 temperature=0.25,
-                max_output_tokens=1500,
+                max_output_tokens=3200,
+                response_mime_type='application/json',
+                response_schema=StructuredExplanation,
                 system_instruction='You are a patient, concept-focused tutor who teaches exam concepts deeply. Explain the underlying principle, connect it to the correct option and the distractors, add relevant background knowledge, and give cautious textbook/YouTube references only when they are broadly appropriate. Use bold emphasis for the key teaching points. Never invent exact URLs or false video claims.',
             ),
         )
+
+        parsed_response = getattr(response, 'parsed', None)
+        if isinstance(parsed_response, StructuredExplanation):
+            structured = parsed_response.model_dump()
+        elif parsed_response:
+            structured = StructuredExplanation.model_validate(parsed_response).model_dump()
+        else:
+            structured = None
 
         def _looks_like_metadata(value):
             text = (value or '').strip()
@@ -972,7 +1029,13 @@ def explain_question(qid: int, language: str = 'en'):
         if not text.strip():
             raise ValueError('Gemini returned no explanation text')
         cleaned = text.strip()
-        return {"explanation": cleaned, "language": language, "cached": False}
+        if structured is None:
+            try:
+                structured = StructuredExplanation.model_validate_json(cleaned).model_dump()
+            except ValueError:
+                structured = None
+        markdown = explanation_markdown(structured) if structured else cleaned
+        return {"explanation": markdown, "structured": structured, "language": language, "cached": False}
     except Exception as exc:
         raise HTTPException(502, f"Could not generate explanation: {type(exc).__name__}: {exc}") from exc
 
@@ -981,6 +1044,7 @@ def explain_question(qid: int, language: str = 'en'):
 async def like_question_explanation(qid: int, request: Request):
     data = await request.json()
     text = str(data.get('explanation') or '').strip()
+    structured = data.get('structured')
     language = normalize_explanation_language(str(data.get('language') or 'en'))
     if not text:
         raise HTTPException(400, 'An explanation is required before it can be saved.')
@@ -988,8 +1052,8 @@ async def like_question_explanation(qid: int, request: Request):
         row = conn.execute("SELECT id FROM questions WHERE id = ?", (qid,)).fetchone()
     if row is None:
         raise HTTPException(404, 'question not found')
-    saved = save_question_explanation(qid, text, language=language, liked=True)
-    return {"saved": True, "question_id": qid, "language": language, "explanation": saved['explanation']}
+    saved = save_question_explanation(qid, text, language=language, liked=True, structured=structured)
+    return {"saved": True, "question_id": qid, "language": language, "explanation": saved['explanation'], "structured": saved.get('structured')}
 
 
 @app.get("/api/questions/{qid}/versions")

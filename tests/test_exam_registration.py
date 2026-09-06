@@ -33,6 +33,30 @@ class ExamRegistrationModuleTests(unittest.TestCase):
             app.normalize_explanation_language('xx')
         self.assertEqual(raised.exception.status_code, 400)
 
+    def test_structured_explanation_round_trip_preserves_sections(self):
+        payload = {
+            'title': 'Photosynthesis made clear',
+            'summary': 'Plants convert light energy into chemical energy.',
+            'concept': 'Chlorophyll absorbs light.',
+            'steps': ['Light is absorbed.', 'Glucose is produced.'],
+            'correct_answer': 'Option B describes the process.',
+            'distractors': [{'option': 'A', 'reason': 'This describes respiration.'}],
+            'background': 'The process occurs in chloroplasts.',
+            'memory_tip': 'Photo means light; synthesis means making.',
+            'references': ['NCERT Science chapter on Life Processes'],
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            db = str(Path(directory) / 'questions.db')
+            with sqlite3.connect(db) as conn:
+                conn.executescript(app.SCHEMA)
+                conn.execute("INSERT INTO questions (statement, created_at, updated_at) VALUES (?, ?, ?)", ('Question', 1.0, 1.0))
+            with patch.object(app, 'DB_PATH', db):
+                app.save_question_explanation(1, app.explanation_markdown(payload), structured=payload)
+                cached = app.get_cached_question_explanation(1)
+                self.assertEqual(cached['structured']['steps'], payload['steps'])
+                self.assertIn('## Memory tip', cached['explanation'])
+                self.assertIn('**A**', cached['explanation'])
+
     def test_exam_registration_crud_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:
             db = str(Path(directory) / 'questions.db')

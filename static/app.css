@@ -213,6 +213,24 @@ textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-siz
 .explain-content code { background: #edf3ff; color: #1d3b78; border-radius: 4px; padding: 2px 6px; }
 .explain-content a { color: #2f6fed; text-decoration: none; }
 .explain-content a:hover { text-decoration: underline; }
+.structured-explanation { display: grid; gap: 14px; max-width: 1080px; margin: 0 auto; }
+.explain-hero { padding: 24px; color: #fff; background: linear-gradient(135deg, #123b7a, #236b82); border-radius: 14px; box-shadow: 0 10px 26px rgba(18,59,122,.16); }
+.explain-hero h2 { margin: 5px 0 10px; color: #fff; font-size: clamp(22px, 3vw, 32px); border: 0; }
+.explain-hero .rendered, .explain-hero p { color: #f4f9ff; margin-bottom: 0; font-size: 16px; }
+.explain-eyebrow { font-size: 12px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: #bceaf1; }
+.explain-section { padding: 18px 20px; background: #fff; border: 1px solid #dce7f5; border-radius: 12px; box-shadow: 0 3px 12px rgba(18,42,82,.05); }
+.explain-section-title { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.explain-section-title > span { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: #eaf2ff; font-weight: 900; color: #1854a2; }
+.explain-section-title h3 { margin: 0; color: #15365f; font-size: 17px; }
+.explain-section.correct { border-left: 5px solid #20a66a; background: #f3fcf7; }
+.explain-section.memory-tip { border-color: #f0c45b; background: #fff9e8; }
+.explain-steps { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; counter-reset: none; }
+.explain-steps li { display: grid; grid-template-columns: 34px 1fr; gap: 10px; align-items: start; margin: 0; }
+.explain-steps li > span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #123b7a; color: #fff; font-weight: 800; }
+.explain-steps .rendered p, .distractors .rendered p { margin: 3px 0 0; }
+.distractors ul, .references ul { display: grid; gap: 9px; list-style: none; margin: 0; padding: 0; }
+.distractors li { padding: 10px 12px; background: #f8fafc; border-radius: 8px; }
+.distractors li strong { display: block; color: #7a3140; }
 .editor-box { width: min(980px, calc(100vw - 32px)); max-height: calc(100vh - 48px); }
 #editor { margin: 0; border: 0; box-shadow: none; padding: 0; }
 #editor .editor-head { margin-bottom: 14px; }

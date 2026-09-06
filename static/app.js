@@ -439,6 +439,23 @@ document.querySelectorAll('.toolbar').forEach((bar) => {
   });
 });
 
+function renderStructuredExplanation(target, body) {
+  const data = body?.structured;
+  target.dataset.rawExplanation = body?.explanation || '';
+  target.dataset.structured = data ? JSON.stringify(data) : '';
+  if (!data) {
+    target.innerHTML = toHtml(body?.explanation || 'No explanation available.');
+    typeset(target);
+    return;
+  }
+  const section = (icon, title, value, kind = '') => value ? `<section class="explain-section ${kind}"><div class="explain-section-title"><span aria-hidden="true">${icon}</span><h3>${escapeHtml(title)}</h3></div><div class="rendered">${toHtml(value)}</div></section>` : '';
+  const steps = (data.steps || []).map((step, index) => `<li><span>${index + 1}</span><div class="rendered">${toHtml(step)}</div></li>`).join('');
+  const distractors = (data.distractors || []).map(item => `<li><strong>${escapeHtml(item.option || 'Option')}</strong><div class="rendered">${toHtml(item.reason)}</div></li>`).join('');
+  const references = (data.references || []).map(item => `<li class="rendered">${toHtml(item)}</li>`).join('');
+  target.innerHTML = `<article class="structured-explanation"><header class="explain-hero"><span class="explain-eyebrow">Concept mastery</span><h2>${escapeHtml(data.title)}</h2><div class="rendered">${toHtml(data.summary)}</div></header>${section('💡','Core concept',data.concept,'concept')}${steps ? `<section class="explain-section"><div class="explain-section-title"><span aria-hidden="true">🧩</span><h3>Step-by-step reasoning</h3></div><ol class="explain-steps">${steps}</ol></section>` : ''}${section('✓','Why this answer is correct',data.correct_answer,'correct')}${distractors ? `<section class="explain-section distractors"><div class="explain-section-title"><span aria-hidden="true">🔍</span><h3>Why the other options do not fit</h3></div><ul>${distractors}</ul></section>` : ''}${section('📘','Useful background',data.background)}${section('🎯','Remember this',data.memory_tip,'memory-tip')}${references ? `<section class="explain-section references"><div class="explain-section-title"><span aria-hidden="true">🔖</span><h3>Learn more</h3></div><ul>${references}</ul></section>` : ''}</article>`;
+  typeset(target);
+}
+
 async function openExplainModal(questionId) {
   const explainContent = $('explain-content');
   $('explain-like').hidden = false;
@@ -464,9 +481,8 @@ async function openExplainModal(questionId) {
       const detail = body?.detail || body?.error || body?.message || rawText || 'Could not load explanation.';
       throw new Error(detail);
     }
-    const explanation = body.explanation || body?.message || 'No explanation available.';
-    explainContent.innerHTML = toHtml(explanation);
-    typeset(explainContent);
+    body.explanation = body.explanation || body?.message || 'No explanation available.';
+    renderStructuredExplanation(explainContent, body);
     if (body.cached) {
       $('explain-like').textContent = 'Saved';
       $('explain-like').disabled = true;
@@ -484,7 +500,8 @@ async function saveLikedExplanation() {
   const questionId = $('explain-like')?.dataset.questionId;
   const explainContent = $('explain-content');
   if (!questionId || !explainContent) return;
-  const explanation = explainContent.innerText || explainContent.textContent || '';
+  const explanation = explainContent.dataset.rawExplanation || explainContent.innerText || explainContent.textContent || '';
+  const structured = explainContent.dataset.structured ? JSON.parse(explainContent.dataset.structured) : null;
   if (!explanation.trim()) {
     notify('There is no explanation to save yet.');
     return;
@@ -493,7 +510,7 @@ async function saveLikedExplanation() {
     const res = await fetch(`/api/questions/${questionId}/explain/like`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ explanation, language: $('explain-language')?.value || 'en' }),
+      body: JSON.stringify({ explanation, structured, language: $('explain-language')?.value || 'en' }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.detail || 'Could not save the explanation.');
