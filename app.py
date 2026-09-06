@@ -318,6 +318,8 @@ from exam_conduct import init_exam_conduct, router as exam_conduct_router
 if not os.getenv("DATABASE_URL"):
     init_exam_conduct()
 app.include_router(exam_conduct_router)
+from public_api import router as public_router
+app.include_router(public_router)
 
 @app.middleware("http")
 async def protect_legacy_admin_api(request: Request, call_next):
@@ -1814,12 +1816,33 @@ def healthz():
     return {"status": "ok"}
 
 
+def _page(name: str) -> FileResponse:
+    return FileResponse(os.path.join(BASE_DIR, "static", name))
+
+
 @app.get("/")
 def index():
-    return FileResponse(os.path.join(BASE_DIR, "static", "index.html"))
+    """Public marketing home; the workspace lives behind /app."""
+    from public_api import config as public_config
+    return _page("home.html" if public_config()["show_marketing_home"] else "index.html")
+
+
+@app.get("/explore")
+def explore_page():
+    return _page("home.html")
+
+
+@app.get("/exams/{exam_id}")
+def public_exam_page(exam_id: int):
+    return _page("home.html")
+
+
+@app.get("/app")
+def workspace():
+    return _page("index.html")
 
 
 @app.get("/register/exam/{token}")
 def registration_page(token: str):
     """Serve the mobile-friendly SPA registration screen; the token is read client-side."""
-    return FileResponse(os.path.join(BASE_DIR, "static", "index.html"))
+    return _page("index.html")

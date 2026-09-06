@@ -29,6 +29,23 @@ AUTH_MODE=mock
 
 Do not use mock mode in a deployed environment.
 
+## Public site and application shell
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Public marketing home (`static/home.html`) with the exam catalogue, feature and how-it-works sections. |
+| `/explore` | Public, searchable catalogue of published exams. |
+| `/exams/{id}` | Public exam detail page: metadata only, never questions or answers. |
+| `/app` | The authenticated workspace (`static/index.html`) for students, teachers/admins and proctors. |
+| `/register/exam/{token}` | Unchanged self-registration screen served by the application shell. |
+
+The public pages read `/api/public/config`, `/api/public/home`, `/api/public/exams` and
+`/api/public/exams/{id}`. Those endpoints expose only `PUBLISHED`/`OPEN` exam metadata; question
+text, options, answers, solutions and proctor codes are never returned. Set
+`SHOW_MARKETING_HOME=0` to serve the application shell at `/` again, or
+`SHOW_PUBLIC_EXAM_CATALOG=0` to keep the exam catalogue private. `BRAND_NAME`, `BRAND_TAGLINE`
+and `SUPPORT_EMAIL` customise the public site copy.
+
 ## Examination flow
 
 ## Prompt-driven AI question generation
@@ -172,6 +189,8 @@ The application intentionally does **not** regenerate a graph, circuit, geometry
 ```bash
 python -m unittest discover -s tests -v
 node --check static/app.js
+node --check static/platform-ui.js
+node --check static/home.js
 ```
 
 The automated suite is offline and makes no paid GCP calls. A live GCP golden-corpus benchmark is still required before claiming a particular accuracy level.

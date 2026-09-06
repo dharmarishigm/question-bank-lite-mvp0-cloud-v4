@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Question Bank · Practice smarter. Master every exam.</title>
+<meta name="description" content="Prepare with AI-assisted practice exams, instant explanations and performance insights built on your institution's own question bank." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/static/theme.css" />
+<link rel="stylesheet" href="/static/home.css" />
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="site-nav" id="site-nav">
+  <div class="container">
+    <a class="brand-link" href="/"><span class="brand-mark" aria-hidden="true">Q</span><span data-brand-name>Question Bank</span></a>
+    <nav class="nav-links" id="nav-links" aria-label="Primary">
+      <a href="/">Home</a>
+      <a href="/explore">Practice exams</a>
+      <a href="/#how-it-works">How it works</a>
+      <a href="/#features">Features</a>
+      <a href="/#about">About</a>
+    </nav>
+    <button class="btn small ghost nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links">Menu</button>
+    <div class="nav-actions" id="nav-actions">
+      <a class="btn small" href="/app" data-auth="signed-out">Log in</a>
+      <a class="btn small primary" href="/app" data-auth="signed-out">Get started</a>
+      <a class="btn small primary" href="/app" data-auth="signed-in" hidden>Go to dashboard</a>
+      <span class="chip" id="nav-account" data-auth="signed-in" hidden></span>
+    </div>
+  </div>
+</header>
+
+<main id="main">
+  <!-- Marketing home -->
+  <div id="home-view">
+    <section class="hero">
+      <div class="container">
+        <div>
+          <span class="pill">AI-assisted exam preparation</span>
+          <h1>Practice smarter. <em>Master every exam.</em></h1>
+          <p class="lead">Take practice and proctored exams built from your institution's own question bank, get instant step-by-step explanations, and track exactly which topics still need work.</p>
+          <div class="hero-cta">
+            <a class="btn primary large" href="/explore">Browse practice exams</a>
+            <a class="btn large" href="/app">Log in to your dashboard</a>
+          </div>
+          <p class="hero-note">Sign in with Google or your exam registration link. Proctored examinations keep their existing access code and security rules.</p>
+          <div class="hero-stats" id="hero-stats" hidden>
+            <div><strong id="stat-exams">—</strong><span>Published exams</span></div>
+            <div><strong id="stat-subjects">—</strong><span>Subjects covered</span></div>
+            <div><strong id="stat-questions">—</strong><span>Questions in the bank</span></div>
+          </div>
+        </div>
+        <div class="preview-stack">
+          <div class="preview-card" role="img" aria-label="Illustration of the student dashboard showing practice progress, accuracy and topic breakdown">
+            <header>
+              <div><h3>Your practice dashboard</h3><small>Illustrative preview</small></div>
+              <span class="chip solid">Live insights</span>
+            </header>
+            <div class="progress-row"><span>Physics · Mechanics set</span><span>18 / 25</span></div>
+            <div class="progress"><i style="width:72%"></i></div>
+            <div class="preview-metrics">
+              <div><strong>72%</strong><span>Accuracy</span></div>
+              <div><strong>25</strong><span>Questions</span></div>
+              <div><strong>38m</strong><span>Time spent</span></div>
+            </div>
+            <div class="chip-row">
+              <span class="chip solid">Kinematics · strong</span>
+              <span class="chip">Rotation · review</span>
+              <span class="chip">Optics · not started</span>
+            </div>
+          </div>
+          <div class="float-card float-ai"><span>AI explanation</span><p>Every answer comes with a worked solution, formula rendering and the concept it tests.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section tint" id="exams">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Exam catalogue</p>
+          <h2 id="trending-title">Explore practice exams</h2>
+          <p id="trending-subtitle">Published examinations available on this platform right now.</p>
+        </div>
+        <div id="trending-grid" class="card-grid" aria-live="polite"></div>
+        <div class="section-actions"><a class="btn" href="/explore">View all exams</a></div>
+      </div>
+    </section>
+
+    <section class="section" id="features">
+      <div class="container">
+        <div class="section-head center">
+          <p class="eyebrow">Why this platform</p>
+          <h2>Everything an exam programme needs, in one place</h2>
+          <p>Built for students who want focused practice, and for teachers who need to author, generate and conduct examinations securely.</p>
+        </div>
+        <div class="feature-grid">
+          <article class="feature"><div class="icon" aria-hidden="true">◇</div><h3>Curated question bank</h3><p>Questions digitised from your own documents, tagged by subject, topic, difficulty and exam type.</p></article>
+          <article class="feature"><div class="icon" aria-hidden="true">✦</div><h3>AI question generation</h3><p>Teachers generate new questions and blueprint-driven exams from existing metadata, then review before publishing.</p></article>
+          <article class="feature"><div class="icon" aria-hidden="true">≡</div><h3>Practice and proctored modes</h3><p>Open practice attempts for self-study, plus code-protected proctored sittings with autosave and timed submission.</p></article>
+          <article class="feature"><div class="icon" aria-hidden="true">∑</div><h3>Maths and chemistry rendering</h3><p>KaTeX and mhchem render equations and reaction notation exactly as they appear on paper.</p></article>
+          <article class="feature"><div class="icon" aria-hidden="true">◔</div><h3>Autosave and resume</h3><p>Answers save as students work, so a dropped connection never costs an attempt.</p></article>
+          <article class="feature"><div class="icon" aria-hidden="true">◈</div><h3>Result analytics</h3><p>Score summaries, per-question review, topic breakdowns and previous attempts in one view.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section tint" id="ai-explanations">
+      <div class="container showcase">
+        <div>
+          <p class="eyebrow">Instant explanations</p>
+          <h2>Understand the answer, not just the score</h2>
+          <p style="color:var(--text-secondary);font-size:17px">Submit an attempt and review each question with the correct option, a worked explanation and the topic it belongs to, so the next attempt targets the real gap.</p>
+          <ol class="flow-list">
+            <li><b>1</b> Attempt the exam under practice or proctored conditions</li>
+            <li><b>2</b> Review every question with the model solution</li>
+            <li><b>3</b> Filter by incorrect, skipped or flagged answers</li>
+            <li><b>4</b> Retake the exam when attempts remain</li>
+          </ol>
+        </div>
+        <div class="answer-card">
+          <p class="q"><strong>Q.</strong> A body accelerates uniformly from rest to 20 m/s in 5 s. What is the acceleration?</p>
+          <div class="answer-row">
+            <div class="wrong"><span>Your answer</span><strong>2 m/s²</strong></div>
+            <div class="right"><span>Correct answer</span><strong>4 m/s²</strong></div>
+          </div>
+          <div class="explanation"><span>Explanation</span><p>Use v = u + at with u = 0, v = 20 m/s and t = 5 s, so a = (20 − 0) / 5 = 4 m/s². Topic: Kinematics · Difficulty: Easy.</p></div>
+          <span class="demo-tag">Illustrative example, not exam content.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="goals">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Goal-based practice</p>
+          <h2>Start from what you are preparing for</h2>
+          <p>Categories come from the metadata on published exams, so this list reflects what is actually available.</p>
+        </div>
+        <div id="category-row" class="category-row" aria-live="polite"></div>
+        <div class="goal-grid" style="margin-top:22px">
+          <a class="goal" href="/explore"><strong>Daily practice</strong><span>Short focused sets to build accuracy and speed.</span></a>
+          <a class="goal" href="/explore"><strong>Full-length mocks</strong><span>Timed papers that mirror the real examination.</span></a>
+          <a class="goal" href="/explore"><strong>Topic revision</strong><span>Target the topics your last result flagged.</span></a>
+          <a class="goal" href="/app"><strong>School programmes</strong><span>Teachers author, generate and conduct exams for their classes.</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="section tint" id="how-it-works">
+      <div class="container">
+        <div class="section-head center">
+          <p class="eyebrow">How it works</p>
+          <h2>From registration to results in four steps</h2>
+        </div>
+        <div class="steps">
+          <article class="step"><h3>Sign in</h3><p>Use Google sign-in or the registration link shared by your institution.</p></article>
+          <article class="step"><h3>Pick an exam</h3><p>Choose a published practice exam, or open a proctored exam with its access code.</p></article>
+          <article class="step"><h3>Attempt with autosave</h3><p>Navigate questions, flag for review and submit before the timer ends.</p></article>
+          <article class="step"><h3>Review and retake</h3><p>Study explanations, spot weak topics and retake while attempts remain.</p></article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="about">
+      <div class="container showcase">
+        <div>
+          <p class="eyebrow">Your learning journey</p>
+          <h2>Progress you can actually measure</h2>
+          <p style="color:var(--text-secondary);font-size:17px">Every attempt is stored against your account: scores, time taken, per-question outcomes and previous attempts. Teachers see cohort progress; students see their own.</p>
+          <div class="section-actions"><a class="btn primary" href="/app">Open my dashboard</a><a class="btn" href="/explore">See available exams</a></div>
+        </div>
+        <div class="journey">
+          <div><strong>Attempt</strong><span>Practice or proctored sittings with autosave.</span></div>
+          <div><strong>Review</strong><span>Question-level explanations and topics.</span></div>
+          <div><strong>Improve</strong><span>Retake and compare against earlier scores.</span></div>
+          <div><strong>Report</strong><span>Result summaries for students and staff.</span></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="container">
+        <div class="cta">
+          <h2>Ready to start practising?</h2>
+          <p>Browse the published exam catalogue, or sign in to continue where you left off.</p>
+          <div class="section-actions"><a class="btn primary large" href="/explore">Browse exams</a><a class="btn large" href="/app">Log in</a></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Public exam catalogue -->
+  <div id="explore-view" hidden>
+    <section class="section">
+      <div class="container">
+        <div class="section-head">
+          <p class="eyebrow">Practice exams</p>
+          <h2>Explore published exams</h2>
+          <p>Only published examinations are listed. Question content and answers stay protected until you start an attempt.</p>
+        </div>
+        <div class="explore-toolbar">
+          <label class="sr-only" for="explore-search">Search exams</label>
+          <input id="explore-search" type="search" placeholder="Search by name, subject or description" />
+          <label class="sr-only" for="explore-category">Filter by category</label>
+          <select id="explore-category"><option value="">All categories</option></select>
+        </div>
+        <div id="explore-grid" class="card-grid" aria-live="polite"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Public exam detail -->
+  <div id="detail-view" hidden>
+    <section class="section">
+      <div class="container">
+        <p><a class="btn small ghost" href="/explore">← Back to all exams</a></p>
+        <div id="detail-body" aria-live="polite"></div>
+      </div>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <a class="brand-link" href="/"><span class="brand-mark" aria-hidden="true">Q</span><span data-brand-name>Question Bank</span></a>
+        <p style="color:var(--text-secondary);max-width:34em">An examination platform for practice exams, proctored sittings, question digitisation and AI-assisted question generation.</p>
+      </div>
+      <div><h4>Platform</h4><ul><li><a href="/explore">Practice exams</a></li><li><a href="/#features">Features</a></li><li><a href="/#how-it-works">How it works</a></li></ul></div>
+      <div><h4>Account</h4><ul><li><a href="/app">Log in</a></li><li><a href="/app">Student dashboard</a></li><li><a href="/app">Teacher workspace</a></li></ul></div>
+      <div><h4>Support</h4><ul><li><a href="/#about">About</a></li><li><a href="/healthz">Service status</a></li><li id="footer-support" hidden><a href="#" id="footer-support-link">Contact</a></li></ul></div>
+    </div>
+    <div class="footer-bottom"><span>© <span id="footer-year"></span> <span data-brand-name>Question Bank</span></span><span>Practice smarter. Master every exam.</span></div>
+  </div>
+</footer>
+
+<script src="/static/home.js"></script>
+</body>
+</html>
