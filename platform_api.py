@@ -347,6 +347,29 @@ def public_exams():
           WHERE e.status='OPEN' GROUP BY e.id ORDER BY e.updated_at DESC LIMIT 12""").fetchall()
     return [{**dict(row),'proctor_required':bool(row['proctor_required']),'allow_self_registration':bool(row['allow_self_registration'])} for row in rows]
 
+@router.post('/public/exams/{exam_id}/register')
+async def public_exam_registration(exam_id:int,request:Request,response:Response):
+    data=await request.json();first=str(data.get('first_name','')).strip();last=str(data.get('last_name','')).strip();dob=str(data.get('date_of_birth','')).strip();email=str(data.get('email','')).strip().lower();now=time.time()
+    if not first or not last or len(first)>80 or len(last)>80:raise HTTPException(422,'Enter the student first and last name')
+    if not re.fullmatch(r'\d{4}-\d{2}-\d{2}',dob):raise HTTPException(422,'Enter a valid date of birth')
+    if not re.fullmatch(r'[^\s@]+@gmail\.com',email):raise HTTPException(422,'Enter a valid Gmail address')
+    with closing(db()) as conn:
+        exam=conn.execute("SELECT * FROM exams WHERE id=? AND status='OPEN' AND allow_self_registration=1",(exam_id,)).fetchone()
+        if not exam:raise HTTPException(404,'This exam is not available for public registration')
+        if (exam['registration_start_at'] and now<exam['registration_start_at']) or (exam['registration_end_at'] and now>exam['registration_end_at']):raise HTTPException(403,'Registration window is closed')
+        user=conn.execute('SELECT * FROM users WHERE lower(email)=?',(email,)).fetchone()
+        if user and user['role']!='STUDENT':raise HTTPException(403,'This email belongs to a staff account')
+        if user and user['date_of_birth'] and user['date_of_birth']!=dob:raise HTTPException(401,'Registration details do not match the existing student account')
+        name=f'{first} {last}'.strip()
+        if not user:
+            cur=conn.execute("INSERT INTO users(google_sub,email,email_verified,display_name,given_name,family_name,role,status,created_at,updated_at,last_login_at,date_of_birth,profile_completed) VALUES(?,?,?,?,?,?,'STUDENT','ACTIVE',?,?,?,?,1)",(f'registration:{secrets.token_urlsafe(18)}',email,0,name,first,last,now,now,now,dob));uid=cur.lastrowid
+        else:
+            uid=user['id'];conn.execute('UPDATE users SET display_name=?,given_name=?,family_name=?,date_of_birth=?,last_login_at=?,updated_at=? WHERE id=?',(name,first,last,dob,now,now,uid))
+        conn.execute("INSERT INTO exam_enrollments(exam_id,user_id,status,registered_at,created_at,updated_at,registered_email,registration_source,created_by,full_name_snapshot) VALUES(?,?,'ENROLLED',?,?,?,?,'PUBLIC',?,?) ON CONFLICT(exam_id,user_id) DO UPDATE SET status='ENROLLED',cancelled_at=NULL,updated_at=excluded.updated_at",(exam_id,uid,now,now,now,email,uid,name))
+        raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(24);conn.execute('INSERT INTO app_sessions(token_hash,user_id,csrf_token,expires_at,created_at) VALUES(?,?,?,?,?)',(_hash(raw),uid,csrf,now+SESSION_SECONDS,now));conn.commit();user=conn.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
+    secure=os.getenv('APP_BASE_URL','').startswith('https://');response.set_cookie('qb_session',raw,max_age=SESSION_SECONDS,httponly=True,samesite='lax',secure=secure);response.set_cookie('qb_csrf',csrf,max_age=SESSION_SECONDS,httponly=False,samesite='lax',secure=secure)
+    return {'registered':True,'exam_id':exam_id,'user':_public_user(user)}
+
 @router.get('/exams')
 def exams(request:Request):
     user=_auth(request); where='' if user['role'] in {'ADMIN','PROCTOR'} else " WHERE e.status='OPEN'"

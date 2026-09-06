@@ -57,6 +57,8 @@ class PlatformSecurityTests(unittest.TestCase):
         self.assertIn('property="og:title"',html)
         self.assertEqual(html.count('<h1>'),1)
         self.assertIn('id="public-site"',html)
+        self.assertIn('data-admin-login',html)
+        self.assertIn('id="student-registration-form"',html)
         self.assertNotIn('id="admin-nav"',html)
         self.assertNotIn('id="student-nav"',html)
         self.assertNotIn('Generate Questions by AI',html)
@@ -88,6 +90,20 @@ class PlatformSecurityTests(unittest.TestCase):
         self.assertNotIn('Private answer test',raw)
         self.assertNotIn('Secret solution',raw)
         self.assertNotIn('answer',raw.lower())
+
+    def test_public_student_registration_enrolls_and_signs_in(self):
+        admin,_=self.login('admin@example.test')
+        with patch.dict(os.environ,{'AUTH_MODE':''}):q=app.create_question(app.Question(statement='Registration question',options=['A','B'],answer='A'))
+        exam=self.post(admin,'/api/admin/exams',json={'name':'Public Registration Exam','status':'OPEN','question_ids':[q['id']]}).json()
+        student=TestClient(app.app)
+        try:
+            registered=student.post(f'/api/public/exams/{exam["id"]}/register',json={'first_name':'Asha','last_name':'Rao','date_of_birth':'2014-04-03','email':'asha.registration@gmail.com'})
+            self.assertEqual(registered.status_code,200,registered.text)
+            self.assertEqual(registered.json()['user']['role'],'STUDENT')
+            self.assertEqual(student.get('/api/auth/me').json()['email'],'asha.registration@gmail.com')
+            exams=student.get('/api/my/exams').json()
+            self.assertEqual(len(exams),1);self.assertEqual(exams[0]['id'],exam['id'])
+        finally:student.close()
     def test_isolated_exam_sessions_answers_and_results(self):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):

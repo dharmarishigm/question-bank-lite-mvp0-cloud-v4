@@ -1,8 +1,9 @@
 (() => {
   const byId=id=>document.getElementById(id);
+  let authConfig={};
   const json=async(url,options={})=>{const response=await fetch(url,options);const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.detail||'Sign in failed');return body;};
   const complete=()=>location.assign('/');
-  fetch('/api/auth/config',{cache:'no-store'}).then(config=>{
+  fetch('/api/auth/config',{cache:'no-store'}).then(config=>{authConfig=config;
     byId('bootstrap-admin-toggle').hidden=!config.bootstrap_available;
     byId('admin-login-toggle').disabled=!config.local_admin;
     byId('admin-login-email').value='';
@@ -14,6 +15,15 @@
     else if(config.bootstrap_available)byId('login-message').textContent='Create the first administrator to complete initial setup.';
     else if(config.local_admin)byId('login-message').textContent='Google sign-in is not configured. Use administrator login below.';
     else byId('login-message').textContent='Google sign-in is not configured. Set GOOGLE_CLIENT_ID and restart the app.';
+  });
+  document.addEventListener('meritiqra:login-mode',event=>{
+    const admin=event.detail.mode==='admin';
+    byId('login-title').textContent=admin?'Administrator login':'Student login';
+    byId('google-signin').hidden=admin;byId('mock-signin').hidden=admin||!authConfig.mock;
+    byId('admin-login-toggle').hidden=true;byId('admin-login-form').hidden=!admin;
+    byId('bootstrap-admin-toggle').hidden=true;byId('bootstrap-admin-form').hidden=true;
+    byId('login-message').textContent=admin?(authConfig.local_admin?'Enter the administrator credentials configured for MeritIQra.':'Administrator credentials are not configured.'):(authConfig.client_id?'Continue with Google to access your registered exams.':'Use Register to create a student account and enroll in an exam.');
+    if(admin){byId('admin-login-email').value='';byId('admin-login-password').value='';byId('admin-login-email').focus();}
   });
   byId('bootstrap-admin-toggle').onclick=()=>{byId('bootstrap-admin-toggle').hidden=true;byId('bootstrap-admin-form').hidden=false;byId('bootstrap-admin-name').focus();};
   byId('bootstrap-admin-cancel').onclick=()=>{byId('bootstrap-admin-form').hidden=true;byId('bootstrap-admin-toggle').hidden=false;};
