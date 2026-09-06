@@ -218,6 +218,8 @@ textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-siz
 #editor .editor-head { margin-bottom: 14px; }
 .modal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
 .modal-head h2 { margin: 0; font-size: 16px; }
+.explain-language-label { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 13px; font-weight: 700; }
+.explain-language-label select { min-width: 150px; }
 .pdf-defaults { margin-bottom: 10px; }
 .pdf-help { font-size: 12px; color: #55606e; background: #f2f5f9; border-radius: 6px; padding: 8px 10px; margin: 0 0 10px; }
 .pdf-warning { background: #fff5e0; border: 1px solid #f0d9a8; border-radius: 6px; padding: 6px 10px; margin-bottom: 6px; font-size: 13px; }

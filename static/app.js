@@ -445,9 +445,12 @@ async function openExplainModal(questionId) {
   explainContent.textContent = 'Preparing an explanation...';
   $('explain-modal').hidden = false;
   $('explain-like').dataset.questionId = String(questionId);
+  $('explain-modal').dataset.questionId = String(questionId);
+  delete $('explain-modal').dataset.studentReview;
   $('explain-like').disabled = false;
   try {
-    const res = await fetch(`/api/questions/${questionId}/explain`);
+    const language = $('explain-language')?.value || 'en';
+    const res = await fetch(`/api/questions/${questionId}/explain?language=${encodeURIComponent(language)}`);
     const rawText = await res.text();
     let body = {};
     if (rawText) {
@@ -490,7 +493,7 @@ async function saveLikedExplanation() {
     const res = await fetch(`/api/questions/${questionId}/explain/like`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ explanation }),
+      body: JSON.stringify({ explanation, language: $('explain-language')?.value || 'en' }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.detail || 'Could not save the explanation.');
@@ -582,6 +585,10 @@ $('btn-close-editor').addEventListener('click', () => {
 });
 $('explain-close').addEventListener('click', () => { $('explain-modal').hidden = true; });
 $('explain-like')?.addEventListener('click', saveLikedExplanation);
+$('explain-language')?.addEventListener('change', () => {
+  const modal = $('explain-modal'), questionId = modal?.dataset.questionId;
+  if (questionId && !modal.hidden && modal.dataset.studentReview !== '1') openExplainModal(questionId);
+});
 $('btn-print').addEventListener('click', () => window.print());
 $('btn-export').addEventListener('click', () => { window.location.href = '/api/export'; });
 $('import-file').addEventListener('change', async (e) => {

@@ -8,6 +8,31 @@ import app
 
 
 class ExamRegistrationModuleTests(unittest.TestCase):
+    def test_explanations_are_cached_independently_by_language(self):
+        with tempfile.TemporaryDirectory() as directory:
+            db = str(Path(directory) / 'questions.db')
+            with sqlite3.connect(db) as conn:
+                conn.executescript(app.SCHEMA)
+                conn.execute(
+                    "INSERT INTO questions (statement, created_at, updated_at) VALUES (?, ?, ?)",
+                    ('What is photosynthesis?', 1.0, 1.0),
+                )
+            with patch.object(app, 'DB_PATH', db):
+                app.save_question_explanation(1, 'Plants make food using light.', language='en')
+                app.save_question_explanation(1, 'మొక్కలు కాంతిని ఉపయోగించి ఆహారాన్ని తయారు చేసుకుంటాయి.', language='te')
+
+                english = app.get_cached_question_explanation(1, 'en')
+                telugu = app.get_cached_question_explanation(1, 'te')
+
+                self.assertIn('Plants', english['explanation'])
+                self.assertIn('మొక్కలు', telugu['explanation'])
+                self.assertEqual(telugu['language'], 'te')
+
+    def test_explanation_language_rejects_unsupported_values(self):
+        with self.assertRaises(app.HTTPException) as raised:
+            app.normalize_explanation_language('xx')
+        self.assertEqual(raised.exception.status_code, 400)
+
     def test_exam_registration_crud_round_trip(self):
         with tempfile.TemporaryDirectory() as directory:
             db = str(Path(directory) / 'questions.db')

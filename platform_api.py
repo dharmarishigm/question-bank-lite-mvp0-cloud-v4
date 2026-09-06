@@ -511,7 +511,7 @@ def result_detail(sid:int,request:Request):
     return {'session':dict(s),'released':released,'message':None if released else 'Exam submitted. Result pending.','questions':questions}
 
 @router.get('/student/results/{sid}/questions/{qid}/explain')
-def explain_attempt_question(sid:int,qid:int,request:Request):
+def explain_attempt_question(sid:int,qid:int,request:Request,language:str='en'):
     user=_auth(request)
     with closing(db()) as conn:
         session=conn.execute("SELECT * FROM exam_sessions WHERE id=? AND user_id=? AND status IN ('SUBMITTED','AUTO_SUBMITTED')",(sid,user['id'])).fetchone()
@@ -519,17 +519,17 @@ def explain_attempt_question(sid:int,qid:int,request:Request):
         snapshot=json.loads(session['question_set_json'] or '[]')
         if not any(int(q.get('id',0))==qid for q in snapshot):raise HTTPException(404,'Question not found in this attempt')
     from app import explain_question
-    return explain_question(qid)
+    return explain_question(qid,language)
 
 @router.get('/student/questions/{qid}/explain')
-def explain_owned_attempt_question(qid:int,request:Request):
+def explain_owned_attempt_question(qid:int,request:Request,language:str='en'):
     user=_auth(request)
     with closing(db()) as conn:
         rows=conn.execute("SELECT question_set_json FROM exam_sessions WHERE user_id=? AND status IN ('SUBMITTED','AUTO_SUBMITTED')",(user['id'],)).fetchall()
         found=any(any(int(q.get('id',0))==qid for q in json.loads(row['question_set_json'] or '[]')) for row in rows)
     if not found:raise HTTPException(404,'Question not found in your completed attempts')
     from app import explain_question
-    return explain_question(qid)
+    return explain_question(qid,language)
 
 @router.get('/admin/results')
 def admin_results(request:Request):

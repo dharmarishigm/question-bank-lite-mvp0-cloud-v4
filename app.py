@@ -142,6 +142,18 @@ CREATE TABLE IF NOT EXISTS question_explanations (
     FOREIGN KEY(question_id) REFERENCES questions(id)
 );
 
+CREATE TABLE IF NOT EXISTS question_explanation_translations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    question_id INTEGER NOT NULL,
+    language TEXT NOT NULL DEFAULT 'en',
+    explanation TEXT NOT NULL DEFAULT '',
+    liked INTEGER NOT NULL DEFAULT 0,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    UNIQUE(question_id, language),
+    FOREIGN KEY(question_id) REFERENCES questions(id)
+);
+
 CREATE TABLE IF NOT EXISTS exam_registrations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     first_name TEXT NOT NULL DEFAULT '',
@@ -527,16 +539,36 @@ def values_of(q: Question) -> list:
     return [payload[f] for f in FIELDS]
 
 
-def get_cached_question_explanation(question_id: int) -> Optional[dict]:
+EXPLANATION_LANGUAGES = {
+    'en': {'name': 'English', 'native_name': 'English'},
+    'te': {'name': 'Telugu', 'native_name': 'తెలుగు'},
+}
+
+
+def normalize_explanation_language(language: str) -> str:
+    normalized = (language or 'en').strip().lower().replace('_', '-').split('-', 1)[0]
+    if normalized not in EXPLANATION_LANGUAGES:
+        raise HTTPException(400, f"Unsupported explanation language: {language}")
+    return normalized
+
+
+def get_cached_question_explanation(question_id: int, language: str = 'en') -> Optional[dict]:
+    language = normalize_explanation_language(language)
     with closing(connect()) as conn:
         row = conn.execute(
-            "SELECT question_id, explanation, liked, created_at, updated_at FROM question_explanations WHERE question_id = ?",
-            (question_id,),
+            "SELECT question_id, language, explanation, liked, created_at, updated_at FROM question_explanation_translations WHERE question_id = ? AND language = ?",
+            (question_id, language),
         ).fetchone()
+        if row is None and language == 'en':
+            row = conn.execute(
+                "SELECT question_id, 'en' language, explanation, liked, created_at, updated_at FROM question_explanations WHERE question_id = ?",
+                (question_id,),
+            ).fetchone()
     if row is None:
         return None
     return {
         "question_id": row["question_id"],
+        "language": row["language"],
         "explanation": row["explanation"],
         "liked": bool(row["liked"]),
         "created_at": row["created_at"],
@@ -544,25 +576,26 @@ def get_cached_question_explanation(question_id: int) -> Optional[dict]:
     }
 
 
-def save_question_explanation(question_id: int, explanation: str, *, liked: bool = True) -> dict:
+def save_question_explanation(question_id: int, explanation: str, *, language: str = 'en', liked: bool = True) -> dict:
     text = (explanation or '').strip()
     if not text:
         raise ValueError('Explanation text is required before caching.')
     now = time.time()
+    language = normalize_explanation_language(language)
     with closing(connect()) as conn:
-        existing = conn.execute("SELECT id FROM question_explanations WHERE question_id = ?", (question_id,)).fetchone()
+        existing = conn.execute("SELECT id FROM question_explanation_translations WHERE question_id = ? AND language = ?", (question_id, language)).fetchone()
         if existing:
             conn.execute(
-                "UPDATE question_explanations SET explanation = ?, liked = ?, updated_at = ? WHERE question_id = ?",
-                (text, 1 if liked else 0, now, question_id),
+                "UPDATE question_explanation_translations SET explanation = ?, liked = ?, updated_at = ? WHERE question_id = ? AND language = ?",
+                (text, 1 if liked else 0, now, question_id, language),
             )
         else:
             conn.execute(
-                "INSERT INTO question_explanations (question_id, explanation, liked, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-                (question_id, text, 1 if liked else 0, now, now),
+                "INSERT INTO question_explanation_translations (question_id, language, explanation, liked, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (question_id, language, text, 1 if liked else 0, now, now),
             )
         conn.commit()
-    return {"question_id": question_id, "explanation": text, "liked": bool(liked)}
+    return {"question_id": question_id, "language": language, "explanation": text, "liked": bool(liked)}
 
 
 def _snapshot(conn: sqlite3.Connection, qid: int, reason: str) -> None:
@@ -780,10 +813,12 @@ def get_question(qid: int):
 
 
 @app.get("/api/questions/{qid}/explain")
-def explain_question(qid: int):
-    cached = get_cached_question_explanation(qid)
+def explain_question(qid: int, language: str = 'en'):
+    language = normalize_explanation_language(language)
+    language_details = EXPLANATION_LANGUAGES[language]
+    cached = get_cached_question_explanation(qid, language)
     if cached and cached.get('liked'):
-        return {"explanation": cached['explanation'], "cached": True}
+        return {"explanation": cached['explanation'], "language": language, "cached": True}
 
     with closing(connect()) as conn:
         row = conn.execute("SELECT * FROM questions WHERE id = ?", (qid,)).fetchone()
@@ -802,6 +837,7 @@ def explain_question(qid: int):
     solution = (question.get("solution") or "").strip()
     prompt = (
         "You are a high-quality exam tutor. Explain this question as a concept-first learning explanation, not just a final-answer note.\n\n"
+        f"Required explanation language: {language_details['name']} ({language_details['native_name']}).\n"
         f"Subject: {subject or 'General'}\n"
         f"Chapter: {chapter or 'General'}\n"
         f"Question: {statement}\n"
@@ -809,6 +845,7 @@ def explain_question(qid: int):
         f"Stored answer: {answer or 'Not explicitly available'}\n"
         f"Solution/hint: {solution or 'No solution text stored'}\n\n"
         "Instructions:\n"
+        f"0. Write the complete explanation in {language_details['name']}. Keep formulas, symbols, scientific names, and option labels unchanged. When a technical term may be unfamiliar, write the {language_details['name']} term followed by its English term in parentheses the first time.\n"
         "1. Identify the underlying concept, law, formula, principle, or reasoning pattern in this question.\n"
         "2. Explain the concept in a student-friendly way, with clear intuition and a short physical/mathematical idea behind it.\n"
         "3. Relate the concept to each option: explain why the correct option fits and why the other options are likely wrong or less suitable.\n"
@@ -935,7 +972,7 @@ def explain_question(qid: int):
         if not text.strip():
             raise ValueError('Gemini returned no explanation text')
         cleaned = text.strip()
-        return {"explanation": cleaned, "cached": False}
+        return {"explanation": cleaned, "language": language, "cached": False}
     except Exception as exc:
         raise HTTPException(502, f"Could not generate explanation: {type(exc).__name__}: {exc}") from exc
 
@@ -944,14 +981,15 @@ def explain_question(qid: int):
 async def like_question_explanation(qid: int, request: Request):
     data = await request.json()
     text = str(data.get('explanation') or '').strip()
+    language = normalize_explanation_language(str(data.get('language') or 'en'))
     if not text:
         raise HTTPException(400, 'An explanation is required before it can be saved.')
     with closing(connect()) as conn:
         row = conn.execute("SELECT id FROM questions WHERE id = ?", (qid,)).fetchone()
     if row is None:
         raise HTTPException(404, 'question not found')
-    saved = save_question_explanation(qid, text, liked=True)
-    return {"saved": True, "question_id": qid, "explanation": saved['explanation']}
+    saved = save_question_explanation(qid, text, language=language, liked=True)
+    return {"saved": True, "question_id": qid, "language": language, "explanation": saved['explanation']}
 
 
 @app.get("/api/questions/{qid}/versions")
