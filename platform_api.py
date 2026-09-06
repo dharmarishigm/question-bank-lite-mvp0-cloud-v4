@@ -533,8 +533,22 @@ def explain_owned_attempt_question(qid:int,request:Request):
 def admin_results(request:Request):
     require_admin(_auth(request))
     with closing(db()) as conn:
-        rows=conn.execute("SELECT s.*,e.name exam_name,u.email student_email,u.display_name student_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id JOIN users u ON u.id=s.user_id ORDER BY s.created_at DESC").fetchall()
+        rows=conn.execute("SELECT s.*,e.name exam_name,u.email student_email,u.display_name student_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id JOIN users u ON u.id=s.user_id WHERE s.status IN ('SUBMITTED','AUTO_SUBMITTED') ORDER BY s.submitted_at DESC").fetchall()
     return [dict(r) for r in rows]
+
+@router.get('/admin/results/{sid}')
+def admin_result_detail(sid:int,request:Request):
+    require_admin(_auth(request))
+    with closing(db()) as conn:
+        s=conn.execute("SELECT s.*,e.name exam_name,u.email student_email,u.display_name student_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id JOIN users u ON u.id=s.user_id WHERE s.id=?",(sid,)).fetchone()
+        if not s:raise HTTPException(404,'Attempt not found')
+        if s['status'] not in {'SUBMITTED','AUTO_SUBMITTED'}:raise HTTPException(409,'Result unavailable while exam is active')
+        snapshot=json.loads(s['question_set_json'] or '[]')
+        answers={r['question_id']:dict(r) for r in conn.execute('SELECT question_id,selected_answer,is_correct,marks_awarded FROM exam_answers WHERE session_id=?',(sid,)).fetchall()}
+        questions=[]
+        for q in snapshot:
+            a=answers.get(q['id'],{});questions.append({'id':q['id'],'statement':q['statement'],'options':q['options'],'answer':q.get('answer',''),'solution':q.get('solution',''),'selected_answer':a.get('selected_answer',''),'is_correct':a.get('is_correct'),'marks_awarded':a.get('marks_awarded',0)})
+    return {'session':dict(s),'questions':questions}
 
 @router.get('/admin/users')
 def admin_users(request:Request):

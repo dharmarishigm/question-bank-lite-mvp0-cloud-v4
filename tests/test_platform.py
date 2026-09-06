@@ -66,6 +66,8 @@ class PlatformSecurityTests(unittest.TestCase):
         results=alice.get('/api/my/results').json();self.assertEqual(len(results),1);self.assertEqual(results[0]['score'],1)
         self.assertEqual(bob.get(f'/api/my/results/{a_sid}').status_code,404)
         detail=alice.get(f'/api/my/results/{a_sid}');self.assertEqual(detail.status_code,200);self.assertIn('answer',detail.text);self.assertEqual(detail.json()['questions'][0]['id'],q1['id'])
+        admin_detail=admin.get(f'/api/admin/results/{a_sid}');self.assertEqual(admin_detail.status_code,200,admin_detail.text);self.assertEqual(admin_detail.json()['session']['student_email'],'alice@example.test');self.assertEqual(admin_detail.json()['questions'][0]['selected_answer'],'B')
+        self.assertEqual(bob.get(f'/api/admin/results/{a_sid}').status_code,403)
         self.assertEqual(bob.get(f'/api/student/questions/{q1["id"]}/explain').status_code,404)
         self.assertEqual(len(bob.get('/api/my/results').json()),0)
 
