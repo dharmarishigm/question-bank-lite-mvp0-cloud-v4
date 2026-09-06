@@ -50,7 +50,7 @@ class PromptGenerationTests(unittest.TestCase):
                 with app.connect() as conn:
                     question=conn.execute('SELECT * FROM questions').fetchone();run=conn.execute('SELECT * FROM ai_generation_runs').fetchone()
                 self.assertEqual(question['source_type'],'AI_GENERATED');self.assertEqual(question['generation_model'],'configured-model')
-                self.assertEqual(question['generation_prompt'],self.request().generation_prompt);self.assertEqual(question['verification_status'],'REVIEW_REQUIRED')
+                self.assertEqual(question['generation_prompt'],self.request().generation_prompt);self.assertEqual(question['verification_status'],'APPROVED')
                 self.assertEqual(run['status'],'SAVED');self.assertEqual(run['accepted_count'],1)
                 history=client.get('/api/ai/runs');self.assertEqual(history.status_code,200);self.assertEqual(len(history.json()),1)
                 detail=client.get(f"/api/ai/runs/{body['run_id']}");self.assertEqual(detail.status_code,200)

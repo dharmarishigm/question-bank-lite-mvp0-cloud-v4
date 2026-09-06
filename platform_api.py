@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 
 from fastapi import APIRouter, Cookie, Header, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 router = APIRouter(prefix="/api")
 SESSION_SECONDS = 12 * 60 * 60
@@ -236,14 +236,18 @@ class ExamIn(BaseModel):
 
 from exam_generation_service import ExamBlueprint, availability as blueprint_availability, combined as combine_filters, generate as generate_blueprint, load_candidates, matches as question_matches
 
+def validate_exam_blueprint(payload) -> ExamBlueprint:
+    try:return ExamBlueprint.model_validate(payload)
+    except ValidationError as exc:raise HTTPException(422,exc.errors(include_url=False)) from exc
+
 @router.post('/admin/exam-blueprints/availability')
 async def check_exam_blueprint(request:Request):
-    require_admin(_auth(request,True));blueprint=ExamBlueprint.model_validate(await request.json())
+    require_admin(_auth(request,True));blueprint=validate_exam_blueprint(await request.json())
     with closing(db()) as conn:return blueprint_availability(conn,blueprint)
 
 @router.post('/admin/exam-blueprints/preview')
 async def preview_exam_blueprint(request:Request):
-    require_admin(_auth(request,True));blueprint=ExamBlueprint.model_validate(await request.json())
+    require_admin(_auth(request,True));blueprint=validate_exam_blueprint(await request.json())
     with closing(db()) as conn:
         try:return generate_blueprint(conn,blueprint)
         except ValueError as exc:raise HTTPException(409,str(exc))
@@ -261,7 +265,9 @@ class BlueprintReplacement(BaseModel):
 
 @router.post('/admin/exam-blueprints/replacement')
 async def replace_blueprint_question(request:Request):
-    require_admin(_auth(request,True));data=BlueprintReplacement.model_validate(await request.json())
+    require_admin(_auth(request,True))
+    try:data=BlueprintReplacement.model_validate(await request.json())
+    except ValidationError as exc:raise HTTPException(422,exc.errors(include_url=False)) from exc
     rule=next((r for r in data.blueprint.rules if r.id==data.rule_id),None)
     if not rule:raise HTTPException(404,'Blueprint rule not found')
     replacement=data.blueprint.model_copy(update={'total_questions':1,'rules':[rule.model_copy(update={'count':1})],'exclude_question_ids':data.exclude_question_ids})
@@ -271,7 +277,10 @@ async def replace_blueprint_question(request:Request):
 
 @router.post('/admin/exam-blueprints/approve')
 async def approve_exam_blueprint(request:Request):
-    user=require_admin(_auth(request,True));data=BlueprintApproval.model_validate(await request.json());bp=data.blueprint;now=time.time()
+    user=require_admin(_auth(request,True))
+    try:data=BlueprintApproval.model_validate(await request.json())
+    except ValidationError as exc:raise HTTPException(422,exc.errors(include_url=False)) from exc
+    bp=data.blueprint;now=time.time()
     if len(data.question_ids)!=bp.total_questions or len(set(data.question_ids))!=len(data.question_ids):raise HTTPException(422,'Selected question count must equal the blueprint total and contain no duplicates')
     if data.status not in {'DRAFT','PUBLISHED'}:raise HTTPException(422,'Status must be DRAFT or PUBLISHED')
     with closing(db()) as conn:
