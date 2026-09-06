@@ -8,7 +8,11 @@ html,body { min-height: 100%; }
 body { background: var(--canvas); color: var(--ink); font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, sans-serif; }
 #app-header { height: var(--header); padding: 0 20px; border-bottom: 1px solid var(--line); box-shadow: none; z-index: 30; }
 #app-header .brand-mark { width: 34px; height: 34px; border-radius: 8px; font-size: 19px; }
-#app-header .brand-caption { display: none; }
+#app-header .brand-caption { display: block; color: var(--muted); font-size: 10px; letter-spacing: .035em; }
+#app-header .brand { display: flex; align-items: center; gap: 10px; min-width: 190px; }
+#app-header .brand h1 { color: #073d78; font-size: 19px; font-weight: 800; letter-spacing: -.025em; }
+.brand-symbol { position: relative; display: block; flex: 0 0 45px; width: 45px; height: 42px; overflow: hidden; border-radius: 10px; background: linear-gradient(145deg,#edf7ff,#eefcf2); }
+.brand-symbol img { position: absolute; width: 66px; height: 66px; max-width: none; left: -10px; top: -7px; object-fit: contain; }
 #app-header .header-actions, #app-header > #btn-new, #app-header > #btn-print, #app-header > #more-menu { display: none; }
 .account-menu { position: relative; }
 .account-menu > summary { display: flex; align-items: center; gap: 9px; cursor: pointer; list-style: none; padding: 5px 8px; border-radius: var(--radius); }
@@ -65,9 +69,11 @@ body { background: var(--canvas); color: var(--ink); font: 14px/1.45 Inter, ui-s
 .pdf-item { grid-template-columns: minmax(0,1.15fr) minmax(320px,.85fr); }
 .modal-box { width: min(1100px,calc(100vw - 32px)); }.editor-box { width: min(1180px,calc(100vw - 32px)); }.editor-box #editor { padding: 0; }
 .exam-body-layout { grid-template-columns: 210px minmax(0,1fr); }.exam-question-card { padding: 20px; background: white; }
-.login-screen { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: radial-gradient(circle at 20% 10%,#e4f1ed,#f6f8f9 48%); z-index: 100; }
-.login-card { width: min(380px,100%); padding: 34px; text-align: center; background: white; border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 24px 80px #17342f1c; }
-.login-logo { margin: auto; }.login-card h1 { margin: 16px 0 3px; }.login-card > p { color: var(--muted); margin: 0 0 24px; }.login-card #google-signin { display: flex; justify-content: center; }
+.login-screen { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: radial-gradient(circle at 15% 10%,#dff5ed,#f5f9fc 43%,#e9f1fb); z-index: 100; }
+.login-card { width: min(410px,100%); max-height: calc(100vh - 32px); overflow: auto; padding: 30px 36px 36px; text-align: center; background: #ffffffed; backdrop-filter: blur(18px); border: 1px solid #d5e4ef; border-radius: 22px; box-shadow: 0 28px 90px #0b3c6430; }
+.brand-logo-full { display: block; width: 178px; height: 178px; margin: -12px auto -20px; object-fit: contain; }
+.login-card h1 { margin: 12px 0 4px; color: #073d78; font-size: 22px; letter-spacing: -.02em; }.login-card > p { color: var(--muted); margin: 0 0 24px; }.login-card #google-signin { display: flex; justify-content: center; }
+.portal-label { display: inline-flex; padding: 4px 9px; color: #087263; background: #e4f7ef; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .login-card > button { width: 100%; margin-top: 8px; }
 .bootstrap-form { display: grid; gap: 10px; margin-top: 14px; padding-top: 14px; text-align: left; border-top: 1px solid var(--line); }
 .bootstrap-form[hidden] { display: none; }
@@ -101,9 +107,13 @@ body { background: var(--canvas); color: var(--ink); font: 14px/1.45 Inter, ui-s
 .proctor-code-once { margin: 16px 0; padding: 18px; color: white; background: #102d2a; border-radius: var(--radius-lg); text-align: center; }
 .proctor-code-once strong { display: block; font-size: 30px; letter-spacing: .18em; }
 .exam-start-box { width: min(520px,calc(100vw - 32px)); }.exam-start-box label { display: grid; gap: 5px; margin: 16px 0; }.exam-start-box input { font-size: 20px; letter-spacing: .12em; text-transform: uppercase; }
-.exam-focus .sidebar,.exam-focus #app-header { display: none !important; }.exam-focus .app-shell { display: block; min-height: 100vh; }.exam-focus #main-content { padding-top: 18px; }
+.exam-focus .sidebar,.exam-focus #app-header,.exam-focus .site-footer { display: none !important; }.exam-focus .app-shell { display: block; min-height: 100vh; }.exam-focus #main-content { padding-top: 18px; }
 .conduct-section { margin-top: 20px; }.conduct-section > .actions { margin-bottom: 10px; }.conduct-section > .actions input { width: min(360px,100%); }.conduct-section h4 { margin: 0 0 10px; font-size: 16px; }
 /* Public registration and attempt review */
 .registration-card{width:min(94vw,520px);max-height:94vh;overflow:auto}.registration-card form{display:grid;gap:12px;text-align:left}.registration-card label{display:grid;gap:6px}.review-list{display:grid;gap:14px;margin-top:16px}.review-list article{max-width:900px}
 .registration-choice{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:16px 0}.registration-choice button{width:100%}
 .attempt-review-card .section-heading{margin-bottom:12px}.attempt-review-card .section-heading h3{margin:0}.attempt-answer-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0}.attempt-answer-grid>div,.attempt-solution{padding:12px;border:1px solid var(--line);border-radius:10px;background:#f8fafb}.attempt-answer-grid span,.attempt-solution>strong{display:block;margin-bottom:6px;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}@media(max-width:640px){.attempt-answer-grid{grid-template-columns:1fr}}
+.site-footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-top: 34px; padding: 22px 4px 0; border-top: 1px solid var(--line); color: var(--muted); }
+.footer-brand { display: flex; align-items: center; gap: 11px; }.footer-brand > div { display: grid; }.footer-brand strong { color: #073d78; font-size: 17px; }.footer-brand span { font-size: 11px; }
+.footer-meta { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 18px; font-size: 11px; }.footer-meta a { color: #087263; font-weight: 700; text-decoration: none; }.footer-meta a:hover { text-decoration: underline; }
+@media(max-width:700px){.site-footer{align-items:flex-start;flex-direction:column}.footer-meta{justify-content:flex-start}.brand-logo-full{width:150px;height:150px}.login-card{padding:24px}}
