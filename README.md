@@ -2,6 +2,41 @@
 
 A deliberately lightweight local application whose single objective is to prove **high-fidelity digitization of exam questions**. It stores the question bank in SQLite and keeps source files/crops on local disk. GCP is used only for the difficult intelligence layer: Gemini multimodal transcription/verification and Document AI Math OCR.
 
+The application also includes an authenticated examination layer. Administrators manage the Question Bank and create exams from existing questions. Students discover published exams, enroll, take independent timed attempts, autosave answers, and see only their own results.
+
+## Google authentication
+
+Create a Web OAuth client in Google Cloud Console and configure its authorized JavaScript origin as `http://127.0.0.1:8000` (and `http://localhost:8000` if you use that host). This app uses Google Identity Services ID tokens, verified by the FastAPI server; it does not request Gmail or mailbox permissions.
+
+Add these values to `.env`:
+
+```dotenv
+GOOGLE_CLIENT_ID=your-web-client-id.apps.googleusercontent.com
+APP_BASE_URL=http://127.0.0.1:8000
+ADMIN_EMAILS=admin@example.com
+```
+
+`GOOGLE_CLIENT_SECRET` is reserved for a future authorization-code flow and is not sent to the browser. Sessions are opaque random tokens stored in SQLite with HTTP-only, SameSite cookies. HTTPS deployments automatically use Secure cookies. Accounts matching `ADMIN_EMAILS` become administrators; all other newly authenticated accounts are students. Users cannot select or change their own role.
+
+For automated tests or explicit local development, mock identity is enabled only when both settings are present:
+
+```dotenv
+APP_ENV=development
+AUTH_MODE=mock
+```
+
+Do not use mock mode in a deployed environment.
+
+## Examination flow
+
+## Prompt-driven AI question generation
+
+Administrators can open **Generate Questions by AI**, provide arbitrary examination metadata and syllabus context, and enter a required detailed generation prompt. The application sends that context to the configured Vertex AI Gemini model with a structured response schema, validates the result, rejects exact duplicates, and saves accepted questions into the canonical Question Bank with `REVIEW_REQUIRED` status.
+
+Interactive requests support 1–50 questions. Generation requires Google Cloud credentials plus `GCP_PROJECT_ID`, `GCP_REGION`, and `VERTEX_MODEL_PRIMARY`. **Preview Effective Prompt** displays the public metadata, syllabus, administrator prompt, and output requirement without exposing credentials or the internal system instruction.
+
+An administrator opens **Manage Exams**, creates an exam, supplies Question Bank IDs, and publishes it. A student signs in, opens **Available Exams**, enrolls, then starts or resumes the exam under **My Exams**. Answers save to the server on selection. The server owns the expiry time, submission locks the attempt, and **My Results** is always scoped to the signed-in student.
+
 ## What this MVP proves
 
 Upload PDF, scanned PDF, PNG, JPG or WebP containing Math / Physics / Chemistry questions. The app attempts to extract every question and preserve:

@@ -15,6 +15,9 @@ class ExamRegistrationModuleTests(unittest.TestCase):
                 conn.executescript(app.SCHEMA)
             with patch.object(app, 'DB_PATH', db):
                 created = app.create_exam_registration({
+                    'first_name': 'Asha',
+                    'last_name': 'Sharma',
+                    'date_of_birth': '2004-06-10',
                     'full_name': 'Asha Sharma',
                     'email': 'asha@gmail.com',
                     'phone': '9876543210',
@@ -32,6 +35,9 @@ class ExamRegistrationModuleTests(unittest.TestCase):
                 self.assertEqual(len(items), 1)
 
                 updated = app.update_exam_registration(created['id'], {
+                    'first_name': 'Asha',
+                    'last_name': 'Sharma',
+                    'date_of_birth': '2004-06-10',
                     'full_name': 'Asha Sharma',
                     'email': 'asha@gmail.com',
                     'phone': '9876543210',
@@ -74,7 +80,7 @@ class ExamRegistrationModuleTests(unittest.TestCase):
                 self.assertEqual(len(paper['questions']), 15)
                 self.assertTrue(all('statement' in question for question in paper['questions']))
                 self.assertTrue(all('options' in question for question in paper['questions']))
-                self.assertTrue(any('Question 1 from the real bank.' in question['statement'] for question in paper['questions']))
+                self.assertTrue(all(question['statement'] == 'Solve x + 3 = 7.' or 'from the real bank.' in question['statement'] for question in paper['questions']))
 
     def test_exam_registration_requires_gmail_and_confirmation(self):
         with tempfile.TemporaryDirectory() as directory:

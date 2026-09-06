@@ -30,6 +30,7 @@ from llm_extract import extract_image, extract_pdf, extract_source, llm_status
 from ocr import OcrUnavailable, ocr_status, ocr_to_latex, vision_status
 from pdf_import import parse_pdf
 from multimodal import build_content_blocks
+from llm_generate import GenerationRequest, SYSTEM_PROMPT_VERSION, fingerprint, generate_questions, public_prompt_preview
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("QB_DATA_DIR", os.path.join(BASE_DIR, "data"))
@@ -52,6 +53,7 @@ CREATE TABLE IF NOT EXISTS questions (
     subject TEXT NOT NULL DEFAULT '',
     chapter TEXT NOT NULL DEFAULT '',
     topic TEXT NOT NULL DEFAULT '',
+    subtopic TEXT NOT NULL DEFAULT '',
     exam TEXT NOT NULL DEFAULT '',
     year TEXT NOT NULL DEFAULT '',
     qtype TEXT NOT NULL DEFAULT 'mcq_single',
@@ -78,6 +80,14 @@ CREATE TABLE IF NOT EXISTS questions (
     content_blocks TEXT NOT NULL DEFAULT '[]',
     visual_assets TEXT NOT NULL DEFAULT '[]',
     math_evidence TEXT NOT NULL DEFAULT '[]',
+    source_type TEXT NOT NULL DEFAULT 'MANUAL',
+    generation_run_id TEXT NOT NULL DEFAULT '',
+    generation_provider TEXT NOT NULL DEFAULT '',
+    generation_model TEXT NOT NULL DEFAULT '',
+    generation_prompt_version TEXT NOT NULL DEFAULT '',
+    generation_prompt TEXT NOT NULL DEFAULT '',
+    generation_metadata TEXT NOT NULL DEFAULT '{}',
+    generation_fingerprint TEXT NOT NULL DEFAULT '',
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
@@ -128,6 +138,9 @@ CREATE TABLE IF NOT EXISTS question_explanations (
 
 CREATE TABLE IF NOT EXISTS exam_registrations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    first_name TEXT NOT NULL DEFAULT '',
+    last_name TEXT NOT NULL DEFAULT '',
+    date_of_birth TEXT NOT NULL DEFAULT '',
     full_name TEXT NOT NULL DEFAULT '',
     email TEXT NOT NULL DEFAULT '',
     phone TEXT NOT NULL DEFAULT '',
@@ -143,10 +156,21 @@ CREATE TABLE IF NOT EXISTS exam_registrations (
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS ai_generation_runs (
+    id TEXT PRIMARY KEY, exam_name TEXT NOT NULL, exam_type TEXT NOT NULL DEFAULT '', level TEXT NOT NULL DEFAULT '',
+    subject TEXT NOT NULL, chapter TEXT NOT NULL DEFAULT '', topic TEXT NOT NULL DEFAULT '', subtopic TEXT NOT NULL DEFAULT '',
+    difficulty TEXT NOT NULL DEFAULT '', question_type TEXT NOT NULL DEFAULT '', requested_count INTEGER NOT NULL,
+    generated_count INTEGER NOT NULL DEFAULT 0, accepted_count INTEGER NOT NULL DEFAULT 0, rejected_count INTEGER NOT NULL DEFAULT 0,
+    language TEXT NOT NULL DEFAULT 'English', model TEXT NOT NULL DEFAULT '', system_prompt_version TEXT NOT NULL DEFAULT '',
+    generation_prompt TEXT NOT NULL, syllabus TEXT NOT NULL DEFAULT '', metadata_json TEXT NOT NULL DEFAULT '{}',
+    request_json TEXT NOT NULL DEFAULT '{}', output_json TEXT NOT NULL DEFAULT '{}', usage_json TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'RUNNING',
+    error_message TEXT NOT NULL DEFAULT '', created_at REAL NOT NULL
+);
 """
 
 # Additive migration map for databases created by the original ZIP.
 QUESTION_MIGRATIONS = {
+    "subtopic": "TEXT NOT NULL DEFAULT ''",
     "source_image": "TEXT NOT NULL DEFAULT ''",
     "source_segments": "TEXT NOT NULL DEFAULT '[]'",
     "source_document_id": "TEXT NOT NULL DEFAULT ''",
@@ -163,17 +187,37 @@ QUESTION_MIGRATIONS = {
     "content_blocks": "TEXT NOT NULL DEFAULT '[]'",
     "visual_assets": "TEXT NOT NULL DEFAULT '[]'",
     "math_evidence": "TEXT NOT NULL DEFAULT '[]'",
+    "source_type": "TEXT NOT NULL DEFAULT 'MANUAL'",
+    "generation_run_id": "TEXT NOT NULL DEFAULT ''",
+    "generation_provider": "TEXT NOT NULL DEFAULT ''",
+    "generation_model": "TEXT NOT NULL DEFAULT ''",
+    "generation_prompt_version": "TEXT NOT NULL DEFAULT ''",
+    "generation_prompt": "TEXT NOT NULL DEFAULT ''",
+    "generation_metadata": "TEXT NOT NULL DEFAULT '{}'",
+    "generation_fingerprint": "TEXT NOT NULL DEFAULT ''",
 }
+EXAM_REGISTRATION_MIGRATIONS = {
+    "first_name": "TEXT NOT NULL DEFAULT ''",
+    "last_name": "TEXT NOT NULL DEFAULT ''",
+    "date_of_birth": "TEXT NOT NULL DEFAULT ''",
+    "confirmation_token": "TEXT NOT NULL DEFAULT ''",
+    "is_confirmed": "INTEGER NOT NULL DEFAULT 0",
+    "confirmation_sent_at": "REAL NOT NULL DEFAULT 0",
+    "confirmed_at": "REAL NOT NULL DEFAULT 0",
+}
+AI_RUN_MIGRATIONS = {"output_json": "TEXT NOT NULL DEFAULT '{}'"}
 
 FIELDS = (
-    "subject", "chapter", "topic", "exam", "year", "qtype", "difficulty",
+    "subject", "chapter", "topic", "subtopic", "exam", "year", "qtype", "difficulty",
     "marks", "statement", "options", "answer", "solution", "tags", "source_image",
     "source_segments", "source_document_id", "source_document_sha256", "source_page",
     "source_bbox", "extraction_run_id", "extraction_provider", "extraction_model",
     "verification_status", "confidence", "verification_issues", "uncertainties",
-    "content_blocks", "visual_assets", "math_evidence",
+    "content_blocks", "visual_assets", "math_evidence", "source_type", "generation_run_id",
+    "generation_provider", "generation_model", "generation_prompt_version", "generation_prompt",
+    "generation_metadata", "generation_fingerprint",
 )
-JSON_FIELDS = {"options", "source_segments", "source_bbox", "verification_issues", "uncertainties", "content_blocks", "visual_assets", "math_evidence"}
+JSON_FIELDS = {"options", "source_segments", "source_bbox", "verification_issues", "uncertainties", "content_blocks", "visual_assets", "math_evidence", "generation_metadata"}
 
 
 def connect() -> sqlite3.Connection:
@@ -189,6 +233,14 @@ with closing(connect()) as _conn:
     for name, ddl in QUESTION_MIGRATIONS.items():
         if name not in columns:
             _conn.execute(f"ALTER TABLE questions ADD COLUMN {name} {ddl}")
+    registration_columns = {r["name"] for r in _conn.execute("PRAGMA table_info(exam_registrations)")}
+    for name, ddl in EXAM_REGISTRATION_MIGRATIONS.items():
+        if name not in registration_columns:
+            _conn.execute(f"ALTER TABLE exam_registrations ADD COLUMN {name} {ddl}")
+    run_columns = {r["name"] for r in _conn.execute("PRAGMA table_info(ai_generation_runs)")}
+    for name, ddl in AI_RUN_MIGRATIONS.items():
+        if name not in run_columns:
+            _conn.execute(f"ALTER TABLE ai_generation_runs ADD COLUMN {name} {ddl}")
     _conn.execute("CREATE INDEX IF NOT EXISTS idx_questions_source_document ON questions(source_document_id)")
     _conn.commit()
 
@@ -197,6 +249,7 @@ class Question(BaseModel):
     subject: str = ""
     chapter: str = ""
     topic: str = ""
+    subtopic: str = ""
     exam: str = ""
     year: str = ""
     qtype: str = "mcq_single"
@@ -223,9 +276,20 @@ class Question(BaseModel):
     content_blocks: list[dict] = Field(default_factory=list)
     visual_assets: list[dict] = Field(default_factory=list)
     math_evidence: list[dict] = Field(default_factory=list)
+    source_type: str = "MANUAL"
+    generation_run_id: str = ""
+    generation_provider: str = ""
+    generation_model: str = ""
+    generation_prompt_version: str = ""
+    generation_prompt: str = ""
+    generation_metadata: dict = Field(default_factory=dict)
+    generation_fingerprint: str = ""
 
 
 class ExamRegistration(BaseModel):
+    first_name: str = ""
+    last_name: str = ""
+    date_of_birth: str = ""
     full_name: str = ""
     email: str = ""
     phone: str = ""
@@ -239,6 +303,37 @@ class ExamRegistration(BaseModel):
 
 
 app = FastAPI(title="Question Bank Lite MVP-0 v3", version="3.0.0")
+
+# Additive authenticated exam platform. Imported here so it shares the same
+# SQLite connection and remains a single lightweight process.
+from platform_api import init_platform, router as platform_router
+init_platform()
+app.include_router(platform_router)
+from exam_conduct import init_exam_conduct, router as exam_conduct_router
+init_exam_conduct()
+app.include_router(exam_conduct_router)
+
+@app.middleware("http")
+async def protect_legacy_admin_api(request: Request, call_next):
+    """Apply role and CSRF checks to the original administrative endpoints.
+
+    Authentication becomes mandatory when Google login or explicit development
+    mock mode is configured. This keeps offline parser unit tests usable while a
+    configured application never exposes the legacy question APIs to students.
+    """
+    configured = bool(os.getenv("GOOGLE_CLIENT_ID")) or os.getenv("AUTH_MODE") == "mock"
+    admin_prefixes = (
+        "/api/questions", "/api/facets", "/api/upload", "/api/source",
+        "/api/pdf", "/api/ocr", "/api/export", "/api/import",
+        "/api/exam-registrations", "/api/system/status",
+    )
+    if configured and any(request.url.path.startswith(prefix) for prefix in admin_prefixes):
+        from platform_api import _auth, require_admin
+        try:
+            require_admin(_auth(request, request.method not in {"GET", "HEAD", "OPTIONS"}))
+        except HTTPException as exc:
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    return await call_next(request)
 
 
 def row_to_exam_registration(row: sqlite3.Row) -> dict:
@@ -323,6 +418,9 @@ def list_exam_registrations(query: str | None = None) -> list[dict]:
 def create_exam_registration(payload: ExamRegistration | dict) -> dict:
     record = payload.model_dump() if isinstance(payload, ExamRegistration) else dict(payload)
     email = normalize_gmail_email(record.get('email') or '')
+    first_name=(record.get('first_name') or '').strip();last_name=(record.get('last_name') or '').strip();dob=(record.get('date_of_birth') or '').strip()
+    full_name=(record.get('full_name') or f'{first_name} {last_name}').strip()
+    if not first_name or not last_name or not dob: raise ValueError('First name, last name, and date of birth are required.')
     if not record.get('is_confirmed') and not record.get('confirmation_token'):
         with closing(connect()) as conn:
             existing = conn.execute("SELECT * FROM exam_registrations WHERE email = ? COLLATE NOCASE", (email,)).fetchone()
@@ -331,9 +429,9 @@ def create_exam_registration(payload: ExamRegistration | dict) -> dict:
     now = time.time()
     with closing(connect()) as conn:
         cur = conn.execute(
-            "INSERT INTO exam_registrations (full_name, email, phone, exam_name, exam_date, center_preference, status, notes, confirmation_token, is_confirmed, confirmation_sent_at, confirmed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO exam_registrations (first_name, last_name, date_of_birth, full_name, email, phone, exam_name, exam_date, center_preference, status, notes, confirmation_token, is_confirmed, confirmation_sent_at, confirmed_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                (record.get('full_name') or '').strip(),
+                first_name,last_name,dob,full_name,
                 email,
                 (record.get('phone') or '').strip(),
                 (record.get('exam_name') or '').strip(),
@@ -362,12 +460,15 @@ def update_exam_registration(registration_id: int, payload: ExamRegistration | d
         if existing is None:
             raise HTTPException(404, "exam registration not found")
         email = normalize_gmail_email(record.get('email') or existing['email'])
+        first_name=(record.get('first_name') or existing['first_name']).strip();last_name=(record.get('last_name') or existing['last_name']).strip();dob=(record.get('date_of_birth') or existing['date_of_birth']).strip()
+        full_name=(record.get('full_name') or f'{first_name} {last_name}').strip()
+        if not first_name or not last_name or not dob: raise ValueError('First name, last name, and date of birth are required.')
         if not bool(record.get('is_confirmed', existing['is_confirmed'])):
             raise ValueError('Only a confirmed Gmail account can update an exam registration.')
         conn.execute(
-            "UPDATE exam_registrations SET full_name = ?, email = ?, phone = ?, exam_name = ?, exam_date = ?, center_preference = ?, status = ?, notes = ?, confirmation_token = '', is_confirmed = 1, confirmed_at = ?, updated_at = ? WHERE id = ?",
+            "UPDATE exam_registrations SET first_name=?,last_name=?,date_of_birth=?,full_name = ?, email = ?, phone = ?, exam_name = ?, exam_date = ?, center_preference = ?, status = ?, notes = ?, confirmation_token = '', is_confirmed = 1, confirmed_at = ?, updated_at = ? WHERE id = ?",
             (
-                (record.get('full_name') or '').strip(),
+                first_name,last_name,dob,full_name,
                 email,
                 (record.get('phone') or '').strip(),
                 (record.get('exam_name') or '').strip(),
@@ -899,6 +1000,108 @@ def facets():
             rows = conn.execute(f"SELECT DISTINCT {column} v FROM questions WHERE {column} != '' ORDER BY v").fetchall()
             return [r["v"] for r in rows]
         return {"subjects": distinct("subject"), "chapters": distinct("chapter")}
+
+
+@app.post("/api/ai/prompt-preview")
+def preview_ai_generation(payload: GenerationRequest, request: Request):
+    from platform_api import _auth, require_admin
+    require_admin(_auth(request, True))
+    return {"effective_prompt": public_prompt_preview(payload), "model": os.getenv("VERTEX_MODEL_PRIMARY", "gemini-3.5-flash")}
+
+
+@app.get("/api/ai/runs")
+def list_ai_generation_runs(request: Request):
+    from platform_api import _auth, require_admin
+    require_admin(_auth(request))
+    with closing(connect()) as conn:
+        rows=conn.execute("SELECT id,exam_name,subject,topic,requested_count,generated_count,accepted_count,rejected_count,model,status,error_message,created_at FROM ai_generation_runs ORDER BY created_at DESC LIMIT 100").fetchall()
+    return [dict(row) for row in rows]
+
+
+@app.get("/api/ai/runs/{run_id}")
+def get_ai_generation_run(run_id: str, request: Request):
+    from platform_api import _auth, require_admin
+    require_admin(_auth(request))
+    with closing(connect()) as conn: row=conn.execute("SELECT * FROM ai_generation_runs WHERE id=?",(run_id,)).fetchone()
+    if not row: raise HTTPException(404,"Generation run not found")
+    item=dict(row)
+    for field in ("metadata_json","request_json","output_json","usage_json"):
+        try:item[field.removesuffix("_json")]=json.loads(item.pop(field) or "{}")
+        except ValueError:item[field.removesuffix("_json")]={}
+    return item
+
+
+@app.post("/api/ai/generate")
+def generate_ai_questions(payload: GenerationRequest, request: Request):
+    from platform_api import _auth, require_admin
+    require_admin(_auth(request, True))
+    run_id=uuid.uuid4().hex;now=time.time();metadata={"exam_type":payload.exam_type,"level":payload.level,"subtopic":payload.subtopic,"difficulty":payload.difficulty,"question_type":payload.question_type,"marks":payload.marks,"language":payload.language,"tags":payload.tags,"extra_metadata":payload.extra_metadata}
+    with closing(connect()) as conn:
+        conn.execute("INSERT INTO ai_generation_runs(id,exam_name,exam_type,level,subject,chapter,topic,subtopic,difficulty,question_type,requested_count,language,system_prompt_version,generation_prompt,syllabus,metadata_json,request_json,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'RUNNING',?)",(run_id,payload.exam_name,payload.exam_type,payload.level,payload.subject,payload.chapter,payload.topic,payload.subtopic,payload.difficulty,payload.question_type,payload.count,payload.language,SYSTEM_PROMPT_VERSION,payload.generation_prompt,payload.syllabus,json.dumps(metadata,ensure_ascii=False),payload.model_dump_json(),now));conn.commit()
+    try:
+        batch,usage,model=generate_questions(payload)
+        review=[];rejected=0;seen=set()
+        for generated in batch.questions:
+            fp=fingerprint(generated.statement)
+            with closing(connect()) as conn: duplicate=conn.execute("SELECT 1 FROM questions WHERE generation_fingerprint=? OR lower(trim(statement))=lower(trim(?)) LIMIT 1",(fp,generated.statement)).fetchone()
+            if duplicate or fp in seen: rejected+=1;continue
+            seen.add(fp);item=generated.model_dump();item["review_index"]=len(review);item["fingerprint"]=fp;review.append(item)
+        with closing(connect()) as conn:conn.execute("UPDATE ai_generation_runs SET generated_count=?,rejected_count=?,model=?,output_json=?,usage_json=?,status='REVIEW_REQUIRED' WHERE id=?",(len(batch.questions),rejected,model,json.dumps({"questions":review},ensure_ascii=False),json.dumps(usage),run_id));conn.commit()
+        return {"run_id":run_id,"exam":payload.exam_name,"subject":payload.subject,"requested":payload.count,"generated":len(batch.questions),"accepted":0,"rejected":rejected,"review_required":len(review),"model":model,"questions":review,"saved":False}
+    except Exception as exc:
+        with closing(connect()) as conn:conn.execute("UPDATE ai_generation_runs SET status='FAILED',error_message=? WHERE id=?",(str(exc)[:2000],run_id));conn.commit()
+        if isinstance(exc,(ValueError,RuntimeError)): raise HTTPException(422,str(exc)) from exc
+        raise HTTPException(502,"Question generation failed") from exc
+
+
+@app.post("/api/ai/runs/{run_id}/regenerate")
+def regenerate_ai_generation_run(run_id: str, request: Request):
+    from platform_api import _auth, require_admin
+    require_admin(_auth(request, True))
+    with closing(connect()) as conn: row=conn.execute("SELECT request_json FROM ai_generation_runs WHERE id=?",(run_id,)).fetchone()
+    if not row: raise HTTPException(404,"Generation run not found")
+    try: payload=GenerationRequest.model_validate_json(row["request_json"])
+    except Exception as exc: raise HTTPException(409,"Stored generation request is invalid") from exc
+    return generate_ai_questions(payload,request)
+
+
+@app.post("/api/ai/runs/{run_id}/save")
+def save_ai_generation_run(run_id: str, payload: dict, request: Request):
+    from platform_api import _auth, require_admin
+    require_admin(_auth(request, True))
+    with closing(connect()) as conn: row=conn.execute("SELECT * FROM ai_generation_runs WHERE id=?",(run_id,)).fetchone()
+    if not row: raise HTTPException(404,"Generation run not found")
+    try:
+        generation_request=GenerationRequest.model_validate_json(row["request_json"]);output=json.loads(row["output_json"] or "{}");items=output.get("questions",[])
+    except Exception as exc: raise HTTPException(409,"Stored generation output is invalid") from exc
+    requested_indices=payload.get("indices");selected=set(range(len(items))) if requested_indices is None else {int(i) for i in requested_indices}
+    if not selected: raise HTTPException(400,"Select at least one question to save")
+    metadata=json.loads(row["metadata_json"] or "{}");saved=[];rejected=0
+    for index,item in enumerate(items):
+        if index not in selected: continue
+        generated_data={k:v for k,v in item.items() if k not in {"review_index","fingerprint"}}
+        try:
+            from llm_generate import GeneratedQuestion, validate_question
+            generated=GeneratedQuestion.model_validate(generated_data);validate_question(generated)
+        except Exception: rejected+=1;continue
+        fp=item.get("fingerprint") or fingerprint(generated.statement)
+        with closing(connect()) as conn: duplicate=conn.execute("SELECT 1 FROM questions WHERE generation_fingerprint=? OR lower(trim(statement))=lower(trim(?)) LIMIT 1",(fp,generated.statement)).fetchone()
+        if duplicate: rejected+=1;continue
+        question=Question(subject=generated.subject or generation_request.subject,chapter=generated.chapter or generation_request.chapter,topic=generated.topic or generation_request.topic,subtopic=generated.subtopic or generation_request.subtopic,exam=generated.exam or generation_request.exam_name,qtype=generated.qtype or generation_request.question_type,difficulty=generated.difficulty or generation_request.difficulty,marks=generated.marks or generation_request.marks,statement=generated.statement,options=[option.text for option in generated.options],answer=generated.answer,solution=generated.solution,tags=", ".join(generated.tags or generation_request.tags),content_blocks=generated.content_blocks,verification_status="REVIEW_REQUIRED",source_type="AI_GENERATED",generation_run_id=run_id,generation_provider="vertex-ai",generation_model=row["model"],generation_prompt_version=SYSTEM_PROMPT_VERSION,generation_prompt=generation_request.generation_prompt,generation_metadata={**metadata,"generated_metadata":generated.metadata},generation_fingerprint=fp)
+        saved.append(create_question(question))
+    with closing(connect()) as conn:conn.execute("UPDATE ai_generation_runs SET accepted_count=accepted_count+?,rejected_count=rejected_count+?,status='SAVED' WHERE id=?",(len(saved),rejected,run_id));conn.commit()
+    return {"run_id":run_id,"saved_count":len(saved),"rejected_count":rejected,"questions":saved}
+
+
+@app.put("/api/ai/questions/{question_id}/status")
+def set_ai_question_status(question_id: int, payload: dict, request: Request):
+    from platform_api import _auth, require_admin
+    require_admin(_auth(request, True));status=str(payload.get("status","")).upper()
+    if status not in {"APPROVED","REJECTED","REVIEW_REQUIRED"}: raise HTTPException(400,"Invalid review status")
+    with closing(connect()) as conn:
+        cur=conn.execute("UPDATE questions SET verification_status=?,updated_at=? WHERE id=? AND source_type='AI_GENERATED'",(status,time.time(),question_id));conn.commit()
+    if not cur.rowcount: raise HTTPException(404,"AI-generated question not found")
+    return {"id":question_id,"status":status}
 
 
 @app.get("/api/exam-registrations")
@@ -1594,4 +1797,10 @@ app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), na
 
 @app.get("/")
 def index():
+    return FileResponse(os.path.join(BASE_DIR, "static", "index.html"))
+
+
+@app.get("/register/exam/{token}")
+def registration_page(token: str):
+    """Serve the mobile-friendly SPA registration screen; the token is read client-side."""
     return FileResponse(os.path.join(BASE_DIR, "static", "index.html"))

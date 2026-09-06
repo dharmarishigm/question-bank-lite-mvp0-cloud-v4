@@ -272,7 +272,8 @@ function cardHtml(q, withAnswer) {
   }).join('');
   const status = q.verification_status && q.verification_status !== 'UNVERIFIED'
     ? `<span class="verify ${String(q.verification_status).toLowerCase()}">${escapeHtml(q.verification_status)} ${q.confidence ? Math.round(Number(q.confidence) * 100) + '%' : ''}</span>` : '';
-  return `<div class="meta">${meta}${status}${blockSummaryHtml(q)}<span>#${q.id}</span></div>
+  const sourceType = q.source_type === 'AI_GENERATED' ? '<span class="badge">AI Generated</span>' : '';
+  return `<div class="meta">${sourceType}${meta}${status}${blockSummaryHtml(q)}<span>#${q.id}</span></div>
     <div class="rendered">${toHtml(q.statement)}</div>${visualAssetsHtml(q)}${opts}${answer}${source}
     <div class="card-actions">
       <button data-edit="${q.id}">Edit</button>
@@ -1348,13 +1349,10 @@ async function loadExamRegistrations() {
           <span class="status-pill ${escapeHtml(item.status || 'pending')}">${escapeHtml(item.status || 'pending')}</span>
         </div>
         <div class="exam-registration-meta">
-          <span>${escapeHtml(item.exam_name || 'No exam')}</span>
-          <span>${escapeHtml(item.exam_date || 'No date')}</span>
-          <span>${escapeHtml(item.center_preference || 'No center')}</span>
+          <span>Date of birth: ${escapeHtml(item.date_of_birth || 'Not provided')}</span>
         </div>
         <div class="exam-registration-meta smaller">
           <span>${escapeHtml(item.email || 'No email')}</span>
-          <span>${escapeHtml(item.phone || 'No phone')}</span>
         </div>
         ${item.notes ? `<p class="exam-registration-notes">${escapeHtml(item.notes)}</p>` : ''}
         <div class="card-actions">
@@ -1587,11 +1585,15 @@ function toggleMarkForReview() {
   }
   renderExamNav();
   renderExamCurrentQuestion();
+  const sessionId=$('exam-current-question')?.dataset.session;
+  if(sessionId){const question=examState.questions[index];fetch(`/api/student/sessions/${sessionId}/questions/${question.id}/review`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({marked:examState.markedForReview.has(index)})}).catch(()=>notify('Could not save review status.'));}
 }
 
 function clearCurrentAnswer() {
   const questionKey = getExamQuestionKey(examState.currentIndex);
   delete examState.answers[questionKey];
+  const sessionId=$('exam-current-question')?.dataset.session;
+  if(sessionId){const question=examState.questions[examState.currentIndex];fetch(`/api/sessions/${sessionId}/answers/${question.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({selected_answer:''})}).catch(()=>notify('Could not clear saved answer.'));}
   renderExamNav();
   renderExamCurrentQuestion();
 }
@@ -1719,9 +1721,7 @@ async function requestExamConfirmation() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         email,
-        full_name: $('exam-full-name').value.trim(),
-        exam_name: $('exam-name').value.trim(),
-        notes: $('exam-notes').value.trim(),
+        full_name: `${$('exam-first-name').value.trim()} ${$('exam-last-name').value.trim()}`.trim(),
       }),
     });
     const body = await res.json().catch(() => ({}));
@@ -1790,14 +1790,10 @@ async function editExamRegistration(id) {
     const items = await res.json();
     const entry = items.find((item) => String(item.id) === String(id));
     if (!entry) return;
-    $('exam-full-name').value = entry.full_name || '';
+    $('exam-first-name').value = entry.first_name || (entry.full_name || '').split(' ')[0] || '';
+    $('exam-last-name').value = entry.last_name || (entry.full_name || '').split(' ').slice(1).join(' ') || '';
+    $('exam-dob').value = entry.date_of_birth || '';
     $('exam-email').value = entry.email || '';
-    $('exam-phone').value = entry.phone || '';
-    $('exam-name').value = entry.exam_name || '';
-    $('exam-date').value = entry.exam_date || '';
-    $('exam-center').value = entry.center_preference || '';
-    $('exam-status').value = entry.status || 'pending';
-    $('exam-notes').value = entry.notes || '';
     const form = $('exam-registration-form');
     form.dataset.registrationId = String(entry.id);
     form.querySelector('button[type="submit"]').textContent = 'Update registration';
@@ -1842,8 +1838,53 @@ document.querySelectorAll('.main-tab').forEach((tab) => {
   tab.addEventListener('click', () => switchMainTab(tab.dataset.mainTab));
 });
 
+function aiGenerationPayload() {
+  const form = $('ai-generation-form');
+  const raw = Object.fromEntries(new FormData(form).entries());
+  let extra_metadata = {};
+  if (String(raw.extra_metadata || '').trim()) {
+    try { extra_metadata = JSON.parse(raw.extra_metadata); }
+    catch { throw new Error('Extra Metadata must be valid JSON.'); }
+    if (!extra_metadata || Array.isArray(extra_metadata) || typeof extra_metadata !== 'object') throw new Error('Extra Metadata must be a JSON object.');
+  }
+  return {...raw,count:Number(raw.count),tags:String(raw.tags || '').split(',').map(tag=>tag.trim()).filter(Boolean),extra_metadata};
+}
+
+function renderAiGenerationResults(result) {
+  const target=$('ai-generation-results');target.hidden=false;
+  target.dataset.runId=result.run_id;target.innerHTML=`<div class="ai-result-summary"><h3>Review generated questions</h3><p><strong>${escapeHtml(result.exam)}</strong> · ${escapeHtml(result.subject)} · Requested ${result.requested} · Generated ${result.generated} · Awaiting review ${result.review_required} · Model ${escapeHtml(result.model)}</p><div class="actions"><button type="button" data-ai-view-prompt>View prompt</button><button type="button" data-ai-expand-all>Expand all</button><button type="button" data-ai-collapse-all>Collapse all</button><button type="button" data-ai-save-selected>Save selected</button><button type="button" class="primary" data-ai-save-all>Save all to Question Bank</button></div></div><div class="ai-question-grid">${result.questions.map((q,index)=>`<article class="ai-question-card" data-ai-review-index="${index}"><div class="meta"><label><input type="checkbox" data-ai-select checked /> Select</label><span class="badge">AI Generated</span><span class="verify review_required">REVIEW REQUIRED</span><button type="button" data-ai-toggle-question>Collapse</button></div><div class="ai-question-body"><h3>Question ${index+1}</h3><div class="rendered">${toHtml(q.statement)}</div>${(q.options||[]).length?`<ol class="ai-question-options">${q.options.map(o=>`<li><strong>${escapeHtml(o.label)}.</strong> <span class="rendered">${toHtml(o.text)}</span></li>`).join('')}</ol>`:''}<div class="ai-answer rendered"><strong>Answer:</strong> ${toHtml(q.answer)}${q.solution?`<br><strong>Solution:</strong> ${toHtml(q.solution)}`:''}</div></div></article>`).join('')}</div>`;
+  target.querySelectorAll('.rendered').forEach(typeset);
+}
+
+async function loadAiGenerationRuns() {
+  const target=$('ai-run-list');if(!target)return;
+  target.innerHTML='<p class="empty-state">Loading saved runs…</p>';
+  try {
+    const runs=await api('/api/ai/runs');
+    target.innerHTML=runs.length?`<table><thead><tr><th>Created</th><th>Exam and subject</th><th>Questions</th><th>Status</th><th>Model</th><th>Actions</th></tr></thead><tbody>${runs.map(run=>`<tr><td>${new Date(run.created_at*1000).toLocaleString()}</td><td><strong>${escapeHtml(run.exam_name)}</strong><small>${escapeHtml(run.subject)}${run.topic?` · ${escapeHtml(run.topic)}`:''}</small></td><td>${run.accepted_count} saved / ${run.generated_count} generated</td><td><span class="badge">${escapeHtml(run.status)}</span>${run.error_message?`<small>${escapeHtml(run.error_message)}</small>`:''}</td><td>${escapeHtml(run.model||'—')}</td><td><div class="actions"><button type="button" data-ai-review-run="${run.id}">Review</button><button type="button" data-ai-reuse-run="${run.id}">Reuse inputs</button><button type="button" class="primary" data-ai-regenerate-run="${run.id}" ${run.status==='RUNNING'?'disabled':''}>Regenerate</button></div></td></tr>`).join('')}</tbody></table>`:'<p class="empty-state">No saved generation runs yet.</p>';
+  } catch(err) { target.innerHTML=`<p class="empty-state">${escapeHtml(err.message)}</p>`; }
+}
+
+async function reuseAiGenerationRun(runId) {
+  const run=await api(`/api/ai/runs/${runId}`);const values=run.request||{};const form=$('ai-generation-form');
+  for(const [name,value] of Object.entries(values)){const field=form.elements.namedItem(name);if(!field)continue;if(name==='tags')field.value=Array.isArray(value)?value.join(', '):value||'';else if(name==='extra_metadata')field.value=value&&Object.keys(value).length?JSON.stringify(value,null,2):'';else field.value=value??'';}
+  switchAiTab('new');form.dataset.sourceRun=runId;$('ai-generation-status').textContent='Saved inputs restored. You can edit them or generate again.';form.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function switchAiTab(name){$('ai-new-pane').hidden=name!=='new';$('ai-saved-pane').hidden=name!=='saved';document.querySelectorAll('[data-ai-tab]').forEach(button=>button.classList.toggle('active',button.dataset.aiTab===name));if(name==='saved')loadAiGenerationRuns();}
+async function reviewAiGenerationRun(runId) { const run=await api(`/api/ai/runs/${runId}`);switchAiTab('new');renderAiGenerationResults({run_id:run.id,exam:run.exam_name,subject:run.subject,requested:run.requested_count,generated:run.generated_count,review_required:(run.output?.questions||[]).length,model:run.model,questions:run.output?.questions||[]});$('ai-generation-results').scrollIntoView({behavior:'smooth',block:'start'}); }
+
+document.querySelectorAll('[data-ai-tab]').forEach(button=>button.addEventListener('click',()=>switchAiTab(button.dataset.aiTab)));
+document.querySelectorAll('[data-ai-toggle-field]').forEach(button=>button.addEventListener('click',()=>{const field=button.closest('.ai-large-field');field.classList.toggle('collapsed');button.textContent=field.classList.contains('collapsed')?'Expand':'Collapse';}));
+
+$('ai-preview-prompt')?.addEventListener('click',async()=>{try{const data=await api('/api/ai/prompt-preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(aiGenerationPayload())});$('ai-prompt-preview').hidden=false;$('ai-prompt-preview').querySelector('pre').textContent=data.effective_prompt;$('ai-model-badge').textContent=data.model;}catch(err){$('ai-generation-status').textContent=err.message;}});
+$('ai-close-preview')?.addEventListener('click',()=>{$('ai-prompt-preview').hidden=true;});
+$('ai-generation-form')?.addEventListener('submit',async event=>{event.preventDefault();const button=$('ai-generate-submit');button.disabled=true;$('ai-generation-status').textContent='Gemini is generating and validating structured questions…';try{const result=await api('/api/ai/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(aiGenerationPayload())});renderAiGenerationResults(result);await loadAiGenerationRuns();$('ai-generation-status').textContent=`${result.review_required} questions are ready for review. Select the questions you want to save.`;}catch(err){$('ai-generation-status').textContent=err.message;}finally{button.disabled=false;}});
+$('ai-refresh-runs')?.addEventListener('click',loadAiGenerationRuns);
+$('ai-run-list')?.addEventListener('click',async event=>{const review=event.target.closest('[data-ai-review-run]');if(review){try{await reviewAiGenerationRun(review.dataset.aiReviewRun);}catch(err){notify(err.message);}return;}const reuse=event.target.closest('[data-ai-reuse-run]');if(reuse){try{await reuseAiGenerationRun(reuse.dataset.aiReuseRun);}catch(err){notify(err.message);}return;}const regenerate=event.target.closest('[data-ai-regenerate-run]');if(regenerate){regenerate.disabled=true;$('ai-generation-status').textContent='Regenerating from the saved prompt and context…';try{const result=await api(`/api/ai/runs/${regenerate.dataset.aiRegenerateRun}/regenerate`,{method:'POST'});renderAiGenerationResults(result);await loadAiGenerationRuns();$('ai-generation-status').textContent=`Regeneration completed. Review the new questions before saving.`;}catch(err){$('ai-generation-status').textContent=err.message;regenerate.disabled=false;}}});
+$('ai-generation-results')?.addEventListener('click',async event=>{const toggle=event.target.closest('[data-ai-toggle-question]');if(toggle){const card=toggle.closest('.ai-question-card');card.classList.toggle('collapsed');toggle.textContent=card.classList.contains('collapsed')?'Expand':'Collapse';return;}if(event.target.closest('[data-ai-expand-all]')||event.target.closest('[data-ai-collapse-all]')){const collapse=!!event.target.closest('[data-ai-collapse-all]');$('ai-generation-results').querySelectorAll('.ai-question-card').forEach(card=>{card.classList.toggle('collapsed',collapse);card.querySelector('[data-ai-toggle-question]').textContent=collapse?'Expand':'Collapse';});return;}if(event.target.closest('[data-ai-view-prompt]')){$('ai-prompt-preview').hidden=false;$('ai-prompt-preview').scrollIntoView({behavior:'smooth'});return;}const saveAll=event.target.closest('[data-ai-save-all]');const saveSelected=event.target.closest('[data-ai-save-selected]');if(saveAll||saveSelected){const target=$('ai-generation-results');const cards=[...target.querySelectorAll('[data-ai-review-index]')];const indices=saveAll?cards.map(card=>Number(card.dataset.aiReviewIndex)):cards.filter(card=>card.querySelector('[data-ai-select]').checked).map(card=>Number(card.dataset.aiReviewIndex));if(!indices.length){notify('Select at least one question to save.');return;}const button=saveAll||saveSelected;button.disabled=true;try{const result=await api(`/api/ai/runs/${target.dataset.runId}/save`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({indices})});cards.filter(card=>indices.includes(Number(card.dataset.aiReviewIndex))).forEach(card=>{card.querySelector('[data-ai-select]').checked=false;card.classList.add('saved');card.querySelector('.verify').textContent='SAVED';});await Promise.all([loadAiGenerationRuns(),loadQuestions(),loadFacets()]);$('ai-generation-status').textContent=`${result.saved_count} questions saved to the Question Bank.${result.rejected_count?` ${result.rejected_count} duplicates or invalid questions were skipped.`:''}`;notify(`${result.saved_count} questions saved to the Question Bank.`);}catch(err){notify(err.message);}finally{button.disabled=false;}}});
+
 $('exam-registration-form')?.addEventListener('submit', saveExamRegistration);
-$('exam-confirm-gmail')?.addEventListener('click', requestExamConfirmation);
 $('exam-reset-form')?.addEventListener('click', () => {
   const form = $('exam-registration-form');
   form.reset();
@@ -1859,7 +1900,9 @@ $('exam-prev-question')?.addEventListener('click', () => moveExamQuestion(examSt
 $('exam-next-question')?.addEventListener('click', () => moveExamQuestion(examState.currentIndex + 1));
 $('exam-mark-review')?.addEventListener('click', toggleMarkForReview);
 $('exam-clear-answer')?.addEventListener('click', clearCurrentAnswer);
-$('exam-submit-button')?.addEventListener('click', () => submitExamSession());
+$('exam-submit-button')?.addEventListener('click', () => {
+  if (!$('exam-current-question').dataset.session) submitExamSession();
+});
 $('exam-question-nav')?.addEventListener('click', (event) => {
   const button = event.target.closest('[data-exam-jump]');
   if (!button) return;

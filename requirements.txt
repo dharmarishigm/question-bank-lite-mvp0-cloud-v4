@@ -5,6 +5,7 @@ pymupdf
 pillow
 pytesseract
 python-dotenv
+google-auth
 
 # GCP-native AI path
 # Vertex AI Gemini structured multimodal transcription/verification
