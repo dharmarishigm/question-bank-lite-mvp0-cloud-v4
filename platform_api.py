@@ -385,6 +385,16 @@ def delete_exam(exam_id:int,request:Request):
         registered=conn.execute('SELECT 1 FROM exam_enrollments WHERE exam_id=?',(exam_id,)).fetchone()
         pending=conn.execute('SELECT 1 FROM pending_exam_registrations WHERE exam_id=?',(exam_id,)).fetchone()
         if used or registered or pending:raise HTTPException(409,'This exam has registration or attempt history and must be closed or archived')
+        # Published exams own immutable versions and may also own unused access
+        # codes, links and blueprint history. Remove those children explicitly;
+        # registration and attempt history remains a hard deletion boundary.
+        conn.execute('DELETE FROM exam_generation_runs WHERE exam_id=?',(exam_id,))
+        conn.execute('DELETE FROM exam_blueprints WHERE exam_id=?',(exam_id,))
+        conn.execute('DELETE FROM exam_registration_links WHERE exam_id=?',(exam_id,))
+        conn.execute('DELETE FROM exam_proctor_codes WHERE exam_id=?',(exam_id,))
+        conn.execute('DELETE FROM proctor_code_failures WHERE exam_id=?',(exam_id,))
+        conn.execute('UPDATE exams SET current_version_id=NULL WHERE id=?',(exam_id,))
+        conn.execute('DELETE FROM exam_versions WHERE exam_id=?',(exam_id,))
         conn.execute('DELETE FROM exam_questions WHERE exam_id=?',(exam_id,));cur=conn.execute('DELETE FROM exams WHERE id=?',(exam_id,));conn.commit()
     if not cur.rowcount:raise HTTPException(404,'Exam not found')
     return {'deleted':exam_id}

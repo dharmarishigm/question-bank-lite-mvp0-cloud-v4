@@ -133,6 +133,24 @@ class PlatformSecurityTests(unittest.TestCase):
         approved=self.post(admin,'/api/admin/exam-blueprints/approve',json={'blueprint':bp,'question_ids':[q['id']],'status':'DRAFT'});self.assertEqual(approved.status_code,200,approved.text);self.assertEqual(approved.json()['id'],eid)
         self.assertEqual(admin.get(f'/api/exams/{eid}').json()['question_count'],1)
 
+    def test_admin_can_delete_published_exam_without_registration_history(self):
+        admin,_=self.login('admin@example.test')
+        with patch.dict(os.environ,{'AUTH_MODE':''}):q=app.create_question(app.Question(statement='Disposable question',options=['A','B'],answer='A'))
+        eid=self.post(admin,'/api/admin/exams',json={'name':'Disposable Exam','status':'PUBLISHED','question_ids':[q['id']]}).json()['id']
+        deleted=admin.delete(f'/api/admin/exams/{eid}',headers={'X-CSRF-Token':self.csrf(admin)})
+        self.assertEqual(deleted.status_code,200,deleted.text)
+        self.assertEqual(admin.get(f'/api/exams/{eid}').status_code,404)
+
+    def test_admin_can_delete_unused_exam_registrations(self):
+        admin,_=self.login('admin@example.test')
+        with patch.dict(os.environ,{'AUTH_MODE':''}):q=app.create_question(app.Question(statement='Registration cleanup question',options=['A','B'],answer='A'))
+        eid=self.post(admin,'/api/admin/exams',json={'name':'Registration Cleanup','status':'PUBLISHED','question_ids':[q['id']]}).json()['id']
+        self.post(admin,f'/api/admin/exams/{eid}/registrations',json={'email':'pending@example.test'})
+        pending=admin.get(f'/api/admin/exams/{eid}/registrations').json()['pending'][0]
+        deleted=admin.delete(f"/api/admin/exams/{eid}/registrations/pending/{pending['id']}",headers={'X-CSRF-Token':self.csrf(admin)})
+        self.assertEqual(deleted.status_code,200,deleted.text)
+        self.assertEqual(admin.get(f'/api/admin/exams/{eid}/registrations').json()['pending'],[])
+
     def test_admin_pending_registration_links_only_matching_verified_login(self):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):q=app.create_question(app.Question(statement='Q',answer='A'))

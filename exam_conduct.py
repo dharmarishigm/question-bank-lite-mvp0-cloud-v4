@@ -302,6 +302,24 @@ async def registration_status(exam_id:int,registration_id:int,request:Request):
     if not cur.rowcount:raise HTTPException(404,"Registration not found")
     return {"id":registration_id,"status":status}
 
+@router.delete("/admin/exams/{exam_id}/registrations/{kind}/{registration_id}")
+def delete_registration(exam_id:int,kind:str,registration_id:int,request:Request):
+    from platform_api import _auth
+    user=_auth(request,True)
+    if user["role"]!="ADMIN":raise HTTPException(403,"Administrator access required")
+    with closing(db()) as conn:
+        if kind == "pending":
+            cur=conn.execute("DELETE FROM pending_exam_registrations WHERE id=? AND exam_id=?",(registration_id,exam_id))
+        elif kind == "enrollment":
+            if conn.execute("SELECT 1 FROM exam_sessions WHERE registration_id=?",(registration_id,)).fetchone():
+                raise HTTPException(409,"This registration has attempt history and cannot be deleted")
+            cur=conn.execute("DELETE FROM exam_enrollments WHERE id=? AND exam_id=?",(registration_id,exam_id))
+        else:
+            raise HTTPException(400,"Invalid registration type")
+        if not cur.rowcount:raise HTTPException(404,"Registration not found")
+        audit(conn,"REGISTRATION_DELETED",exam_id=exam_id,user_id=user["id"],metadata={"registration_id":registration_id,"kind":kind});conn.commit()
+    return {"deleted":registration_id,"kind":kind}
+
 @router.get("/admin/exams/{exam_id}/sessions")
 def sessions(exam_id:int,request:Request):
     from platform_api import _auth
