@@ -2,6 +2,7 @@ locals {
   apis = toset(["artifactregistry.googleapis.com", "cloudbuild.googleapis.com", "run.googleapis.com", "sqladmin.googleapis.com", "secretmanager.googleapis.com", "storage.googleapis.com", "aiplatform.googleapis.com", "documentai.googleapis.com"])
   bucket = "${var.project_id}-qb-v4-data"
 }
+data "google_project" "current" {}
 resource "google_artifact_registry_repository" "app" {
   location      = var.region
   repository_id = "question-bank"
@@ -117,6 +118,17 @@ resource "google_project_iam_member" "roles" {
   project = var.project_id
   role = each.value
   member = "serviceAccount:${google_service_account.app.email}"
+}
+resource "google_project_iam_member" "cloud_build" {
+  for_each = toset(["roles/artifactregistry.writer", "roles/run.admin"])
+  project  = var.project_id
+  role     = each.value
+  member   = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
+}
+resource "google_service_account_iam_member" "cloud_build_act_as_app" {
+  service_account_id = google_service_account.app.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${data.google_project.current.number}-compute@developer.gserviceaccount.com"
 }
 resource "google_cloud_run_v2_service" "app" {
   name = var.service_name

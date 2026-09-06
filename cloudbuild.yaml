@@ -1,10 +1,10 @@
-substitutions: {_REGION: asia-south1, _REPOSITORY: question-bank, _SERVICE: question-bank-cloud-v4}
+substitutions: {_REGION: asia-south1, _REPOSITORY: question-bank, _SERVICE: question-bank-cloud-v4, _IMAGE_TAG: latest}
 steps:
 - name: gcr.io/cloud-builders/docker
-  args: [build, -t, '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/cloud-v4:$COMMIT_SHA', .]
+  args: [build, -t, '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/cloud-v4:${_IMAGE_TAG}', .]
 - name: gcr.io/cloud-builders/docker
-  args: [push, '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/cloud-v4:$COMMIT_SHA']
+  args: [push, '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/cloud-v4:${_IMAGE_TAG}']
 - name: gcr.io/google.com/cloudsdktool/cloud-sdk
   entrypoint: gcloud
-  args: [run, services, update, '${_SERVICE}', --region, '${_REGION}', --image, '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/cloud-v4:$COMMIT_SHA']
-images: ['${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/cloud-v4:$COMMIT_SHA']
+  args: [run, services, update, '${_SERVICE}', --region, '${_REGION}', --image, '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/cloud-v4:${_IMAGE_TAG}']
+images: ['${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/cloud-v4:${_IMAGE_TAG}']
