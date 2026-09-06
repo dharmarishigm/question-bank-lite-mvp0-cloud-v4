@@ -153,6 +153,18 @@ class PlatformSecurityTests(unittest.TestCase):
         self.assertEqual(deleted.status_code,200,deleted.text)
         self.assertEqual(admin.get(f'/api/admin/exams/{eid}/registrations').json()['pending'],[])
 
+    def test_admin_can_grant_one_student_an_additional_attempt(self):
+        admin,_=self.login('admin@example.test')
+        with patch.dict(os.environ,{'AUTH_MODE':''}):q=app.create_question(app.Question(statement='One more attempt?',options=['No','Yes'],answer='B'))
+        eid=self.post(admin,'/api/admin/exams',json={'name':'Individual Retake','status':'OPEN','question_ids':[q['id']],'max_attempts':1}).json()['id']
+        student,_=self.login('retake-student@example.test');self.post(student,f'/api/exams/{eid}/enroll')
+        sid=self.post(student,f'/api/exams/{eid}/sessions').json()['session_id'];self.post(student,f'/api/sessions/{sid}/submit')
+        registration=admin.get(f'/api/admin/exams/{eid}/registrations').json()['linked'][0]
+        granted=self.post(admin,f"/api/admin/exams/{eid}/registrations/{registration['id']}/attempts/increase",json={'increment':1})
+        self.assertEqual(granted.status_code,200,granted.text);self.assertEqual(granted.json()['max_attempts'],2)
+        mine=student.get('/api/my/exams').json()[0];self.assertEqual(mine['effective_max_attempts'],2);self.assertTrue(mine['student_allow_retake']);self.assertEqual(mine['registration_status'],'ENROLLED')
+        second=self.post(student,f'/api/exams/{eid}/sessions');self.assertEqual(second.status_code,200,second.text)
+
     def test_admin_pending_registration_links_only_matching_verified_login(self):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):q=app.create_question(app.Question(statement='Q',answer='A'))

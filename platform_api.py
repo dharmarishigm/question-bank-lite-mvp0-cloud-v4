@@ -413,7 +413,7 @@ def enroll(exam_id:int,request:Request):
 @router.get('/my/exams')
 def my_exams(request:Request):
     user=_auth(request)
-    with closing(db()) as conn: rows=conn.execute('SELECT e.*,r.id registration_id,r.registered_at,r.status registration_status,(SELECT COUNT(*) FROM exam_sessions s WHERE s.exam_id=e.id AND s.user_id=?) attempts_used,(SELECT id FROM exam_sessions s WHERE s.exam_id=e.id AND s.user_id=? ORDER BY attempt_number DESC LIMIT 1) latest_session_id,(SELECT status FROM exam_sessions s WHERE s.exam_id=e.id AND s.user_id=? ORDER BY attempt_number DESC LIMIT 1) latest_session_status FROM exam_enrollments r JOIN exams e ON e.id=r.exam_id WHERE r.user_id=? ORDER BY r.registered_at DESC',(user['id'],user['id'],user['id'],user['id'])).fetchall()
+    with closing(db()) as conn: rows=conn.execute('SELECT e.*,r.id registration_id,r.registered_at,r.status registration_status,COALESCE(r.max_attempts_override,e.max_attempts) effective_max_attempts,CASE WHEN e.allow_retake=1 OR r.max_attempts_override IS NOT NULL THEN 1 ELSE 0 END student_allow_retake,(SELECT COUNT(*) FROM exam_sessions s WHERE s.exam_id=e.id AND s.user_id=?) attempts_used,(SELECT id FROM exam_sessions s WHERE s.exam_id=e.id AND s.user_id=? ORDER BY attempt_number DESC LIMIT 1) latest_session_id,(SELECT status FROM exam_sessions s WHERE s.exam_id=e.id AND s.user_id=? ORDER BY attempt_number DESC LIMIT 1) latest_session_status FROM exam_enrollments r JOIN exams e ON e.id=r.exam_id WHERE r.user_id=? ORDER BY r.registered_at DESC',(user['id'],user['id'],user['id'],user['id'])).fetchall()
     return [dict(r) for r in rows]
 
 def _session(conn,sid,uid):
@@ -434,7 +434,8 @@ def _submit(conn,s,status='SUBMITTED'):
         else:wrong+=1;ok=0;marks=-r['negative_marks'];score+=marks
         conn.execute('UPDATE exam_answers SET is_correct=?,marks_awarded=?,scored_at=?,updated_at=? WHERE session_id=? AND question_id=?',(ok,marks,time.time(),time.time(),s['id'],qid))
     maximum=sum(float(r.get('marks') or 0) for r in rows);now=time.time();conn.execute('UPDATE exam_sessions SET status=?,submitted_at=?,auto_submitted_at=?,score=?,max_score=?,percentage=?,correct_count=?,incorrect_count=?,unanswered_count=?,updated_at=? WHERE id=?',(status,now,now if status=='AUTO_SUBMITTED' else None,score,maximum,(score/maximum*100 if maximum else 0),correct,wrong,unanswered,now,s['id']))
-    if s['attempt_number']>=conn.execute('SELECT max_attempts FROM exams WHERE id=?',(s['exam_id'],)).fetchone()['max_attempts']:conn.execute("UPDATE exam_enrollments SET status='COMPLETED',updated_at=? WHERE id=?",(now,s['registration_id']))
+    limit=conn.execute('SELECT COALESCE(r.max_attempts_override,e.max_attempts) maximum FROM exam_enrollments r JOIN exams e ON e.id=r.exam_id WHERE r.id=?',(s['registration_id'],)).fetchone()['maximum']
+    if s['attempt_number']>=limit:conn.execute("UPDATE exam_enrollments SET status='COMPLETED',updated_at=? WHERE id=?",(now,s['registration_id']))
     conn.commit()
 
 @router.post('/exams/{exam_id}/sessions')
@@ -448,7 +449,8 @@ def start_exam(exam_id:int,request:Request):
         if exam['proctor_required']:raise HTTPException(403,'Proctor code must be validated through secure exam start')
         if (exam['exam_start_at'] and now<exam['exam_start_at']) or (exam['exam_end_at'] and now>exam['exam_end_at']):raise HTTPException(403,'Exam is outside its permitted start window')
         attempt=conn.execute('SELECT COUNT(*) n FROM exam_sessions WHERE exam_id=? AND user_id=?',(exam_id,user['id'])).fetchone()['n']+1
-        if attempt>exam['max_attempts']:raise HTTPException(409,'Attempt limit reached')
+        maximum=reg['max_attempts_override'] or exam['max_attempts']
+        if attempt>maximum:raise HTTPException(409,'Attempt limit reached')
         version=conn.execute('SELECT * FROM exam_versions WHERE id=?',(exam['current_version_id'],)).fetchone() if exam['current_version_id'] else None
         if version:snapshot=json.loads(version['question_snapshot_json']);version_id=version['id']
         else:

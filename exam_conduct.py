@@ -21,7 +21,7 @@ CREATE INDEX IF NOT EXISTS idx_registration_links_exam ON exam_registration_link
 """
 EXAM_COLUMNS={"proctor_required":"INTEGER NOT NULL DEFAULT 0","result_release_mode":"TEXT NOT NULL DEFAULT 'IMMEDIATE'","negative_marking_enabled":"INTEGER NOT NULL DEFAULT 0","assigned_proctor_id":"INTEGER","allow_retake":"INTEGER NOT NULL DEFAULT 0","allow_self_registration":"INTEGER NOT NULL DEFAULT 1","allow_registration_link":"INTEGER NOT NULL DEFAULT 1","current_version_id":"INTEGER"}
 USER_COLUMNS={"date_of_birth":"TEXT NOT NULL DEFAULT ''","phone_number":"TEXT NOT NULL DEFAULT ''","school_name":"TEXT NOT NULL DEFAULT ''","profile_completed":"INTEGER NOT NULL DEFAULT 0"}
-ENROLL_COLUMNS={"registered_email":"TEXT NOT NULL DEFAULT ''","registration_source":"TEXT NOT NULL DEFAULT 'SELF'","created_by":"INTEGER","full_name_snapshot":"TEXT NOT NULL DEFAULT ''","registration_link_id":"INTEGER"}
+ENROLL_COLUMNS={"registered_email":"TEXT NOT NULL DEFAULT ''","registration_source":"TEXT NOT NULL DEFAULT 'SELF'","created_by":"INTEGER","full_name_snapshot":"TEXT NOT NULL DEFAULT ''","registration_link_id":"INTEGER","max_attempts_override":"INTEGER"}
 SESSION_COLUMNS={"question_set_json":"TEXT NOT NULL DEFAULT '[]'","proctor_code_id":"INTEGER","auto_submitted_at":"REAL","exam_version_id":"INTEGER"}
 ANSWER_COLUMNS={"status":"TEXT NOT NULL DEFAULT 'NOT_VISITED'","first_answered_at":"REAL","scored_at":"REAL"}
 PENDING_COLUMNS={"full_name":"TEXT NOT NULL DEFAULT ''","date_of_birth":"TEXT NOT NULL DEFAULT ''","phone_number":"TEXT NOT NULL DEFAULT ''","school_name":"TEXT NOT NULL DEFAULT ''","registration_link_id":"INTEGER"}
@@ -71,8 +71,9 @@ def evaluate_exam_start_eligibility(conn,user,exam_id,code=""):
     if exam["exam_start_at"] and now<exam["exam_start_at"]:return {"eligible":False,"reason_code":"EXAM_NOT_STARTED","message":"Exam has not started"}
     if exam["exam_end_at"] and now>exam["exam_end_at"]:return {"eligible":False,"reason_code":"EXAM_CLOSED","message":"Exam is closed"}
     attempts=conn.execute("SELECT COUNT(*) n FROM exam_sessions WHERE exam_id=? AND user_id=?",(exam_id,user["id"])).fetchone()["n"]
-    if attempts and not exam["allow_retake"]:return {"eligible":False,"reason_code":"RETAKE_DISABLED","message":"Retakes are not enabled for this exam"}
-    if attempts>=exam["max_attempts"]:return {"eligible":False,"reason_code":"ATTEMPT_LIMIT_REACHED","message":"Attempt limit reached"}
+    maximum=reg["max_attempts_override"] or exam["max_attempts"]
+    if attempts and not exam["allow_retake"] and not reg["max_attempts_override"]:return {"eligible":False,"reason_code":"RETAKE_DISABLED","message":"Retakes are not enabled for this exam"}
+    if attempts>=maximum:return {"eligible":False,"reason_code":"ATTEMPT_LIMIT_REACHED","message":"Attempt limit reached"}
     code_row=None
     if exam["proctor_required"]:
         recent=conn.execute("SELECT COUNT(*) n FROM proctor_code_failures WHERE exam_id=? AND user_id=? AND failed_at>?",(exam_id,user["id"],now-300)).fetchone()["n"]
@@ -219,7 +220,7 @@ def registrations(exam_id:int,request:Request):
     from platform_api import _auth
     staff(_auth(request))
     with closing(db()) as conn:
-        linked=[dict(r) for r in conn.execute("SELECT r.*,u.email,u.display_name,(SELECT COUNT(*) FROM exam_sessions s WHERE s.registration_id=r.id) attempts_used FROM exam_enrollments r JOIN users u ON u.id=r.user_id WHERE r.exam_id=?",(exam_id,)).fetchall()];pending=[dict(r) for r in conn.execute("SELECT * FROM pending_exam_registrations WHERE exam_id=?",(exam_id,)).fetchall()]
+        linked=[dict(r) for r in conn.execute("SELECT r.*,u.email,u.display_name,e.max_attempts exam_max_attempts,COALESCE(r.max_attempts_override,e.max_attempts) effective_max_attempts,(SELECT COUNT(*) FROM exam_sessions s WHERE s.registration_id=r.id) attempts_used FROM exam_enrollments r JOIN users u ON u.id=r.user_id JOIN exams e ON e.id=r.exam_id WHERE r.exam_id=?",(exam_id,)).fetchall()];pending=[dict(r) for r in conn.execute("SELECT * FROM pending_exam_registrations WHERE exam_id=?",(exam_id,)).fetchall()]
     return {"linked":linked,"pending":pending}
 
 def _registration_link(conn,token):
@@ -319,6 +320,23 @@ def delete_registration(exam_id:int,kind:str,registration_id:int,request:Request
         if not cur.rowcount:raise HTTPException(404,"Registration not found")
         audit(conn,"REGISTRATION_DELETED",exam_id=exam_id,user_id=user["id"],metadata={"registration_id":registration_id,"kind":kind});conn.commit()
     return {"deleted":registration_id,"kind":kind}
+
+@router.post("/admin/exams/{exam_id}/registrations/{registration_id}/attempts/increase")
+async def increase_registration_attempts(exam_id:int,registration_id:int,request:Request):
+    from platform_api import _auth
+    user=_auth(request,True)
+    if user["role"]!="ADMIN":raise HTTPException(403,"Administrator access required")
+    body=await request.json();increment=max(1,min(20,int(body.get("increment",1))));now=time.time()
+    with closing(db()) as conn:
+        registration=conn.execute("SELECT * FROM exam_enrollments WHERE id=? AND exam_id=?",(registration_id,exam_id)).fetchone()
+        exam=conn.execute("SELECT max_attempts FROM exams WHERE id=?",(exam_id,)).fetchone()
+        if not registration or not exam:raise HTTPException(404,"Registration not found")
+        used=conn.execute("SELECT COUNT(*) n FROM exam_sessions WHERE registration_id=?",(registration_id,)).fetchone()["n"]
+        current=registration["max_attempts_override"] or exam["max_attempts"]
+        maximum=min(100,max(current,used)+increment)
+        conn.execute("UPDATE exam_enrollments SET max_attempts_override=?,status='ENROLLED',cancelled_at=NULL,updated_at=? WHERE id=?",(maximum,now,registration_id))
+        audit(conn,"STUDENT_ATTEMPTS_INCREASED",exam_id=exam_id,user_id=user["id"],metadata={"registration_id":registration_id,"previous_max":current,"max_attempts":maximum});conn.commit()
+    return {"id":registration_id,"attempts_used":used,"max_attempts":maximum,"remaining_attempts":maximum-used}
 
 @router.get("/admin/exams/{exam_id}/sessions")
 def sessions(exam_id:int,request:Request):
