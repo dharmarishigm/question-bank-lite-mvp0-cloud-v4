@@ -1,0 +1,5 @@
+.gcloudignore
+.git
+.gitignore
+#!include:.gitignore
+!static/meritiqra-logo.png
