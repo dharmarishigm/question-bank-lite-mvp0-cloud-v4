@@ -332,6 +332,6 @@ def proctor_dashboard(exam_id:int,request:Request):
     from platform_api import _auth
     staff(_auth(request))
     with closing(db()) as conn:
-        exam=conn.execute("SELECT id,name,status,exam_start_at,exam_end_at,assigned_proctor_id FROM exams WHERE id=?",(exam_id,)).fetchone();counts=conn.execute("SELECT COUNT(*) total,SUM(status='IN_PROGRESS') active,SUM(status IN ('SUBMITTED','AUTO_SUBMITTED')) submitted FROM exam_sessions WHERE exam_id=?",(exam_id,)).fetchone();registered=conn.execute("SELECT COUNT(*) n FROM exam_enrollments WHERE exam_id=? AND status='ENROLLED'",(exam_id,)).fetchone()["n"]
+        exam=conn.execute("SELECT id,name,status,exam_start_at,exam_end_at,assigned_proctor_id FROM exams WHERE id=?",(exam_id,)).fetchone();counts=conn.execute("SELECT COUNT(*) total,SUM(CASE WHEN status='IN_PROGRESS' THEN 1 ELSE 0 END) active,SUM(CASE WHEN status IN ('SUBMITTED','AUTO_SUBMITTED') THEN 1 ELSE 0 END) submitted FROM exam_sessions WHERE exam_id=?",(exam_id,)).fetchone();registered=conn.execute("SELECT COUNT(*) n FROM exam_enrollments WHERE exam_id=? AND status='ENROLLED'",(exam_id,)).fetchone()["n"]
     if not exam:raise HTTPException(404,"Exam not found")
     return {"exam":dict(exam),"registered_students":registered,"students_started":counts["total"],"currently_active":counts["active"] or 0,"submitted":counts["submitted"] or 0,"not_started":max(0,registered-(counts["total"] or 0))}
