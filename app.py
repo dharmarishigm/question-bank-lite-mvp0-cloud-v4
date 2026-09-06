@@ -319,7 +319,7 @@ class ExamRegistration(BaseModel):
     is_confirmed: bool = False
 
 
-app = FastAPI(title="MeritIQra", description="Intelligent question bank, learning and examination platform", version="4.0.0")
+app = FastAPI(title="MeritIQra", description="AI-Powered Intelligence Platform", version="4.0.0")
 
 # The authenticated exam platform shares the configured database adapter.
 from platform_api import init_platform, router as platform_router

@@ -71,7 +71,7 @@ body { background: var(--canvas); color: var(--ink); font: 14px/1.45 Inter, ui-s
 .exam-body-layout { grid-template-columns: 210px minmax(0,1fr); }.exam-question-card { padding: 20px; background: white; }
 .login-screen { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: radial-gradient(circle at 15% 10%,#dff5ed,#f5f9fc 43%,#e9f1fb); z-index: 100; }
 .login-card { width: min(410px,100%); max-height: calc(100vh - 32px); overflow: auto; padding: 30px 36px 36px; text-align: center; background: #ffffffed; backdrop-filter: blur(18px); border: 1px solid #d5e4ef; border-radius: 22px; box-shadow: 0 28px 90px #0b3c6430; }
-.brand-logo-full { display: block; width: min(220px,75%); height: auto; aspect-ratio: 1; margin: -12px auto -18px; object-fit: contain; object-position: center; }
+.brand-logo-full { display: block; width: min(260px,82%); height: auto; margin: -8px auto 0; object-fit: contain; object-position: center; }
 .login-card h1 { margin: 12px 0 4px; color: #073d78; font-size: 22px; letter-spacing: -.02em; }.login-card > p { color: var(--muted); margin: 0 0 24px; }.login-card #google-signin { display: flex; justify-content: center; }
 .portal-label { display: inline-flex; padding: 4px 9px; color: #087263; background: #e4f7ef; border-radius: 999px; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .login-card > button { width: 100%; margin-top: 8px; }
