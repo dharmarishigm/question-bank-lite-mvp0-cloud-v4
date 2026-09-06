@@ -889,7 +889,7 @@ def explain_question(qid: int, language: str = 'en'):
     chapter = (question.get("chapter") or "").strip()
     solution = (question.get("solution") or "").strip()
     bilingual_instruction = (
-        "0a. Use natural bilingual Telugu-English teaching: explain sentences mainly in Telugu, retain familiar English academic terms, and show important Telugu technical terms with English in parentheses. Aim for roughly 60% Telugu and 40% English where that improves understanding. Each major section must contain complete explanatory sentences, not labels or one-line fragments.\n"
+        "0a. Use natural bilingual Telugu-English teaching: explain sentences mainly in Telugu and retain familiar English academic terms inline. Introduce a translated term as 'తెలుగు పదం — English term' or weave the English term naturally into the sentence. Do not put Telugu sentences, translations, section content, or lists inside square brackets or parentheses. Use parentheses only when they are genuinely required in a formula or calculation. Aim for roughly 60% Telugu and 40% English where that improves understanding. Each major section must contain complete explanatory sentences, not labels or one-line fragments.\n"
         if language == 'te' else ''
     )
     prompt = (
@@ -902,7 +902,7 @@ def explain_question(qid: int, language: str = 'en'):
         f"Stored answer: {answer or 'Not explicitly available'}\n"
         f"Solution/hint: {solution or 'No solution text stored'}\n\n"
         "Instructions:\n"
-        f"0. Write a complete, detailed explanation in {language_details['name']} with the same depth, number of sections, and teaching quality you would provide in English. Do not shorten the response because the selected language is {language_details['name']}. Keep formulas, symbols, scientific names, and option labels unchanged.\n"
+        f"0. Write a complete, detailed explanation in {language_details['name']} with the same depth, number of sections, and teaching quality you would provide in English. Do not shorten the response because the selected language is {language_details['name']}. Keep formulas, symbols, scientific names, and option labels unchanged. Return normal prose strings; never stringify a list or wrap prose in brackets.\n"
         f"{bilingual_instruction}"
         "1. Identify the underlying concept, law, formula, principle, or reasoning pattern in this question.\n"
         "2. Explain the concept in a student-friendly way with clear intuition, definitions, and the physical, mathematical, scientific, or logical idea behind it.\n"
