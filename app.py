@@ -1,4 +1,4 @@
-"""Question Bank Lite MVP-0 v3: fidelity-first local question digitization."""
+"""Question Bank Cloud MVP-0 v4: question digitization and examinations."""
 from __future__ import annotations
 
 import asyncio
@@ -31,6 +31,7 @@ from ocr import OcrUnavailable, ocr_status, ocr_to_latex, vision_status
 from pdf_import import parse_pdf
 from multimodal import build_content_blocks
 from llm_generate import GenerationRequest, SYSTEM_PROMPT_VERSION, fingerprint, generate_questions, public_prompt_preview
+from database import connect as connect_database
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("QB_DATA_DIR", os.path.join(BASE_DIR, "data"))
@@ -220,29 +221,28 @@ FIELDS = (
 JSON_FIELDS = {"options", "source_segments", "source_bbox", "verification_issues", "uncertainties", "content_blocks", "visual_assets", "math_evidence", "generation_metadata"}
 
 
-def connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+def connect():
+    """Return SQLite locally or Cloud SQL PostgreSQL when DATABASE_URL is set."""
+    return connect_database(DB_PATH)
 
 
-with closing(connect()) as _conn:
-    _conn.executescript(SCHEMA)
-    columns = {r["name"] for r in _conn.execute("PRAGMA table_info(questions)")}
-    for name, ddl in QUESTION_MIGRATIONS.items():
-        if name not in columns:
-            _conn.execute(f"ALTER TABLE questions ADD COLUMN {name} {ddl}")
-    registration_columns = {r["name"] for r in _conn.execute("PRAGMA table_info(exam_registrations)")}
-    for name, ddl in EXAM_REGISTRATION_MIGRATIONS.items():
-        if name not in registration_columns:
-            _conn.execute(f"ALTER TABLE exam_registrations ADD COLUMN {name} {ddl}")
-    run_columns = {r["name"] for r in _conn.execute("PRAGMA table_info(ai_generation_runs)")}
-    for name, ddl in AI_RUN_MIGRATIONS.items():
-        if name not in run_columns:
-            _conn.execute(f"ALTER TABLE ai_generation_runs ADD COLUMN {name} {ddl}")
-    _conn.execute("CREATE INDEX IF NOT EXISTS idx_questions_source_document ON questions(source_document_id)")
-    _conn.commit()
+if not os.getenv("DATABASE_URL"):
+    with closing(connect()) as _conn:
+        _conn.executescript(SCHEMA)
+        columns = {r["name"] for r in _conn.execute("PRAGMA table_info(questions)")}
+        for name, ddl in QUESTION_MIGRATIONS.items():
+            if name not in columns:
+                _conn.execute(f"ALTER TABLE questions ADD COLUMN {name} {ddl}")
+        registration_columns = {r["name"] for r in _conn.execute("PRAGMA table_info(exam_registrations)")}
+        for name, ddl in EXAM_REGISTRATION_MIGRATIONS.items():
+            if name not in registration_columns:
+                _conn.execute(f"ALTER TABLE exam_registrations ADD COLUMN {name} {ddl}")
+        run_columns = {r["name"] for r in _conn.execute("PRAGMA table_info(ai_generation_runs)")}
+        for name, ddl in AI_RUN_MIGRATIONS.items():
+            if name not in run_columns:
+                _conn.execute(f"ALTER TABLE ai_generation_runs ADD COLUMN {name} {ddl}")
+        _conn.execute("CREATE INDEX IF NOT EXISTS idx_questions_source_document ON questions(source_document_id)")
+        _conn.commit()
 
 
 class Question(BaseModel):
@@ -302,15 +302,16 @@ class ExamRegistration(BaseModel):
     is_confirmed: bool = False
 
 
-app = FastAPI(title="Question Bank Lite MVP-0 v3", version="3.0.0")
+app = FastAPI(title="Question Bank Cloud MVP-0 v4", version="4.0.0")
 
-# Additive authenticated exam platform. Imported here so it shares the same
-# SQLite connection and remains a single lightweight process.
+# The authenticated exam platform shares the configured database adapter.
 from platform_api import init_platform, router as platform_router
-init_platform()
+if not os.getenv("DATABASE_URL"):
+    init_platform()
 app.include_router(platform_router)
 from exam_conduct import init_exam_conduct, router as exam_conduct_router
-init_exam_conduct()
+if not os.getenv("DATABASE_URL"):
+    init_exam_conduct()
 app.include_router(exam_conduct_router)
 
 @app.middleware("http")
@@ -327,6 +328,12 @@ async def protect_legacy_admin_api(request: Request, call_next):
         "/api/pdf", "/api/ocr", "/api/export", "/api/import",
         "/api/exam-registrations", "/api/system/status",
     )
+    if configured and request.url.path.startswith("/uploads/"):
+        from platform_api import _auth
+        try:
+            _auth(request)
+        except HTTPException as exc:
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
     if configured and any(request.url.path.startswith(prefix) for prefix in admin_prefixes):
         from platform_api import _auth, require_admin
         try:

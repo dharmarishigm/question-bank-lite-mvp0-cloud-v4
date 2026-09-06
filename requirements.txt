@@ -6,6 +6,10 @@ pillow
 pytesseract
 python-dotenv
 google-auth
+sqlalchemy>=2.0,<3
+psycopg[binary]>=3.2,<4
+alembic>=1.14,<2
+google-cloud-storage>=3,<4
 
 # GCP-native AI path
 # Vertex AI Gemini structured multimodal transcription/verification

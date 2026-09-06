@@ -1,6 +1,8 @@
-# Question Bank Lite MVP-0 v3
+# Question Bank Cloud MVP-0 v4
 
-A deliberately lightweight local application whose single objective is to prove **high-fidelity digitization of exam questions**. It stores the question bank in SQLite and keeps source files/crops on local disk. GCP is used only for the difficult intelligence layer: Gemini multimodal transcription/verification and Document AI Math OCR.
+A cloud-ready examination and question-digitization application. Production uses Cloud SQL for PostgreSQL, a private Cloud Storage bucket mounted into Cloud Run, Secret Manager, Vertex AI, and Document AI. SQLite and local files remain available for development.
+
+See [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md) for provisioning, deployment, migration, validation, rollback, and operations.
 
 The application also includes an authenticated examination layer. Administrators manage the Question Bank and create exams from existing questions. Students discover published exams, enroll, take independent timed attempts, autosave answers, and see only their own results.
 

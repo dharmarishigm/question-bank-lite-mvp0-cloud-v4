@@ -1,0 +1,11 @@
+project_id="your-project-id"
+region="asia-south1"
+image="asia-south1-docker.pkg.dev/your-project-id/question-bank/cloud-v4:latest"
+google_client_id="your-client-id.apps.googleusercontent.com"
+admin_emails="admin@example.com"
+documentai_processor_id="your-processor-id"
+high_availability=false
+secret_env = {
+  ADMIN_LOCAL_EMAIL = "admin@example.com"
+  ADMIN_LOCAL_PASSWORD = "replace-with-a-long-random-password"
+}

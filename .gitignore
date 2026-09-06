@@ -20,3 +20,7 @@ venvs/
 *.xlsx
 *.ipynb_checkpoints/
 uploads/
+.terraform/
+*.tfstate
+*.tfstate.*
+infra/terraform.tfvars
