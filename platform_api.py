@@ -306,7 +306,11 @@ def question_metadata_facets(request:Request,grade:str='',subject:str='',chapter
     require_admin(_auth(request));conditions=["statement<>''"];params=[]
     for field,value in (("subject",subject),("chapter",chapter),("topic",topic)):
         if value:conditions.append(f"lower({field})=lower(?)");params.append(value)
-    if grade:conditions.append("lower(exam || ' ' || tags || ' ' || generation_metadata) LIKE ?");params.append(f"%{grade.lower().replace('class ','grade ')}%")
+    if grade:
+        canonical=grade.strip().lower().replace('class ','grade ')
+        alias=canonical.replace('grade ','class ')
+        conditions.append("(lower(exam || ' ' || tags || ' ' || generation_metadata) LIKE ? OR lower(exam || ' ' || tags || ' ' || generation_metadata) LIKE ?)")
+        params.extend((f"%{canonical}%",f"%{alias}%"))
     where=' AND '.join(conditions);result={}
     with closing(db()) as conn:
         for field,key in (("subject","subjects"),("chapter","chapters"),("topic","topics"),("subtopic","subtopics"),("difficulty","difficulties"),("qtype","question_types"),("source_type","source_types"),("verification_status","verification_statuses")):
