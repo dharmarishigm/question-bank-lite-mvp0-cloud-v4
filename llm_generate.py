@@ -49,6 +49,32 @@ class GeneratedOption(BaseModel):
     label: str
     text: str
 
+class VisualCanvas(BaseModel):
+    width: float = 400
+    height: float = 400
+
+class VisualPrimitive(BaseModel):
+    type: str
+    x: float|None=None;y: float|None=None;width: float|None=None;height: float|None=None
+    x1: float|None=None;y1: float|None=None;x2: float|None=None;y2: float|None=None
+    cx: float|None=None;cy: float|None=None;r: float|None=None
+    points: list[list[float]] = Field(default_factory=list)
+    fill: str = "NONE"
+    stroke_width: float = 2
+    text: str = ""
+    size: float = 24
+
+class VisualPanel(BaseModel):
+    primitives: list[VisualPrimitive] = Field(min_length=1)
+
+class VisualOptions(BaseModel):
+    A: VisualPanel;B: VisualPanel;C: VisualPanel;D: VisualPanel
+
+class VisualSpec(BaseModel):
+    canvas: VisualCanvas = Field(default_factory=VisualCanvas)
+    question_figure: VisualPanel
+    options: VisualOptions
+
 
 class GeneratedQuestion(BaseModel):
     statement: str
@@ -67,7 +93,7 @@ class GeneratedQuestion(BaseModel):
     content_blocks: list[dict] = Field(default_factory=list)
     visual_required: bool = False
     visual_type: str = ""
-    visual_spec: dict[str,Any] = Field(default_factory=dict)
+    visual_spec: VisualSpec|None = None
     visual_assets: list[dict] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -113,6 +139,7 @@ def validate_question(question: GeneratedQuestion) -> None:
     if question.options:
         if len(question.options)<2 or len(question.options)>12: raise ValueError("Option-based questions require 2 to 12 options")
         if len(labels)!=len(set(labels)) or question.answer.strip().upper() not in labels: raise ValueError("Answer must match a unique option label")
+    if question.visual_required and question.visual_spec is None:raise ValueError("Visual questions require a complete question figure and A-D visual specification")
 
 
 def fingerprint(statement: str) -> str:

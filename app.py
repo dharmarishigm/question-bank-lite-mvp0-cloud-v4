@@ -1065,7 +1065,7 @@ def generate_ai_questions(payload: GenerationRequest, request: Request):
         for generated in batch.questions:
             if generated.visual_required and generated.visual_spec:
                 from visual_renderer import render_visual_spec
-                url=render_visual_spec(generated.visual_spec,UPLOAD_DIR);generated.visual_assets=[{"type":generated.visual_type or "diagram","asset":url,"description":"AI-generated question and answer figures"}];generated.content_blocks=build_content_blocks(generated.statement,generated.visual_assets)
+                url=render_visual_spec(generated.visual_spec.model_dump(),UPLOAD_DIR);generated.visual_assets=[{"type":generated.visual_type or "diagram","asset":url,"description":"AI-generated question and answer figures"}];generated.content_blocks=build_content_blocks(generated.statement,generated.visual_assets)
             fp=fingerprint(generated.statement)
             with closing(connect()) as conn: duplicate=conn.execute("SELECT 1 FROM questions WHERE generation_fingerprint=? OR lower(trim(statement))=lower(trim(?)) LIMIT 1",(fp,generated.statement)).fetchone()
             if duplicate or fp in seen: rejected+=1;continue
