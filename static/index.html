@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="/static/enterprise.css?v=20260907-secure-exam-v2" />
 </head>
 <body>
-<div id="public-registration" class="login-screen" hidden><section class="login-card registration-card"><img class="brand-logo-full" src="/static/meritiqra-logo.png?v=20260907-updated" alt="MeritIQra — Think Sharper. Reach Higher. Amplified by AI." /><span class="portal-label">Exam registration</span><h2 id="public-exam-name">Exam registration</h2><p id="public-exam-summary"></p><div class="registration-choice"><button id="public-new-registration" class="primary">New registration</button><button id="public-continue-login">Already registered? Login</button></div><form id="public-registration-form" class="bootstrap-form"><label>Full name<input name="full_name" autocomplete="name" required maxlength="120" /></label><label>Email address<input name="email" type="email" autocomplete="email" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Phone number<input name="phone_number" type="tel" autocomplete="tel" pattern="[+0-9 ()-]{7,20}" required /></label><label>School name<input name="school_name" required maxlength="160" /></label><button class="primary" type="submit">Register for exam</button></form><p id="public-registration-message" role="status"></p><form id="public-student-login-form" class="bootstrap-form" hidden><h2>Student login</h2><label>Registered email<input name="email" type="email" autocomplete="username" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Registered phone number<input name="phone_number" type="tel" autocomplete="tel" required /></label><button class="primary" type="submit">Open student portal</button></form></section></div>
+<div id="public-registration" class="login-screen" hidden><section class="login-card registration-card"><img class="brand-logo-full" src="/static/meritiqra-logo.png?v=20260907-updated" alt="MeritIQra — Think Sharper. Reach Higher. Amplified by AI." /><span class="portal-label">Exam registration</span><h2 id="public-exam-name">Exam registration</h2><p id="public-exam-summary"></p><div id="public-google-block" hidden><p class="registration-hint">Sign in with Google to register</p><div id="public-google-signin"></div><button id="public-fallback-toggle" type="button" class="registration-fallback-toggle">or continue without Google</button></div><div id="public-fallback"><div class="registration-choice"><button id="public-new-registration" class="primary">New registration</button><button id="public-continue-login">Already registered? Login</button></div><form id="public-registration-form" class="bootstrap-form"><label>Full name<input name="full_name" autocomplete="name" required maxlength="120" /></label><label>Email address<input name="email" type="email" autocomplete="email" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Phone number<input name="phone_number" type="tel" autocomplete="tel" pattern="[+0-9 ()-]{7,20}" required /></label><label>School name<input name="school_name" required maxlength="160" /></label><button class="primary" type="submit">Register for exam</button></form><form id="public-student-login-form" class="bootstrap-form" hidden><h2>Student login</h2><label>Registered email<input name="email" type="email" autocomplete="username" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Registered phone number<input name="phone_number" type="tel" autocomplete="tel" required /></label><button class="primary" type="submit">Open student portal</button></form></div><p id="public-registration-message" role="status"></p></section></div>
 <div id="login-screen" class="login-screen" hidden>
   <section class="login-card" aria-labelledby="login-title"><button id="login-close" class="login-close" type="button" aria-label="Close login">×</button>
     <img class="brand-logo-full" src="/static/meritiqra-logo.png?v=20260907-updated" alt="MeritIQra" />
@@ -39,7 +39,7 @@
 <header id="app-header" hidden>
   <div class="brand"><span class="brand-symbol" aria-hidden="true"><img src="/static/meritiqra-logo.png?v=20260907-updated" alt="" /></span><div><strong class="app-brand-name">MeritIQra</strong><span class="brand-caption">AI-Powered Intelligence Platform</span></div></div>
   <div class="spacer"></div>
-  <a class="btn workspace-home" href="/home">MeritIQra Home</a>
+  <a class="btn workspace-home" href="/">MeritIQra Home</a>
   <div class="header-actions">
     <label class="btn primary" for="pdf-file">Upload document</label>
     <span id="upload-status" class="upload-status" hidden>
@@ -199,7 +199,7 @@
             <span id="exam-progress-text"></span>
           </div>
           <div class="exam-timer" id="exam-timer">30:00</div>
-          <a id="exam-home" class="btn exam-home" href="/home">Home</a>
+          <a id="exam-home" class="btn exam-home" href="/">Home</a>
         </div>
         <div id="exam-security-notice" class="exam-security-notice" role="status">Secure exam mode · Fullscreen required · Copying, tab switching and leaving the browser are monitored.</div>
 

@@ -1937,27 +1937,27 @@ def healthz():
 
 
 @app.get("/")
-def index(request: Request):
-    # Select the document at the server boundary. Anonymous visitors never
-    # receive administrator or student application markup.
-    from platform_api import current_user
-    try:
-        current_user(request.cookies.get("qb_session"))
-    except HTTPException:
-        return FileResponse(os.path.join(BASE_DIR, "static", "public.html"), headers={"Cache-Control":"no-cache"})
+def index():
+    # The marketing document is fully static so search engines receive the
+    # complete copy without executing JavaScript.
+    return FileResponse(os.path.join(BASE_DIR, "static", "home.html"), headers={"Cache-Control":"no-cache"})
+
+
+@app.get("/app")
+def workspace():
     return FileResponse(os.path.join(BASE_DIR, "static", "index.html"), headers={"Cache-Control":"no-store"})
 
 
 @app.get("/robots.txt", response_class=PlainTextResponse)
 def robots():
     base = os.getenv("PUBLIC_BASE_URL") or os.getenv("APP_BASE_URL") or "https://meritiqra.com"
-    return "\n".join(("User-agent: *", "Allow: /", "Disallow: /admin", "Disallow: /student", "Disallow: /api/", "Disallow: /register/", f"Sitemap: {base.rstrip('/')}/sitemap.xml", ""))
+    return "\n".join(("User-agent: *", "Allow: /", "Disallow: /app", "Disallow: /admin", "Disallow: /student", "Disallow: /api/", "Disallow: /register/", f"Sitemap: {base.rstrip('/')}/sitemap.xml", ""))
 
 
 @app.get("/sitemap.xml")
 def sitemap():
     base = (os.getenv("PUBLIC_BASE_URL") or os.getenv("APP_BASE_URL") or "https://meritiqra.com").rstrip('/')
-    paths = ("/", "/practice-exams", "/features", "/how-it-works", "/for-students", "/for-schools", "/for-organizations", "/about")
+    paths = ("/",)
     xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + ''.join(f'<url><loc>{base}{path}</loc></url>' for path in paths) + '</urlset>'
     return Response(xml, media_type="application/xml")
 
@@ -1966,7 +1966,8 @@ def sitemap():
 def public_page(public_path: str):
     public_routes = {"home", "practice-exams", "exams", "features", "ai-question-bank", "ai-question-generation", "online-exam-platform", "assessment-platform", "for-students", "for-schools", "for-organizations", "how-it-works", "about"}
     if public_path in public_routes:
-        return FileResponse(os.path.join(BASE_DIR, "static", "public.html"))
+        # Previously indexed marketing URLs keep resolving to the home document.
+        return FileResponse(os.path.join(BASE_DIR, "static", "home.html"), headers={"Cache-Control":"no-cache"})
     if public_path.startswith("register/exam/"):
         return FileResponse(os.path.join(BASE_DIR, "static", "index.html"), headers={"Cache-Control":"no-store"})
     raise HTTPException(404, "Page not found")
