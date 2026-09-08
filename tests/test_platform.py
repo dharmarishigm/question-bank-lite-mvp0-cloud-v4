@@ -136,8 +136,13 @@ class PlatformSecurityTests(unittest.TestCase):
         trend=student.get('/api/my/analytics/trend').json();self.assertEqual(len(trend),1);self.assertEqual(trend[0]['exam_name'],'Science Practice');self.assertNotIn('selected_answer',trend[0]);self.assertNotIn('solution',trend[0])
         topics=student.get('/api/my/analytics/topics').json();self.assertEqual(len(topics),1);self.assertEqual(topics[0]['topic'],'Photosynthesis');self.assertEqual(topics[0]['attempted_count'],3);self.assertEqual(topics[0]['correct_count'],2)
         recommendations=student.get('/api/my/analytics/recommendations').json();self.assertEqual(recommendations['weak_topics'][0]['topic'],'Photosynthesis');self.assertTrue(recommendations['study_plan'])
+        dimensions=student.get('/api/my/analytics/dimensions').json();self.assertEqual(dimensions['scope'],'student');self.assertEqual(dimensions['exams'][0]['name'],'Science Practice');self.assertEqual(dimensions['students'],[])
+        filtered=student.get(f'/api/my/analytics/overview?exam_id={exam["id"]}&student_id=999999').json();self.assertEqual(filtered['total_attempts'],1);self.assertEqual(filtered['exam']['name'],'Science Practice');self.assertEqual(filtered['student']['email'],'learner@example.test')
         self.assertEqual(other.get('/api/my/analytics/overview').json()['total_attempts'],0);self.assertEqual(other.get('/api/my/analytics/trend').json(),[]);self.assertEqual(other.get('/api/my/analytics/topics').json(),[])
         admin_overview=admin.get('/api/my/analytics/overview');self.assertEqual(admin_overview.status_code,200,admin_overview.text);self.assertEqual(admin_overview.json()['scope'],'platform');self.assertEqual(admin_overview.json()['total_attempts'],1)
+        admin_dimensions=admin.get('/api/my/analytics/dimensions').json();self.assertTrue(any(row['email']=='learner@example.test' for row in admin_dimensions['students']))
+        learner_id=next(row['id'] for row in admin_dimensions['students'] if row['email']=='learner@example.test')
+        admin_filtered=admin.get(f'/api/my/analytics/overview?student_id={learner_id}&exam_id={exam["id"]}').json();self.assertEqual(admin_filtered['total_attempts'],1);self.assertEqual(admin_filtered['student']['email'],'learner@example.test')
     def test_isolated_exam_sessions_answers_and_results(self):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):
@@ -158,7 +163,7 @@ class PlatformSecurityTests(unittest.TestCase):
         self.assertEqual(alice.put(f'/api/sessions/{a_sid}/answers/{q2["id"]}',headers={'X-CSRF-Token':self.csrf(alice)},json={'selected_answer':'B'}).status_code,409)
         results=alice.get('/api/my/results').json();self.assertEqual(len(results),1);self.assertEqual(results[0]['score'],1)
         self.assertEqual(bob.get(f'/api/my/results/{a_sid}').status_code,404)
-        detail=alice.get(f'/api/my/results/{a_sid}');self.assertEqual(detail.status_code,200);self.assertIn('answer',detail.text);self.assertEqual(detail.json()['questions'][0]['id'],q1['id'])
+        detail=alice.get(f'/api/my/results/{a_sid}');self.assertEqual(detail.status_code,200);self.assertIn('answer',detail.text);self.assertEqual(detail.json()['questions'][0]['id'],q1['id']);self.assertEqual(detail.json()['session']['exam_name'],'Grade 8 Mathematics Olympiad');self.assertEqual(detail.json()['session']['student_email'],'alice@example.test')
         admin_detail=admin.get(f'/api/admin/results/{a_sid}');self.assertEqual(admin_detail.status_code,200,admin_detail.text);self.assertEqual(admin_detail.json()['session']['student_email'],'alice@example.test');self.assertEqual(admin_detail.json()['questions'][0]['selected_answer'],'B')
         self.assertEqual(bob.get(f'/api/admin/results/{a_sid}').status_code,403)
         self.assertEqual(bob.get(f'/api/student/questions/{q1["id"]}/explain').status_code,404)

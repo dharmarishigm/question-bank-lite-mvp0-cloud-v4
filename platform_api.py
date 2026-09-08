@@ -533,7 +533,7 @@ def submit(sid:int,request:Request):
 @router.get('/my/results')
 def results(request:Request):
     user=_auth(request)
-    with closing(db()) as conn:rows=conn.execute("SELECT s.*,e.name exam_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') ORDER BY s.submitted_at DESC",(user['id'],)).fetchall()
+    with closing(db()) as conn:rows=conn.execute("SELECT s.*,e.name exam_name,e.exam_type,e.subject,e.level FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') ORDER BY s.submitted_at DESC",(user['id'],)).fetchall()
     return [dict(r) for r in rows]
 
 def _student_analytics_user(request:Request):
@@ -541,14 +541,16 @@ def _student_analytics_user(request:Request):
     if user['role'] not in {'STUDENT','ADMIN'}:raise HTTPException(403,'Student or administrator access required')
     return user
 
-def _completed_attempts(conn,user_id:int|None):
-    scope=' AND s.user_id=?' if user_id is not None else ''
-    params=(user_id,) if user_id is not None else ()
-    return [dict(r) for r in conn.execute(f"SELECT s.*,e.name exam_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.status IN ('SUBMITTED','AUTO_SUBMITTED'){scope} ORDER BY s.submitted_at ASC,s.id ASC",params).fetchall()]
+def _completed_attempts(conn,user_id:int|None,exam_id:int|None=None):
+    clauses=[];params=[]
+    if user_id is not None:clauses.append('s.user_id=?');params.append(user_id)
+    if exam_id is not None:clauses.append('s.exam_id=?');params.append(exam_id)
+    scope=(' AND '+' AND '.join(clauses)) if clauses else ''
+    return [dict(r) for r in conn.execute(f"SELECT s.*,e.name exam_name,e.exam_type,e.subject,e.level,u.email student_email,u.display_name student_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id JOIN users u ON u.id=s.user_id WHERE s.status IN ('SUBMITTED','AUTO_SUBMITTED'){scope} ORDER BY s.submitted_at ASC,s.id ASC",tuple(params)).fetchall()]
 
-def _topic_analytics(conn,user_id:int):
+def _topic_analytics(conn,user_id:int|None,exam_id:int|None=None):
     groups={}
-    for session in _completed_attempts(conn,user_id):
+    for session in _completed_attempts(conn,user_id,exam_id):
         try:snapshot=json.loads(session.get('question_set_json') or '[]')
         except (TypeError,json.JSONDecodeError):snapshot=[]
         answers={int(r['question_id']):dict(r) for r in conn.execute('SELECT question_id,is_correct,marks_awarded FROM exam_answers WHERE session_id=?',(session['id'],)).fetchall()}
@@ -567,29 +569,61 @@ def _topic_analytics(conn,user_id:int):
         result.append({**group,'attempted_count':attempted,'accuracy_percentage':round(group['correct_count']/attempted*100,2),'average_marks_awarded':round(marks/attempted,2)})
     return sorted(result,key=lambda row:(-row['attempted_count'],row['accuracy_percentage'],row['subject'],row['topic']))
 
-@router.get('/my/analytics/overview')
-def analytics_overview(request:Request):
+def _analytics_scope(conn,user,student_id:int|None,exam_id:int|None):
+    selected_student=user['id'] if user['role']!='ADMIN' else student_id
+    student=None;exam=None
+    if selected_student is not None:
+        row=conn.execute('SELECT id,email,display_name FROM users WHERE id=? AND role=?',(selected_student,'STUDENT')).fetchone()
+        if not row:raise HTTPException(404,'Student not found')
+        student=dict(row)
+    if exam_id is not None:
+        row=conn.execute('SELECT id,name,exam_type,subject,level FROM exams WHERE id=?',(exam_id,)).fetchone()
+        if not row:raise HTTPException(404,'Examination not found')
+        exam=dict(row)
+    return selected_student,student,exam
+
+@router.get('/my/analytics/dimensions')
+def analytics_dimensions(request:Request):
     user=_student_analytics_user(request)
-    with closing(db()) as conn:attempts=_completed_attempts(conn,None if user['role']=='ADMIN' else user['id'])
+    with closing(db()) as conn:
+        if user['role']=='ADMIN':
+            students=[dict(r) for r in conn.execute("SELECT u.id,u.email,u.display_name,COUNT(s.id) attempt_count FROM users u LEFT JOIN exam_sessions s ON s.user_id=u.id AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') WHERE u.role='STUDENT' GROUP BY u.id,u.email,u.display_name ORDER BY u.display_name,u.email").fetchall()]
+            exams=[dict(r) for r in conn.execute("SELECT e.id,e.name,e.exam_type,e.subject,e.level,COUNT(s.id) attempt_count FROM exams e LEFT JOIN exam_sessions s ON s.exam_id=e.id AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') GROUP BY e.id,e.name,e.exam_type,e.subject,e.level ORDER BY e.name").fetchall()]
+        else:
+            students=[]
+            exams=[dict(r) for r in conn.execute("SELECT e.id,e.name,e.exam_type,e.subject,e.level,COUNT(s.id) attempt_count FROM exams e JOIN exam_enrollments er ON er.exam_id=e.id AND er.user_id=? LEFT JOIN exam_sessions s ON s.exam_id=e.id AND s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') GROUP BY e.id,e.name,e.exam_type,e.subject,e.level ORDER BY e.name",(user['id'],user['id'])).fetchall()]
+    return {'scope':'platform' if user['role']=='ADMIN' else 'student','students':students,'exams':exams}
+
+@router.get('/my/analytics/overview')
+def analytics_overview(request:Request,student_id:int|None=None,exam_id:int|None=None):
+    user=_student_analytics_user(request)
+    with closing(db()) as conn:
+        selected_student,student,exam=_analytics_scope(conn,user,student_id,exam_id);attempts=_completed_attempts(conn,selected_student,exam_id)
     percentages=[float(row.get('percentage') or 0) for row in attempts];correct=sum(int(row.get('correct_count') or 0) for row in attempts);incorrect=sum(int(row.get('incorrect_count') or 0) for row in attempts);unanswered=sum(int(row.get('unanswered_count') or 0) for row in attempts);total=correct+incorrect+unanswered
     previous=percentages[:-1]
-    return {'scope':'platform' if user['role']=='ADMIN' else 'student','total_attempts':len(attempts),'average_percentage':round(sum(percentages)/len(percentages),2) if percentages else 0,'best_percentage':round(max(percentages),2) if percentages else 0,'worst_percentage':round(min(percentages),2) if percentages else 0,'total_questions_attempted':correct+incorrect,'overall_accuracy':round(correct/(correct+incorrect)*100,2) if correct+incorrect else 0,'average_unanswered_rate':round(unanswered/total*100,2) if total else 0,'recent_trend_delta':round(percentages[-1]-sum(previous)/len(previous),2) if previous else 0}
+    return {'scope':'platform' if user['role']=='ADMIN' else 'student','student':student,'exam':exam,'total_attempts':len(attempts),'average_percentage':round(sum(percentages)/len(percentages),2) if percentages else 0,'best_percentage':round(max(percentages),2) if percentages else 0,'worst_percentage':round(min(percentages),2) if percentages else 0,'total_questions_attempted':correct+incorrect,'overall_accuracy':round(correct/(correct+incorrect)*100,2) if correct+incorrect else 0,'average_unanswered_rate':round(unanswered/total*100,2) if total else 0,'recent_trend_delta':round(percentages[-1]-sum(previous)/len(previous),2) if previous else 0}
 
 @router.get('/my/analytics/trend')
-def analytics_trend(request:Request):
+def analytics_trend(request:Request,student_id:int|None=None,exam_id:int|None=None):
     user=_student_analytics_user(request)
     fields=('submitted_at','exam_name','percentage','score','max_score','correct_count','incorrect_count','unanswered_count','attempt_number')
-    with closing(db()) as conn:return [{key:row.get(key) for key in fields} for row in _completed_attempts(conn,None if user['role']=='ADMIN' else user['id'])]
+    with closing(db()) as conn:
+        selected_student,_,_=_analytics_scope(conn,user,student_id,exam_id)
+        return [{key:row.get(key) for key in fields} for row in _completed_attempts(conn,selected_student,exam_id)]
 
 @router.get('/my/analytics/topics')
-def analytics_topics(request:Request):
+def analytics_topics(request:Request,student_id:int|None=None,exam_id:int|None=None):
     user=_student_analytics_user(request)
-    with closing(db()) as conn:return _topic_analytics(conn,None if user['role']=='ADMIN' else user['id'])
+    with closing(db()) as conn:
+        selected_student,_,_=_analytics_scope(conn,user,student_id,exam_id)
+        return _topic_analytics(conn,selected_student,exam_id)
 
 @router.get('/my/analytics/recommendations')
-def analytics_recommendations(request:Request):
+def analytics_recommendations(request:Request,student_id:int|None=None,exam_id:int|None=None):
     user=_student_analytics_user(request)
-    with closing(db()) as conn:topics=_topic_analytics(conn,None if user['role']=='ADMIN' else user['id'])
+    with closing(db()) as conn:
+        selected_student,_,_=_analytics_scope(conn,user,student_id,exam_id)
+        topics=_topic_analytics(conn,selected_student,exam_id)
     weak=sorted((row for row in topics if row['attempted_count']>=3),key=lambda row:(row['accuracy_percentage'],-row['attempted_count']))[:5]
     plan=[{'title':f"Strengthen {row['topic']}",'focus':f"{row['subject']} · {row['chapter']} · {row['difficulty']}",'action':f"Review the core concept, then complete 10 targeted questions. Your current accuracy is {row['accuracy_percentage']:.0f}% across {row['attempted_count']} attempts."} for row in weak]
     if topics and not weak:plan=[{'title':'Build a reliable baseline','focus':'More evidence needed','action':'Complete at least three questions in each topic to unlock targeted recommendations.'}]
@@ -600,13 +634,14 @@ def result_detail(sid:int,request:Request):
     with closing(db()) as conn:
         s=_session(conn,sid,user['id'])
         if s['status'] not in {'SUBMITTED','AUTO_SUBMITTED'}:raise HTTPException(409,'Result unavailable while exam is active')
-        exam=conn.execute('SELECT status,result_release_mode FROM exams WHERE id=?',(s['exam_id'],)).fetchone();released=exam['result_release_mode']=='IMMEDIATE' or (exam['result_release_mode']=='AFTER_EXAM_CLOSE' and exam['status']=='CLOSED')
+        exam=conn.execute('SELECT id,name,exam_type,subject,level,status,result_release_mode FROM exams WHERE id=?',(s['exam_id'],)).fetchone();released=exam['result_release_mode']=='IMMEDIATE' or (exam['result_release_mode']=='AFTER_EXAM_CLOSE' and exam['status']=='CLOSED')
+        student=conn.execute('SELECT id,email,display_name FROM users WHERE id=?',(user['id'],)).fetchone()
         snapshot=json.loads(s['question_set_json'] or '[]');answers={r['question_id']:dict(r) for r in conn.execute('SELECT question_id,selected_answer,is_correct,marks_awarded FROM exam_answers WHERE session_id=?',(sid,)).fetchall()}
         questions=[]
         if released:
             for q in snapshot:
                 a=answers.get(q['id'],{});questions.append({'id':q['id'],'statement':q['statement'],'options':q['options'],'answer':q.get('answer',''),'solution':q.get('solution',''),'selected_answer':a.get('selected_answer',''),'is_correct':a.get('is_correct'),'marks_awarded':a.get('marks_awarded',0)})
-    return {'session':dict(s),'released':released,'message':None if released else 'Exam submitted. Result pending.','questions':questions}
+    return {'session':{**dict(s),'exam_name':exam['name'],'exam_type':exam['exam_type'],'subject':exam['subject'],'level':exam['level'],'student_name':student['display_name'],'student_email':student['email']},'released':released,'message':None if released else 'Exam submitted. Result pending.','questions':questions}
 
 @router.get('/student/results/{sid}/questions/{qid}/explain')
 def explain_attempt_question(sid:int,qid:int,request:Request,language:str='en'):
@@ -633,14 +668,14 @@ def explain_owned_attempt_question(qid:int,request:Request,language:str='en'):
 def admin_results(request:Request):
     require_admin(_auth(request))
     with closing(db()) as conn:
-        rows=conn.execute("SELECT s.*,e.name exam_name,u.email student_email,u.display_name student_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id JOIN users u ON u.id=s.user_id WHERE s.status IN ('SUBMITTED','AUTO_SUBMITTED') ORDER BY s.submitted_at DESC").fetchall()
+        rows=conn.execute("SELECT s.*,e.name exam_name,e.exam_type,e.subject,e.level,u.email student_email,u.display_name student_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id JOIN users u ON u.id=s.user_id WHERE s.status IN ('SUBMITTED','AUTO_SUBMITTED') ORDER BY s.submitted_at DESC").fetchall()
     return [dict(r) for r in rows]
 
 @router.get('/admin/results/{sid}')
 def admin_result_detail(sid:int,request:Request):
     require_admin(_auth(request))
     with closing(db()) as conn:
-        s=conn.execute("SELECT s.*,e.name exam_name,u.email student_email,u.display_name student_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id JOIN users u ON u.id=s.user_id WHERE s.id=?",(sid,)).fetchone()
+        s=conn.execute("SELECT s.*,e.name exam_name,e.exam_type,e.subject,e.level,u.email student_email,u.display_name student_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id JOIN users u ON u.id=s.user_id WHERE s.id=?",(sid,)).fetchone()
         if not s:raise HTTPException(404,'Attempt not found')
         if s['status'] not in {'SUBMITTED','AUTO_SUBMITTED'}:raise HTTPException(409,'Result unavailable while exam is active')
         snapshot=json.loads(s['question_set_json'] or '[]')
