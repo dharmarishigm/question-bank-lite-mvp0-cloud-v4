@@ -113,6 +113,24 @@ class PlatformSecurityTests(unittest.TestCase):
             exams=student.get('/api/my/exams').json()
             self.assertEqual(len(exams),1);self.assertEqual(exams[0]['id'],exam['id'])
         finally:student.close()
+
+    def test_student_performance_analytics_are_aggregated_and_isolated(self):
+        admin,_=self.login('admin@example.test')
+        with patch.dict(os.environ,{'AUTH_MODE':''}):
+            questions=[app.create_question(app.Question(subject='Science',chapter='Plants',topic='Photosynthesis',difficulty='medium',statement=f'Plant question {i}?',options=['Wrong','Right'],answer='B',marks='2')) for i in range(3)]
+        exam=self.post(admin,'/api/admin/exams',json={'name':'Science Practice','status':'OPEN','question_ids':[q['id'] for q in questions],'duration_minutes':20}).json()
+        student,_=self.login('learner@example.test');other,_=self.login('other@example.test')
+        self.post(student,f'/api/exams/{exam["id"]}/enroll')
+        sid=self.post(student,f'/api/exams/{exam["id"]}/sessions').json()['session_id']
+        for question,answer in zip(questions,['B','A','B']):
+            saved=student.put(f'/api/sessions/{sid}/answers/{question["id"]}',headers={'X-CSRF-Token':self.csrf(student)},json={'selected_answer':answer});self.assertEqual(saved.status_code,200,saved.text)
+        self.assertEqual(self.post(student,f'/api/sessions/{sid}/submit').status_code,200)
+        overview=student.get('/api/my/analytics/overview').json();self.assertEqual(overview['total_attempts'],1);self.assertEqual(overview['total_questions_attempted'],3);self.assertAlmostEqual(overview['overall_accuracy'],66.67,places=2)
+        trend=student.get('/api/my/analytics/trend').json();self.assertEqual(len(trend),1);self.assertEqual(trend[0]['exam_name'],'Science Practice');self.assertNotIn('selected_answer',trend[0]);self.assertNotIn('solution',trend[0])
+        topics=student.get('/api/my/analytics/topics').json();self.assertEqual(len(topics),1);self.assertEqual(topics[0]['topic'],'Photosynthesis');self.assertEqual(topics[0]['attempted_count'],3);self.assertEqual(topics[0]['correct_count'],2)
+        recommendations=student.get('/api/my/analytics/recommendations').json();self.assertEqual(recommendations['weak_topics'][0]['topic'],'Photosynthesis');self.assertTrue(recommendations['study_plan'])
+        self.assertEqual(other.get('/api/my/analytics/overview').json()['total_attempts'],0);self.assertEqual(other.get('/api/my/analytics/trend').json(),[]);self.assertEqual(other.get('/api/my/analytics/topics').json(),[])
+        self.assertEqual(admin.get('/api/my/analytics/overview').status_code,403)
     def test_isolated_exam_sessions_answers_and_results(self):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):

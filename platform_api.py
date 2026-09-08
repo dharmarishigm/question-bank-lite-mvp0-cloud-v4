@@ -531,6 +531,63 @@ def results(request:Request):
     user=_auth(request)
     with closing(db()) as conn:rows=conn.execute("SELECT s.*,e.name exam_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') ORDER BY s.submitted_at DESC",(user['id'],)).fetchall()
     return [dict(r) for r in rows]
+
+def _student_analytics_user(request:Request):
+    user=_auth(request)
+    if user['role']!='STUDENT':raise HTTPException(403,'Student access required')
+    return user
+
+def _completed_attempts(conn,user_id:int):
+    return [dict(r) for r in conn.execute("SELECT s.*,e.name exam_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') ORDER BY s.submitted_at ASC,s.id ASC",(user_id,)).fetchall()]
+
+def _topic_analytics(conn,user_id:int):
+    groups={}
+    for session in _completed_attempts(conn,user_id):
+        try:snapshot=json.loads(session.get('question_set_json') or '[]')
+        except (TypeError,json.JSONDecodeError):snapshot=[]
+        answers={int(r['question_id']):dict(r) for r in conn.execute('SELECT question_id,is_correct,marks_awarded FROM exam_answers WHERE session_id=?',(session['id'],)).fetchall()}
+        for item in snapshot:
+            qid=int(item.get('id') or item.get('question_id') or 0);answer=answers.get(qid)
+            if not answer or answer.get('is_correct') is None:continue
+            taxonomy={key:str(item.get(key) or '').strip() for key in ('subject','chapter','topic','subtopic','difficulty','qtype')}
+            row=conn.execute('SELECT subject,chapter,topic,subtopic,difficulty,qtype FROM questions WHERE id=?',(qid,)).fetchone()
+            if row:taxonomy={key:(value or str(row[key] or '').strip()) for key,value in taxonomy.items()}
+            key=(taxonomy['subject'] or 'General',taxonomy['chapter'] or 'General',taxonomy['topic'] or taxonomy['chapter'] or 'General',taxonomy['difficulty'] or 'Unspecified')
+            group=groups.setdefault(key,{'subject':key[0],'chapter':key[1],'topic':key[2],'difficulty':key[3],'attempted_count':0,'correct_count':0,'marks_total':0.0})
+            group['attempted_count']+=1;group['correct_count']+=int(bool(answer['is_correct']));group['marks_total']+=float(answer.get('marks_awarded') or 0)
+    result=[]
+    for group in groups.values():
+        attempted=group.pop('attempted_count');marks=group.pop('marks_total')
+        result.append({**group,'attempted_count':attempted,'accuracy_percentage':round(group['correct_count']/attempted*100,2),'average_marks_awarded':round(marks/attempted,2)})
+    return sorted(result,key=lambda row:(-row['attempted_count'],row['accuracy_percentage'],row['subject'],row['topic']))
+
+@router.get('/my/analytics/overview')
+def analytics_overview(request:Request):
+    user=_student_analytics_user(request)
+    with closing(db()) as conn:attempts=_completed_attempts(conn,user['id'])
+    percentages=[float(row.get('percentage') or 0) for row in attempts];correct=sum(int(row.get('correct_count') or 0) for row in attempts);incorrect=sum(int(row.get('incorrect_count') or 0) for row in attempts);unanswered=sum(int(row.get('unanswered_count') or 0) for row in attempts);total=correct+incorrect+unanswered
+    previous=percentages[:-1]
+    return {'total_attempts':len(attempts),'average_percentage':round(sum(percentages)/len(percentages),2) if percentages else 0,'best_percentage':round(max(percentages),2) if percentages else 0,'worst_percentage':round(min(percentages),2) if percentages else 0,'total_questions_attempted':correct+incorrect,'overall_accuracy':round(correct/(correct+incorrect)*100,2) if correct+incorrect else 0,'average_unanswered_rate':round(unanswered/total*100,2) if total else 0,'recent_trend_delta':round(percentages[-1]-sum(previous)/len(previous),2) if previous else 0}
+
+@router.get('/my/analytics/trend')
+def analytics_trend(request:Request):
+    user=_student_analytics_user(request)
+    fields=('submitted_at','exam_name','percentage','score','max_score','correct_count','incorrect_count','unanswered_count','attempt_number')
+    with closing(db()) as conn:return [{key:row.get(key) for key in fields} for row in _completed_attempts(conn,user['id'])]
+
+@router.get('/my/analytics/topics')
+def analytics_topics(request:Request):
+    user=_student_analytics_user(request)
+    with closing(db()) as conn:return _topic_analytics(conn,user['id'])
+
+@router.get('/my/analytics/recommendations')
+def analytics_recommendations(request:Request):
+    user=_student_analytics_user(request)
+    with closing(db()) as conn:topics=_topic_analytics(conn,user['id'])
+    weak=sorted((row for row in topics if row['attempted_count']>=3),key=lambda row:(row['accuracy_percentage'],-row['attempted_count']))[:5]
+    plan=[{'title':f"Strengthen {row['topic']}",'focus':f"{row['subject']} · {row['chapter']} · {row['difficulty']}",'action':f"Review the core concept, then complete 10 targeted questions. Your current accuracy is {row['accuracy_percentage']:.0f}% across {row['attempted_count']} attempts."} for row in weak]
+    if topics and not weak:plan=[{'title':'Build a reliable baseline','focus':'More evidence needed','action':'Complete at least three questions in each topic to unlock targeted recommendations.'}]
+    return {'weak_topics':weak,'study_plan':plan}
 @router.get('/my/results/{sid}')
 def result_detail(sid:int,request:Request):
     user=_auth(request)

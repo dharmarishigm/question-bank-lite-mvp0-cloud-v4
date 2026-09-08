@@ -60,6 +60,7 @@ p{margin:0 0 14px}
 .home-footer{padding:34px 24px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
 .home-footer .inner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;align-items:center}
 .home-footer a{color:var(--primary);font-weight:700;text-decoration:none}
+.exam-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;margin-top:26px}.public-exam{display:grid;gap:14px}.public-exam h3,.public-exam p{margin:0}.exam-facts{display:flex;flex-wrap:wrap;gap:7px}.exam-facts span{padding:4px 9px;border-radius:999px;background:#eef6f5;color:#285b59;font-size:12px;font-weight:700}.public-exam .btn-solid{justify-self:start}.exam-empty{padding:24px;border:1px dashed var(--line);border-radius:var(--radius-lg);color:var(--muted);text-align:center}.registration-dialog{width:min(520px,calc(100% - 32px));border:0;border-radius:18px;padding:0;box-shadow:0 24px 80px #0b273f55}.registration-dialog::backdrop{background:#071b2fcc}.registration-box{padding:26px}.registration-box header{display:flex;justify-content:space-between;gap:15px;align-items:start}.registration-box h2{margin:4px 0 8px}.dialog-close{border:0;background:#eef3f5;border-radius:50%;width:36px;height:36px;font-size:22px;cursor:pointer}.student-registration{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-top:18px}.student-registration label{display:grid;gap:5px;font-size:13px;font-weight:700;color:#294255}.student-registration input{width:100%;padding:11px;border:1px solid #bdcbd4;border-radius:8px;font:inherit}.student-registration .wide{grid-column:1/-1}.student-registration button{border:0;cursor:pointer}.registration-message{min-height:22px;color:#526673}.registration-message.error{color:#a12e25}@media(max-width:560px){.student-registration{grid-template-columns:1fr}.student-registration .wide{grid-column:auto}}
 @media(max-width:760px){.home-nav nav{display:none}.home-actions{margin-left:auto}}
 </style>
 </head>
@@ -71,6 +72,7 @@ p{margin:0 0 14px}
     <a href="#lifecycle">How it works</a>
     <a href="#benefits">Why MeritIQra</a>
     <a href="#formats">Question formats</a>
+    <a href="#open-exams">Open exams</a>
   </nav>
   <div class="home-actions">
     <a class="btn-ghost" href="/app">Sign in</a>
@@ -87,6 +89,15 @@ p{margin:0 0 14px}
       <a class="btn-solid" href="/app">Get started</a>
       <a class="btn-ghost" href="#lifecycle">See how an exam runs</a>
     </div>
+  </div>
+</section>
+
+<section id="open-exams" class="tint">
+  <div class="inner">
+    <p class="eyebrow">For students</p>
+    <h2>Open exams</h2>
+    <p class="lead">Choose an available exam and register with your Gmail address. Your student portal opens immediately after registration.</p>
+    <div id="public-exam-list" class="exam-grid"><p class="exam-empty">Loading open exams…</p></div>
   </div>
 </section>
 
@@ -186,5 +197,22 @@ p{margin:0 0 14px}
   </div>
 </footer>
 </div>
+<dialog id="exam-registration-dialog" class="registration-dialog">
+  <section class="registration-box">
+    <header><div><p class="eyebrow">STUDENT ACCESS</p><h2 id="registration-exam-name">Register for exam</h2><p id="registration-exam-summary"></p></div><button id="registration-close" class="dialog-close" type="button" aria-label="Close">×</button></header>
+    <form id="home-registration-form" class="student-registration">
+      <label>First name<input name="first_name" autocomplete="given-name" required maxlength="80" /></label><label>Last name<input name="last_name" autocomplete="family-name" required maxlength="80" /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Gmail address<input name="email" type="email" autocomplete="email" pattern="[^@ ]+@gmail\\.com" required /></label><button class="btn-solid wide" type="submit">Register and open student portal</button><p id="home-registration-message" class="registration-message wide" role="status"></p>
+    </form>
+  </section>
+</dialog>
+<script>
+const examList=document.getElementById('public-exam-list'),registrationDialog=document.getElementById('exam-registration-dialog'),registrationForm=document.getElementById('home-registration-form'),registrationMessage=document.getElementById('home-registration-message');let selectedExam=null;
+const safe=value=>String(value??'').replace(/[&<>'"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+async function loadOpenExams(){try{const response=await fetch('/api/public/exams',{cache:'no-store'}),rows=await response.json();if(!response.ok)throw new Error('Open exams are unavailable.');examList.innerHTML=rows.length?rows.map(exam=>`<article class="card public-exam"><div><h3>${safe(exam.name)}</h3><p>${safe(exam.description||'Registration is open for this assessment.')}</p></div><div class="exam-facts"><span>${safe(exam.subject||'General')}</span><span>${safe(exam.level||'All levels')}</span><span>${Number(exam.duration_minutes)||0} minutes</span><span>${Number(exam.question_count)||0} questions</span></div>${exam.allow_self_registration?`<button class="btn-solid" type="button" data-register-exam="${exam.id}">Register or Login</button>`:'<span>Invitation required</span>'}</article>`).join(''):'<p class="exam-empty">There are no open exams accepting registration right now.</p>';}catch(error){examList.innerHTML=`<p class="exam-empty">${safe(error.message)}</p>`;}}
+examList.addEventListener('click',event=>{const button=event.target.closest('[data-register-exam]');if(!button)return;selectedExam=Number(button.dataset.registerExam);const card=button.closest('.public-exam');document.getElementById('registration-exam-name').textContent=card.querySelector('h3').textContent;document.getElementById('registration-exam-summary').textContent='Enter your details to register or sign in to this exam.';registrationMessage.textContent='';registrationMessage.classList.remove('error');registrationDialog.showModal();});
+document.getElementById('registration-close').onclick=()=>registrationDialog.close();
+registrationForm.addEventListener('submit',async event=>{event.preventDefault();registrationMessage.textContent='Registering…';registrationMessage.classList.remove('error');const button=registrationForm.querySelector('button[type=submit]');button.disabled=true;try{const response=await fetch(`/api/public/exams/${selectedExam}/register`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(new FormData(registrationForm)))}),data=await response.json();if(!response.ok)throw new Error(data.detail||'Registration failed.');registrationMessage.textContent='Registration complete. Opening your student portal…';location.assign('/app');}catch(error){registrationMessage.textContent=error.message;registrationMessage.classList.add('error');button.disabled=false;}});
+loadOpenExams();
+</script>
 </body>
 </html>
