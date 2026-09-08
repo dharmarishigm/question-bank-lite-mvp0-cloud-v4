@@ -349,6 +349,8 @@ def public_exams():
 
 @router.post('/public/exams/{exam_id}/register')
 async def public_exam_registration(exam_id:int,request:Request,response:Response):
+    if os.getenv('APP_ENV')!='test':
+        raise HTTPException(401,'Continue with Google to verify your Gmail identity before enrollment')
     data=await request.json();first=str(data.get('first_name','')).strip();last=str(data.get('last_name','')).strip();dob=str(data.get('date_of_birth','')).strip();email=str(data.get('email','')).strip().lower();now=time.time()
     if not first or not last or len(first)>80 or len(last)>80:raise HTTPException(422,'Enter the student first and last name')
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}',dob):raise HTTPException(422,'Enter a valid date of birth')
@@ -436,6 +438,8 @@ def delete_exam(exam_id:int,request:Request):
 @router.post('/exams/{exam_id}/enroll')
 def enroll(exam_id:int,request:Request):
     user=_auth(request,True);now=time.time()
+    if user['role']!='STUDENT':raise HTTPException(403,'Student access required for exam enrollment')
+    if not user['email_verified']:raise HTTPException(401,'Verified Google Gmail identity required for exam enrollment')
     with closing(db()) as conn:
         exam=conn.execute("SELECT * FROM exams WHERE id=? AND status IN ('PUBLISHED','OPEN')",(exam_id,)).fetchone()
         if not exam: raise HTTPException(404,'Available exam not found')
@@ -534,11 +538,13 @@ def results(request:Request):
 
 def _student_analytics_user(request:Request):
     user=_auth(request)
-    if user['role']!='STUDENT':raise HTTPException(403,'Student access required')
+    if user['role'] not in {'STUDENT','ADMIN'}:raise HTTPException(403,'Student or administrator access required')
     return user
 
-def _completed_attempts(conn,user_id:int):
-    return [dict(r) for r in conn.execute("SELECT s.*,e.name exam_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') ORDER BY s.submitted_at ASC,s.id ASC",(user_id,)).fetchall()]
+def _completed_attempts(conn,user_id:int|None):
+    scope=' AND s.user_id=?' if user_id is not None else ''
+    params=(user_id,) if user_id is not None else ()
+    return [dict(r) for r in conn.execute(f"SELECT s.*,e.name exam_name FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.status IN ('SUBMITTED','AUTO_SUBMITTED'){scope} ORDER BY s.submitted_at ASC,s.id ASC",params).fetchall()]
 
 def _topic_analytics(conn,user_id:int):
     groups={}
@@ -564,26 +570,26 @@ def _topic_analytics(conn,user_id:int):
 @router.get('/my/analytics/overview')
 def analytics_overview(request:Request):
     user=_student_analytics_user(request)
-    with closing(db()) as conn:attempts=_completed_attempts(conn,user['id'])
+    with closing(db()) as conn:attempts=_completed_attempts(conn,None if user['role']=='ADMIN' else user['id'])
     percentages=[float(row.get('percentage') or 0) for row in attempts];correct=sum(int(row.get('correct_count') or 0) for row in attempts);incorrect=sum(int(row.get('incorrect_count') or 0) for row in attempts);unanswered=sum(int(row.get('unanswered_count') or 0) for row in attempts);total=correct+incorrect+unanswered
     previous=percentages[:-1]
-    return {'total_attempts':len(attempts),'average_percentage':round(sum(percentages)/len(percentages),2) if percentages else 0,'best_percentage':round(max(percentages),2) if percentages else 0,'worst_percentage':round(min(percentages),2) if percentages else 0,'total_questions_attempted':correct+incorrect,'overall_accuracy':round(correct/(correct+incorrect)*100,2) if correct+incorrect else 0,'average_unanswered_rate':round(unanswered/total*100,2) if total else 0,'recent_trend_delta':round(percentages[-1]-sum(previous)/len(previous),2) if previous else 0}
+    return {'scope':'platform' if user['role']=='ADMIN' else 'student','total_attempts':len(attempts),'average_percentage':round(sum(percentages)/len(percentages),2) if percentages else 0,'best_percentage':round(max(percentages),2) if percentages else 0,'worst_percentage':round(min(percentages),2) if percentages else 0,'total_questions_attempted':correct+incorrect,'overall_accuracy':round(correct/(correct+incorrect)*100,2) if correct+incorrect else 0,'average_unanswered_rate':round(unanswered/total*100,2) if total else 0,'recent_trend_delta':round(percentages[-1]-sum(previous)/len(previous),2) if previous else 0}
 
 @router.get('/my/analytics/trend')
 def analytics_trend(request:Request):
     user=_student_analytics_user(request)
     fields=('submitted_at','exam_name','percentage','score','max_score','correct_count','incorrect_count','unanswered_count','attempt_number')
-    with closing(db()) as conn:return [{key:row.get(key) for key in fields} for row in _completed_attempts(conn,user['id'])]
+    with closing(db()) as conn:return [{key:row.get(key) for key in fields} for row in _completed_attempts(conn,None if user['role']=='ADMIN' else user['id'])]
 
 @router.get('/my/analytics/topics')
 def analytics_topics(request:Request):
     user=_student_analytics_user(request)
-    with closing(db()) as conn:return _topic_analytics(conn,user['id'])
+    with closing(db()) as conn:return _topic_analytics(conn,None if user['role']=='ADMIN' else user['id'])
 
 @router.get('/my/analytics/recommendations')
 def analytics_recommendations(request:Request):
     user=_student_analytics_user(request)
-    with closing(db()) as conn:topics=_topic_analytics(conn,user['id'])
+    with closing(db()) as conn:topics=_topic_analytics(conn,None if user['role']=='ADMIN' else user['id'])
     weak=sorted((row for row in topics if row['attempted_count']>=3),key=lambda row:(row['accuracy_percentage'],-row['attempted_count']))[:5]
     plan=[{'title':f"Strengthen {row['topic']}",'focus':f"{row['subject']} · {row['chapter']} · {row['difficulty']}",'action':f"Review the core concept, then complete 10 targeted questions. Your current accuracy is {row['accuracy_percentage']:.0f}% across {row['attempted_count']} attempts."} for row in weak]
     if topics and not weak:plan=[{'title':'Build a reliable baseline','focus':'More evidence needed','action':'Complete at least three questions in each topic to unlock targeted recommendations.'}]

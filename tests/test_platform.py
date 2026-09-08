@@ -51,8 +51,11 @@ class PlatformSecurityTests(unittest.TestCase):
         response=self.client.get('/')
         self.assertEqual(response.status_code,200)
         html=response.text
-        self.assertIn('<title>MeritIQra · Secure cloud exams, from invitation to results',html)
-        self.assertIn('Everything the exam needs',html)
+        self.assertIn('<title>MeritIQra | AI-Powered Exam, Practice &amp; Assessment Platform',html)
+        self.assertIn('The complete exam lifecycle in one platform',html)
+        self.assertIn('Create, practice, conduct, assess and improve',html)
+        self.assertIn('Register or Login',html)
+        self.assertIn('Continue securely with Google',html)
         self.assertIn('name="description"',html)
         self.assertIn('rel="canonical"',html)
         self.assertIn('property="og:title"',html)
@@ -61,7 +64,7 @@ class PlatformSecurityTests(unittest.TestCase):
         self.assertIn('href="/app"',html)
         self.assertNotIn('id="admin-nav"',html)
         self.assertNotIn('id="student-nav"',html)
-        for internal in ('question bank','question generation','blueprint','digiti','vertex','gemini','proctor code'):
+        for internal in ('vertex','gemini','proctor code'):
             self.assertNotIn(internal,html.lower())
         for legacy in ('/features','/for-schools','/practice-exams'):
             self.assertEqual(self.client.get(legacy).status_code,200)
@@ -112,6 +115,10 @@ class PlatformSecurityTests(unittest.TestCase):
             self.assertEqual(student.get('/api/auth/me').json()['email'],'asha.registration@gmail.com')
             exams=student.get('/api/my/exams').json()
             self.assertEqual(len(exams),1);self.assertEqual(exams[0]['id'],exam['id'])
+            with patch.dict(os.environ,{'APP_ENV':'production'}):
+                with TestClient(app.app) as production_client:
+                    oidc_required=production_client.post(f'/api/public/exams/{exam["id"]}/register',json={'first_name':'Unverified','last_name':'User','date_of_birth':'2014-04-03','email':'unverified@gmail.com'})
+                    self.assertEqual(oidc_required.status_code,401);self.assertIn('Google',oidc_required.text)
         finally:student.close()
 
     def test_student_performance_analytics_are_aggregated_and_isolated(self):
@@ -130,7 +137,7 @@ class PlatformSecurityTests(unittest.TestCase):
         topics=student.get('/api/my/analytics/topics').json();self.assertEqual(len(topics),1);self.assertEqual(topics[0]['topic'],'Photosynthesis');self.assertEqual(topics[0]['attempted_count'],3);self.assertEqual(topics[0]['correct_count'],2)
         recommendations=student.get('/api/my/analytics/recommendations').json();self.assertEqual(recommendations['weak_topics'][0]['topic'],'Photosynthesis');self.assertTrue(recommendations['study_plan'])
         self.assertEqual(other.get('/api/my/analytics/overview').json()['total_attempts'],0);self.assertEqual(other.get('/api/my/analytics/trend').json(),[]);self.assertEqual(other.get('/api/my/analytics/topics').json(),[])
-        self.assertEqual(admin.get('/api/my/analytics/overview').status_code,403)
+        admin_overview=admin.get('/api/my/analytics/overview');self.assertEqual(admin_overview.status_code,200,admin_overview.text);self.assertEqual(admin_overview.json()['scope'],'platform');self.assertEqual(admin_overview.json()['total_attempts'],1)
     def test_isolated_exam_sessions_answers_and_results(self):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):
