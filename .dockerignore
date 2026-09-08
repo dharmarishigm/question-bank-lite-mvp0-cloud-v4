@@ -25,3 +25,4 @@ tests
 *.docx
 *.pptx
 *.xlsx
+!static/meritiqra-logo.png

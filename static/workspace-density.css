@@ -1,0 +1,101 @@
+/* Shared operational density; question prose retains its readable line height. */
+:root { --workspace-gap:12px; --workspace-pad:14px; }
+#main-content { padding:16px clamp(12px,1.6vw,24px) 28px; max-width:1680px; }
+.page-header,.section-heading { margin-bottom:12px; gap:12px; }
+.page-header h2 { font-size:26px; line-height:1.2; }
+.page-header p { max-width:80ch; font-size:13px; }
+.page-header .eyebrow { font-size:10px; margin:0 0 4px; }
+.tab-panel h3 { margin:0 0 8px; font-size:17px; }
+.metric-strip > div { padding:10px 14px; }
+.metric-strip strong { font-size:24px; margin-top:2px; }
+.exam-tile { min-height:0; gap:10px; padding:14px; }
+.data-grid,.result-history-grid { gap:12px; grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr)); }
+.table-wrap th,.table-wrap td { padding:8px 10px; }
+.table-wrap td button { min-height:30px; padding:4px 8px; }
+.table-wrap { max-width:100%; }
+.compact-form { gap:10px; padding:14px; }
+.compact-form > *, .ai-metadata-grid > * { min-width:0; }
+.ai-generation-form { max-width:none; gap:12px; }
+.ai-generation-form fieldset,.ai-large-field,.ai-advanced,.ai-prompt-preview,.ai-generation-results { padding:12px 14px; }
+.ai-subtabs { margin-bottom:12px; }
+.ai-guidance { margin:12px 0; padding:12px 14px; }
+.filters { grid-template-columns:minmax(170px,2fr) repeat(3,minmax(100px,1fr)) repeat(3,auto); gap:8px; }
+.question-card { padding:12px 14px; }
+.question-card .rendered,.exam-question-card .rendered,.attempt-review-card .rendered { line-height:1.6; }
+.result-history-card { padding:14px; border:1px solid var(--line); border-radius:10px; background:white; }
+.result-history-card h3 { font-size:17px; margin:6px 0; }
+.result-history-score { font-size:25px; }
+.result-hero { padding:16px; margin-bottom:14px; border-radius:12px; box-shadow:none; background:#123f53; }
+.result-hero h2 { font-size:26px; }
+.result-student { font-size:14px; margin:6px 0; }
+.result-tags { margin-top:8px; }.result-tags span { padding:3px 8px; }
+.result-score { min-width:120px; padding:10px 14px; }.result-score strong { font-size:30px; }
+.result-summary { margin:12px 0; }.result-summary div { padding:8px 10px; }
+.ai-explanation-callout { padding:10px 12px; }
+.exam-access-panel { margin-top:12px; padding:14px; }
+.site-footer { margin-top:20px; padding-top:14px; gap:14px; }
+.analytics-toolbar { padding:10px; gap:8px; border:1px solid var(--line); background:white; border-radius:10px; }
+.analytics-toolbar label { min-width:0; flex:1 1 130px; font-size:11px; }
+.analytics-toolbar select { width:100%; margin-top:3px; }
+.analytics-section-nav { display:none; }
+.analytics-context { padding:6px 10px; margin:0 0 10px; font-size:12px; }
+#analytics-content { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(260px,1fr); gap:12px; }
+#analytics-content[hidden] { display:none; }
+#analytics-overview-section { display:contents; }
+#analytics-kpis { grid-column:1/-1; grid-template-columns:repeat(6,minmax(0,1fr)); margin:0; gap:8px; }
+.performance-kpis .exam-analytics-card { border-top:2px solid #168c85; padding:10px 12px; }
+.performance-kpis h4 { font-size:10px; margin-bottom:4px; }
+.performance-kpis strong { font-size:23px; }
+.performance-card { padding:14px; border:1px solid var(--line); border-radius:10px; background:white; }
+.performance-section { margin:0; }
+#analytics-gap-section { grid-column:2; grid-row:2; }
+#analytics-mastery-section { grid-column:1; }
+#analytics-evidence-section { grid-column:2; }
+#analytics-recent-section { grid-column:1/-1; }
+.analytics-chart { min-height:0; }
+.trend-svg { min-width:0; max-height:230px; }
+.trend-legend { max-height:112px; overflow:auto; font-size:12px; }
+.trend-legend li { padding:4px 8px; }
+.recommendation-grid { grid-template-columns:1fr; gap:8px; }
+.recommendation-card { padding:10px; }
+.recommendation-card p { font-size:12px; margin-top:5px; }
+#analytics-recommendations { max-height:290px; overflow:auto; }
+.mastery-list { gap:10px; max-height:330px; overflow:auto; }
+.mastery-row { grid-template-columns:minmax(110px,1fr) minmax(70px,120px) 40px; }
+.evidence-note { color:var(--muted); font-size:12px; margin:6px 0 12px; }
+.mentor-insight { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px; margin:12px 0; background:#edf7f3; border:1px solid #c4ddd4; border-radius:10px; }
+.mentor-insight p { margin:4px 0; }
+.mentor-launcher { position:fixed; right:20px; bottom:18px; z-index:80; padding:10px 16px; border-radius:24px; background:#11534d; color:white; box-shadow:0 4px 16px #102d2a30; }
+.mentor-drawer { position:fixed; z-index:90; right:18px; bottom:72px; width:min(420px,calc(100vw - 24px)); height:min(640px,calc(100dvh - 100px)); display:flex; flex-direction:column; background:white; border:1px solid #c4d8d1; border-radius:14px; box-shadow:0 12px 45px #102d2a30; overflow:hidden; color:#17212b; font:14px/1.5 system-ui,sans-serif; }
+.mentor-drawer[hidden],.mentor-launcher[hidden] { display:none; }
+.mentor-drawer header { display:flex; justify-content:space-between; gap:10px; padding:12px 14px; border-bottom:1px solid #dce3e8; }
+.mentor-drawer header small { display:block; font-size:11px; color:#647382; }
+.mentor-conversation { flex:1; overflow:auto; padding:12px; overscroll-behavior:contain; }
+.mentor-message { white-space:pre-wrap; overflow-wrap:anywhere; padding:10px; margin:0 0 10px; border-radius:9px; background:#f0f6f3; }
+.mentor-message.user { background:#eef2f7; margin-left:24px; }
+.mentor-drawer form { display:flex; gap:8px; padding:10px; border-top:1px solid #dce3e8; }
+.mentor-drawer textarea { flex:1; min-width:0; min-height:44px; max-height:100px; resize:vertical; }
+.mentor-prompts { display:flex; flex-wrap:wrap; gap:6px; padding:8px 12px; }
+.mentor-prompts button { padding:5px 8px; font-size:12px; }
+.mentor-report { margin-bottom:12px; padding:10px; border:1px solid #dce3e8; border-radius:8px; }
+.mentor-report h4 { margin:12px 0 4px; }.mentor-report p { margin:4px 0; }
+.exam-focus .mentor-launcher,.exam-focus .mentor-drawer { display:none!important; }
+@media(min-width:1200px) { .ai-generation-form { grid-template-columns:1fr 1fr; align-items:start; }.ai-generation-form fieldset,.ai-generation-form > .actions,.ai-generation-form > .ai-advanced { grid-column:1/-1; } }
+@media(max-width:1100px) { .filters { grid-template-columns:repeat(3,minmax(0,1fr)); } #analytics-kpis { grid-template-columns:repeat(3,minmax(0,1fr)); } }
+@media(max-width:900px) { #analytics-content { grid-template-columns:1fr; } #analytics-content > *,#analytics-gap-section,#analytics-mastery-section,#analytics-evidence-section { grid-column:1; grid-row:auto; }.page-header { flex-wrap:wrap; } }
+@media(max-width:600px) { #main-content { padding:12px 10px 70px; }.page-header h2 { font-size:24px; }.filters { grid-template-columns:1fr 1fr; }.filters #s-q { grid-column:1/-1; }#analytics-kpis { grid-template-columns:repeat(2,minmax(0,1fr)); }.performance-card { padding:12px; }.mastery-row { grid-template-columns:1fr 42px; }.mastery-meter { grid-column:1/-1; grid-row:2; }.mentor-insight { align-items:flex-start; flex-direction:column; }.mentor-drawer { right:8px; bottom:8px; width:calc(100vw - 16px); height:calc(100dvh - 16px); }.mentor-launcher { right:12px; bottom:12px; }.result-hero-top { gap:12px; }.result-score { text-align:left; }.analytics-toolbar label { flex-basis:40%; }.table-wrap { overflow-x:auto; } }
+@media(prefers-reduced-motion:reduce) { * { scroll-behavior:auto!important; } }
+#analytics-content { align-items:start; }
+.performance-card .section-heading h3 { margin:0 0 4px; color:var(--ink); }
+.performance-card .section-heading p { font-size:12px; margin:0; }
+.performance-card h4 { margin:10px 0 4px; }
+.trend-svg { max-height:190px; }
+.trend-values summary { font-size:12px; color:var(--muted); cursor:pointer; }
+#analytics-evidence-section details { margin:10px 0; }
+.exam-blueprint-form,.exam-blueprint-form fieldset { min-width:0; max-width:100%; }
+.exam-blueprint-form fieldset { padding:12px; }
+.mentor-drawer header { background:#fff; color:#17212b; position:static; flex-shrink:0; }
+#app-header .sidebar-toggle { position:static; flex:0 0 36px; margin:0; color:var(--ink); background:white; border-color:var(--line); }
+@media(max-width:800px) { #app-header { gap:8px; flex-wrap:nowrap; }#app-header .brand { min-width:0; margin-right:auto; }#app-header .brand-caption { display:none; }#app-header .workspace-home { display:none; }#app-header .spacer { display:none; }.blueprint-actions { position:static; }.mentor-launcher { max-width:calc(100vw - 24px); }.exam-blueprint-form fieldset { margin-inline:0; } }
+
+@media(min-width:801px){.app-shell.nav-collapsed{grid-template-columns:0 minmax(0,1fr)}.app-shell.nav-collapsed .sidebar{visibility:hidden;padding:0;overflow:hidden}}

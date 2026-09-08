@@ -44,7 +44,7 @@ def staff(user):
     return user
 def _code_hash(exam_id,code):return hashlib.sha256(f"{exam_id}:{''.join(str(code).upper().split())}".encode()).hexdigest()
 def _snapshot(conn,exam_id):
-    rows=conn.execute("SELECT q.id,q.statement,q.options,q.answer,q.solution,q.qtype,eq.display_order,eq.section_name,eq.marks,eq.negative_marks FROM exam_questions eq JOIN questions q ON q.id=eq.question_id WHERE eq.exam_id=? ORDER BY eq.display_order",(exam_id,)).fetchall()
+    rows=conn.execute("SELECT q.id,q.statement,q.options,q.answer,q.solution,q.qtype,q.subject,q.chapter,q.topic,q.subtopic,q.difficulty,eq.display_order,eq.section_name,eq.marks,eq.negative_marks FROM exam_questions eq JOIN questions q ON q.id=eq.question_id WHERE eq.exam_id=? ORDER BY eq.display_order",(exam_id,)).fetchall()
     return [dict(r)|{"options":json.loads(r["options"] or "[]")} for r in rows]
 def publish_version(conn,exam_id,user_id):
     exam=conn.execute("SELECT * FROM exams WHERE id=?",(exam_id,)).fetchone(); snapshot=_snapshot(conn,exam_id)

@@ -78,6 +78,8 @@ def init_platform():
         conn.executescript(SCHEMA); conn.commit()
     from exam_conduct import init_exam_conduct
     init_exam_conduct()
+    from tutor_agent import init_tutor
+    init_tutor()
 
 def _hash(value: str) -> str: return hashlib.sha256(value.encode()).hexdigest()
 def _admins(): return {x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}

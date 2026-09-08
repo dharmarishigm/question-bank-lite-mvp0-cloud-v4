@@ -2018,7 +2018,8 @@ window.addEventListener('load', async () => {
   resetForm();
   syncSaveState();
   switchMainTab('questions');
-  await Promise.all([loadQuestions(), loadFacets(), loadExamRegistrations(), refreshOcrStatus()]);
+  // Role-specific data is loaded when its workspace view is opened.
+  try { const response=await fetch('/api/auth/me');const user=await response.json();if(response.ok && user.role==='ADMIN')await Promise.all([loadQuestions(),loadFacets(),loadExamRegistrations(),refreshOcrStatus()]); } catch {}
 });
 
 // Keep keyboard navigation available for upload actions and overlay dismissal.

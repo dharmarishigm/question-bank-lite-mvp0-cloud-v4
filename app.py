@@ -326,6 +326,8 @@ from platform_api import init_platform, router as platform_router
 if not os.getenv("DATABASE_URL"):
     init_platform()
 app.include_router(platform_router)
+from tutor_agent import router as tutor_router
+app.include_router(tutor_router)
 from exam_conduct import init_exam_conduct, router as exam_conduct_router
 if not os.getenv("DATABASE_URL"):
     init_exam_conduct()
