@@ -51,8 +51,11 @@ class PlatformSecurityTests(unittest.TestCase):
         response=self.client.get('/')
         self.assertEqual(response.status_code,200)
         html=response.text
-        self.assertIn('<title>MeritIQra · Secure cloud exams, from invitation to results',html)
-        self.assertIn('Everything the exam needs',html)
+        self.assertIn('<title>MeritIQra | AI-Powered Exam, Practice &amp; Assessment Platform',html)
+        self.assertIn('The complete exam lifecycle in one platform',html)
+        self.assertIn('Create, practice, conduct, assess and improve',html)
+        self.assertIn('Register or Login',html)
+        self.assertIn('Continue securely with Google',html)
         self.assertIn('name="description"',html)
         self.assertIn('rel="canonical"',html)
         self.assertIn('property="og:title"',html)
@@ -61,7 +64,7 @@ class PlatformSecurityTests(unittest.TestCase):
         self.assertIn('href="/app"',html)
         self.assertNotIn('id="admin-nav"',html)
         self.assertNotIn('id="student-nav"',html)
-        for internal in ('question bank','question generation','blueprint','digiti','vertex','gemini','proctor code'):
+        for internal in ('vertex','gemini','proctor code'):
             self.assertNotIn(internal,html.lower())
         for legacy in ('/features','/for-schools','/practice-exams'):
             self.assertEqual(self.client.get(legacy).status_code,200)
@@ -82,7 +85,7 @@ class PlatformSecurityTests(unittest.TestCase):
         self.assertIn('id="admin-nav"',workspace_html)
         self.assertIn('id="public-google-signin"',workspace_html)
         self.assertIn('oncopy="return false"',workspace_html)
-        self.assertIn('secure-exam-v2',workspace_html)
+        self.assertIn('workspace-oidc',workspace_html)
         self.assertNotIn('value="admin@example.test"',workspace_html)
 
     def test_public_exam_catalog_exposes_only_safe_open_metadata(self):
@@ -112,7 +115,34 @@ class PlatformSecurityTests(unittest.TestCase):
             self.assertEqual(student.get('/api/auth/me').json()['email'],'asha.registration@gmail.com')
             exams=student.get('/api/my/exams').json()
             self.assertEqual(len(exams),1);self.assertEqual(exams[0]['id'],exam['id'])
+            with patch.dict(os.environ,{'APP_ENV':'production'}):
+                with TestClient(app.app) as production_client:
+                    oidc_required=production_client.post(f'/api/public/exams/{exam["id"]}/register',json={'first_name':'Unverified','last_name':'User','date_of_birth':'2014-04-03','email':'unverified@gmail.com'})
+                    self.assertEqual(oidc_required.status_code,401);self.assertIn('Google',oidc_required.text)
         finally:student.close()
+
+    def test_student_performance_analytics_are_aggregated_and_isolated(self):
+        admin,_=self.login('admin@example.test')
+        with patch.dict(os.environ,{'AUTH_MODE':''}):
+            questions=[app.create_question(app.Question(subject='Science',chapter='Plants',topic='Photosynthesis',difficulty='medium',statement=f'Plant question {i}?',options=['Wrong','Right'],answer='B',marks='2')) for i in range(3)]
+        exam=self.post(admin,'/api/admin/exams',json={'name':'Science Practice','status':'OPEN','question_ids':[q['id'] for q in questions],'duration_minutes':20}).json()
+        student,_=self.login('learner@example.test');other,_=self.login('other@example.test')
+        self.post(student,f'/api/exams/{exam["id"]}/enroll')
+        sid=self.post(student,f'/api/exams/{exam["id"]}/sessions').json()['session_id']
+        for question,answer in zip(questions,['B','A','B']):
+            saved=student.put(f'/api/sessions/{sid}/answers/{question["id"]}',headers={'X-CSRF-Token':self.csrf(student)},json={'selected_answer':answer});self.assertEqual(saved.status_code,200,saved.text)
+        self.assertEqual(self.post(student,f'/api/sessions/{sid}/submit').status_code,200)
+        overview=student.get('/api/my/analytics/overview').json();self.assertEqual(overview['total_attempts'],1);self.assertEqual(overview['total_questions_attempted'],3);self.assertAlmostEqual(overview['overall_accuracy'],66.67,places=2)
+        trend=student.get('/api/my/analytics/trend').json();self.assertEqual(len(trend),1);self.assertEqual(trend[0]['exam_name'],'Science Practice');self.assertNotIn('selected_answer',trend[0]);self.assertNotIn('solution',trend[0])
+        topics=student.get('/api/my/analytics/topics').json();self.assertEqual(len(topics),1);self.assertEqual(topics[0]['topic'],'Photosynthesis');self.assertEqual(topics[0]['attempted_count'],3);self.assertEqual(topics[0]['correct_count'],2)
+        recommendations=student.get('/api/my/analytics/recommendations').json();self.assertEqual(recommendations['weak_topics'][0]['topic'],'Photosynthesis');self.assertTrue(recommendations['study_plan'])
+        dimensions=student.get('/api/my/analytics/dimensions').json();self.assertEqual(dimensions['scope'],'student');self.assertEqual(dimensions['exams'][0]['name'],'Science Practice');self.assertEqual(dimensions['students'],[])
+        filtered=student.get(f'/api/my/analytics/overview?exam_id={exam["id"]}&student_id=999999').json();self.assertEqual(filtered['total_attempts'],1);self.assertEqual(filtered['exam']['name'],'Science Practice');self.assertEqual(filtered['student']['email'],'learner@example.test')
+        self.assertEqual(other.get('/api/my/analytics/overview').json()['total_attempts'],0);self.assertEqual(other.get('/api/my/analytics/trend').json(),[]);self.assertEqual(other.get('/api/my/analytics/topics').json(),[])
+        admin_overview=admin.get('/api/my/analytics/overview');self.assertEqual(admin_overview.status_code,200,admin_overview.text);self.assertEqual(admin_overview.json()['scope'],'platform');self.assertEqual(admin_overview.json()['total_attempts'],1)
+        admin_dimensions=admin.get('/api/my/analytics/dimensions').json();self.assertTrue(any(row['email']=='learner@example.test' for row in admin_dimensions['students']))
+        learner_id=next(row['id'] for row in admin_dimensions['students'] if row['email']=='learner@example.test')
+        admin_filtered=admin.get(f'/api/my/analytics/overview?student_id={learner_id}&exam_id={exam["id"]}').json();self.assertEqual(admin_filtered['total_attempts'],1);self.assertEqual(admin_filtered['student']['email'],'learner@example.test')
     def test_isolated_exam_sessions_answers_and_results(self):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):
@@ -133,7 +163,7 @@ class PlatformSecurityTests(unittest.TestCase):
         self.assertEqual(alice.put(f'/api/sessions/{a_sid}/answers/{q2["id"]}',headers={'X-CSRF-Token':self.csrf(alice)},json={'selected_answer':'B'}).status_code,409)
         results=alice.get('/api/my/results').json();self.assertEqual(len(results),1);self.assertEqual(results[0]['score'],1)
         self.assertEqual(bob.get(f'/api/my/results/{a_sid}').status_code,404)
-        detail=alice.get(f'/api/my/results/{a_sid}');self.assertEqual(detail.status_code,200);self.assertIn('answer',detail.text);self.assertEqual(detail.json()['questions'][0]['id'],q1['id'])
+        detail=alice.get(f'/api/my/results/{a_sid}');self.assertEqual(detail.status_code,200);self.assertIn('answer',detail.text);self.assertEqual(detail.json()['questions'][0]['id'],q1['id']);self.assertEqual(detail.json()['session']['exam_name'],'Grade 8 Mathematics Olympiad');self.assertEqual(detail.json()['session']['student_email'],'alice@example.test')
         admin_detail=admin.get(f'/api/admin/results/{a_sid}');self.assertEqual(admin_detail.status_code,200,admin_detail.text);self.assertEqual(admin_detail.json()['session']['student_email'],'alice@example.test');self.assertEqual(admin_detail.json()['questions'][0]['selected_answer'],'B')
         self.assertEqual(bob.get(f'/api/admin/results/{a_sid}').status_code,403)
         self.assertEqual(bob.get(f'/api/student/questions/{q1["id"]}/explain').status_code,404)

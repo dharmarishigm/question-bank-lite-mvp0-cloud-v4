@@ -1,0 +1,72 @@
+{
+  "revision": "question-bank-cloud-v4-00041-mel",
+  "checks": [
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/app",
+      "status": 200
+    },
+    {
+      "path": "/robots.txt",
+      "status": 200
+    },
+    {
+      "path": "/sitemap.xml",
+      "status": 200
+    },
+    {
+      "path": "/api/auth/config",
+      "status": 200
+    },
+    {
+      "path": "/api/auth/me",
+      "status": 401
+    },
+    {
+      "path": "/api/tutor/insights",
+      "status": 401
+    },
+    {
+      "path": "/api/tutor/sessions",
+      "status": 401
+    },
+    {
+      "path": "/api/tutor/sessions/1",
+      "status": 401
+    },
+    {
+      "path": "/static/meritiqra-logo.png",
+      "status": 200
+    },
+    {
+      "asset": "mentor.js",
+      "source_match": true
+    },
+    {
+      "asset": "performance-workspace.js",
+      "source_match": true
+    },
+    {
+      "asset": "workspace-density.css",
+      "source_match": true
+    },
+    {
+      "asset": "platform-ui.js",
+      "source_match": true
+    },
+    {
+      "asset": "public-site.css",
+      "source_match": true
+    }
+  ],
+  "anonymous_chat": "sign-in required; form hidden",
+  "browser_errors": [],
+  "source_commit": "845cc6a",
+  "final_html_source_match": true,
+  "live_domain": "https://meritiqra.com",
+  "traffic_percent": 100,
+  "live_domain_checks": "HTML asset versions, CSS source match, anonymous API 401, mobile sign-in drawer passed"
+}

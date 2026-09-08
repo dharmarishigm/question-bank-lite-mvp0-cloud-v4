@@ -1,190 +1,101 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>MeritIQra · Secure cloud exams, from invitation to results</title>
-<meta name="description" content="MeritIQra is a cloud examination platform for registering candidates, running AI-assisted proctored online exams, and publishing results securely at scale." />
-<meta name="robots" content="index, follow" />
-<link rel="canonical" href="https://meritiqra.com/" />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="MeritIQra · Secure cloud exams, from invitation to results" />
-<meta property="og:description" content="Register candidates, conduct AI-assisted proctored exams, and publish results securely — at any scale." />
-<meta property="og:url" content="https://meritiqra.com/" />
-<meta property="og:image" content="https://meritiqra.com/static/meritiqra-logo.png" />
-<meta name="twitter:card" content="summary_large_image" />
-<meta name="theme-color" content="#073d78" />
-<link rel="icon" type="image/png" href="/static/meritiqra-logo.png?v=20260907-updated" />
-<link rel="stylesheet" href="/static/enterprise.css?v=20260908-home" />
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"MeritIQra","applicationCategory":"BusinessApplication","operatingSystem":"Web","description":"Cloud examination platform for secure, scalable online assessments with AI-assisted proctoring.","url":"https://meritiqra.com/"}
-</script>
-<style>
-:root{--navy:#073d78;--band:#f2f6f8}
-body{margin:0;background:#fff;color:var(--ink)}
-.home-wrap{font:16px/1.6 Inter,ui-sans-serif,system-ui,-apple-system,sans-serif}
-.home-nav{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;padding:12px 24px;background:rgba(255,255,255,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
-.home-nav .brand{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--navy);text-decoration:none}
-.home-nav .brand img{width:34px;height:34px;object-fit:contain}
-.home-nav nav{display:flex;gap:18px;margin-left:auto}
-.home-nav nav a{color:var(--muted);font-weight:600;font-size:14px;text-decoration:none}
-.home-nav nav a:hover{color:var(--navy)}
-.home-actions{display:flex;gap:10px;margin-left:18px}
-.btn-ghost,.btn-solid{display:inline-block;padding:10px 18px;border-radius:9px;font-weight:700;font-size:14px;text-decoration:none}
-.btn-ghost{color:var(--navy);border:1px solid var(--line)}
-.btn-solid{color:#fff;background:var(--primary)}
-.btn-solid:hover{background:var(--primary-hover)}
-section{padding:64px 24px}
-.inner{max-width:1080px;margin:0 auto}
-.eyebrow{margin:0 0 12px;color:var(--primary);font-size:12px;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
-h1{margin:0 0 18px;max-width:20ch;color:var(--navy);font-size:clamp(30px,5vw,50px);line-height:1.1}
-h2{margin:0 0 14px;color:var(--navy);font-size:clamp(23px,3vw,32px);line-height:1.2}
-h3{margin:0 0 8px;color:var(--navy);font-size:17px}
-p{margin:0 0 14px}
-.lead{max-width:62ch;color:var(--muted);font-size:18px}
-.home-hero{padding-top:72px;background:linear-gradient(180deg,#f6fafb,#fff)}
-.hero-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
-.value-strip{padding:34px 24px;background:var(--navy);color:#dbe8f5}
-.value-strip ul{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px 26px;margin:0;padding:0;list-style:none}
-.value-strip li{font-weight:700;color:#fff;font-size:15px}
-.value-strip li span{display:block;color:#a9c4e0;font-weight:500;font-size:13px}
-.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;margin-top:30px}
-.card{padding:22px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--surface)}
-.card ul{margin:10px 0 0;padding-left:18px;color:var(--muted)}
-.card li{margin-bottom:6px}
-.tint{background:var(--band)}
-.grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px;margin-top:30px}
-.cta-band{padding:58px 24px;background:var(--primary);color:#e6f4f2;text-align:center}
-.cta-band h2{color:#fff}
-.cta-band .btn-solid{background:#fff;color:var(--primary)}
-.home-footer{padding:34px 24px;border-top:1px solid var(--line);color:var(--muted);font-size:14px}
-.home-footer .inner{display:flex;flex-wrap:wrap;justify-content:space-between;gap:16px;align-items:center}
-.home-footer a{color:var(--primary);font-weight:700;text-decoration:none}
-@media(max-width:760px){.home-nav nav{display:none}.home-actions{margin-left:auto}}
-</style>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>MeritIQra | AI-Powered Exam, Practice &amp; Assessment Platform</title>
+<meta content="MeritIQra is an AI-powered assessment, practice and examination platform for individuals, schools and organizations. Practice competitive exams, conduct assessments, build intelligent question banks, benchmark performance and identify learning gaps." name="description"/>
+<link href="https://meritiqra.com/" rel="canonical"/>
+<meta content="MeritIQra | AI-Powered Exam, Practice &amp; Assessment Platform" property="og:title"/>
+<meta content="Practice for exams, conduct assessments, build intelligent question banks and identify learning gaps with MeritIQra." property="og:description"/>
+<meta content="website" property="og:type"/><meta content="https://meritiqra.com/" property="og:url"/>
+<meta content="https://meritiqra.com/static/meritiqra-logo.png" property="og:image"/>
+<meta content="summary_large_image" name="twitter:card"/>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","name":"MeritIQra","url":"https://meritiqra.com/","logo":"https://meritiqra.com/static/meritiqra-logo.png"},{"@type":"WebSite","name":"MeritIQra","url":"https://meritiqra.com/"},{"@type":"SoftwareApplication","name":"MeritIQra","applicationCategory":"EducationalApplication","operatingSystem":"Web","description":"AI-powered assessment intelligence and examination platform."}]}</script>
+<meta content="#073d78" name="theme-color"/>
+<link href="/static/meritiqra-logo.png?v=20260907-updated" rel="icon" type="image/png"/>
+<link href="/static/vendor/katex.min.css" rel="stylesheet"/>
+<script defer="" src="/static/vendor/katex.min.js"></script>
+<script defer="" src="/static/vendor/contrib/mhchem.min.js"></script>
+<script defer="" src="/static/vendor/contrib/auto-render.min.js"></script>
+<link href="/static/app.css" rel="stylesheet"/>
+<link href="/static/enterprise.css?v=20260908-density-mentor-v1" rel="stylesheet"/>
+<link href="/static/public-site.css?v=20260908-density-mentor-v1" rel="stylesheet"/><link rel="stylesheet" href="/static/workspace-density.css?v=20260908-mentor" />
 </head>
 <body>
-<div class="home-wrap">
-<header class="home-nav">
-  <a class="brand" href="/"><img src="/static/meritiqra-logo.png?v=20260907-updated" alt="MeritIQra" /><span>MeritIQra</span></a>
-  <nav aria-label="Sections">
-    <a href="#lifecycle">How it works</a>
-    <a href="#benefits">Why MeritIQra</a>
-    <a href="#formats">Question formats</a>
-  </nav>
-  <div class="home-actions">
-    <a class="btn-ghost" href="/app">Sign in</a>
-    <a class="btn-solid" href="/app">Get started</a>
-  </div>
+<div class="public-site" id="public-site">
+<header class="public-header">
+<a aria-label="MeritIQra home" class="public-brand" href="/"><img alt="MeritIQra" src="/static/meritiqra-logo.png?v=20260907-updated"/><span>MeritIQra</span></a>
+<button aria-controls="public-nav" aria-expanded="false" class="public-menu-toggle" id="public-menu-toggle">Menu</button>
+<nav aria-label="Public navigation" class="public-nav" id="public-nav">
+<a href="/">Home</a><a href="/practice-exams">Explore Exams</a><a href="#exam-lifecycle">Exam Lifecycle</a><a href="#practice">Practice</a><a href="#solutions">Solutions</a><a href="/for-schools">For Schools</a><a href="/for-organizations">For Organizations</a><a href="#insights">Insights</a><a href="/about">About</a>
+</nav>
+<div class="public-actions"><button class="public-login" data-student-login="">Student Login</button><button class="public-admin-login" data-admin-login="">Admin Login</button><button class="public-cta" data-open-registration="">Register or Login</button></div>
 </header>
 <main>
-<section class="home-hero">
-  <div class="inner">
-    <p class="eyebrow">Cloud examination platform</p>
-    <h1>Secure cloud exams, from invitation to results</h1>
-    <p class="lead">MeritIQra gives examination teams one place to register candidates, run proctored online exams with AI-assisted monitoring, and publish results — without managing servers, exam halls, or spreadsheets.</p>
-    <div class="hero-actions">
-      <a class="btn-solid" href="/app">Get started</a>
-      <a class="btn-ghost" href="#lifecycle">See how an exam runs</a>
-    </div>
-  </div>
+<section class="public-hero" id="home">
+<div class="hero-copy"><p class="public-eyebrow">AI-POWERED ASSESSMENT • PRACTICE • INTELLIGENCE</p><h1>One Platform. Every Exam. Smarter with AI.</h1><p class="hero-lead">MeritIQra helps learners prepare for competitive, entrance, academic and professional examinations through realistic practice, meaningful measurement and deeper performance intelligence. Schools and organizations can create and conduct secure assessments on the same platform.</p><p class="hero-positioning">AI-Powered Assessment Intelligence &amp; Examination Platform</p><p class="capability-line">Question Intelligence • Practice • Examination • Benchmarking • Learning Insights</p><p class="hero-tagline">Think Sharper. Reach Higher. Amplified by AI.</p><div class="hero-actions"><button class="public-cta" data-open-registration="">Start Practicing</button><a class="public-secondary" href="#assessments">Explore Exams</a><button class="public-link-button" data-open-registration="">Conduct an Exam</button></div></div>
+<div aria-label="Illustrative MeritIQra practice dashboard" class="practice-preview"><div class="preview-top"><span>Today's practice</span><strong>Learning workspace</strong></div><h2>Know Where You Stand</h2><p>Know how to move ahead with focused practice.</p><div class="preview-score"><div><strong>72%</strong><span>Illustrative readiness</span></div><div aria-hidden="true" class="progress-ring"><span>72</span></div></div><div class="preview-insight"><span>Illustrative learning insight</span><p>Understand what went wrong, why it went wrong and what to practice next.</p></div><button data-open-registration="">Continue Practice</button></div>
 </section>
-
-<section class="value-strip" aria-label="Platform highlights">
-  <div class="inner">
-    <ul>
-      <li>Cloud-based<span>Nothing to install or maintain</span></li>
-      <li>Scalable<span>From a single class to a national intake</span></li>
-      <li>Secure<span>Role-based access and audited sessions</span></li>
-      <li>AI-assisted proctoring<span>Automated monitoring during attempts</span></li>
-      <li>Fast results<span>Scored the moment an attempt is submitted</span></li>
-      <li>One platform<span>Registration, delivery and results together</span></li>
-    </ul>
-  </div>
-</section>
-
-<section id="lifecycle">
-  <div class="inner">
-    <p class="eyebrow">The full exam lifecycle</p>
-    <h2>Everything the exam needs</h2>
-    <p class="lead">One workflow covers the whole examination — before candidates arrive, while they attempt, and after they submit.</p>
-    <div class="grid-3">
-      <article class="card">
-        <h3>Before the exam</h3>
-        <ul>
-          <li>Invite candidates with a registration link</li>
-          <li>Candidates sign in with Google or register directly</li>
-          <li>Schedule the window, duration and attempts allowed</li>
-          <li>Track who has registered and who is still pending</li>
-        </ul>
-      </article>
-      <article class="card">
-        <h3>During the exam</h3>
-        <ul>
-          <li>Timed attempts with a server-controlled clock</li>
-          <li>Access limited to invited, verified candidates</li>
-          <li>AI-assisted proctoring flags irregular activity</li>
-          <li>Answers saved continuously, so a lost connection is not a lost attempt</li>
-        </ul>
-      </article>
-      <article class="card">
-        <h3>After the exam</h3>
-        <ul>
-          <li>Automatic scoring, including negative marking</li>
-          <li>Results released to candidates when you choose</li>
-          <li>Candidates review each answer with worked solutions</li>
-          <li>Administrators review any attempt in full detail</li>
-        </ul>
-      </article>
-    </div>
-  </div>
-</section>
-
-<section id="benefits" class="tint">
-  <div class="inner">
-    <p class="eyebrow">Built for examination teams</p>
-    <h2>Why teams choose MeritIQra</h2>
-    <div class="grid-2">
-      <article class="card"><h3>Run exams anywhere</h3><p>Candidates attempt from their own device in a browser. No exam-hall booking, no software rollout, no local IT project.</p></article>
-      <article class="card"><h3>Integrity you can evidence</h3><p>Every attempt keeps an auditable record of activity, so an integrity decision rests on evidence rather than on suspicion.</p></article>
-      <article class="card"><h3>Results without the wait</h3><p>Attempts are scored on submission and released under your control, cutting the gap between the last candidate and the published result.</p></article>
-      <article class="card"><h3>Scales with the intake</h3><p>The same setup serves a single classroom test and a large recruitment or certification drive, with capacity handled for you.</p></article>
-      <article class="card"><h3>Clear roles and permissions</h3><p>Administrators, proctors and candidates each see only what their role allows, so exam content stays with the people who own it.</p></article>
-      <article class="card"><h3>One platform end to end</h3><p>Registration, delivery, scoring and result review live in one place, so nothing has to be reconciled between separate tools.</p></article>
-    </div>
-  </div>
-</section>
-
-<section id="formats">
-  <div class="inner">
-    <p class="eyebrow">Exam content</p>
-    <h2>Papers that look like the real thing</h2>
-    <p class="lead">MeritIQra delivers objective papers with the notation real subjects need — so a science or engineering paper reads on screen the way it reads on paper.</p>
-    <div class="grid-3">
-      <article class="card"><h3>Objective questions</h3><p>Single-answer multiple choice, with per-question marks and optional negative marking.</p></article>
-      <article class="card"><h3>Mathematical and chemical notation</h3><p>Equations, formulae and chemical expressions render precisely in questions, options and solutions.</p></article>
-      <article class="card"><h3>Diagrams and images</h3><p>Figures, graphs and tables accompany the questions that depend on them.</p></article>
-      <article class="card"><h3>Sectioned papers</h3><p>Group questions into named sections and control the order candidates see.</p></article>
-      <article class="card"><h3>Worked solutions</h3><p>Publish explanations alongside results so candidates learn from the attempt.</p></article>
-      <article class="card"><h3>Multiple attempts</h3><p>Allow retakes where your policy calls for them, with each attempt scored separately.</p></article>
-    </div>
-  </div>
-</section>
-
-<section class="cta-band">
-  <div class="inner">
-    <h2>Ready to run your next exam on MeritIQra?</h2>
-    <p>Sign in to set up your examination, invite candidates and publish results.</p>
-    <p><a class="btn-solid" href="/app">Get started</a></p>
-  </div>
-</section>
+<section class="public-section" id="assessments"><div class="section-intro"><p class="public-eyebrow">PRACTICE WITH PURPOSE</p><h2>Explore Assessments</h2><p>Discover school, academic, entrance, competitive, professional and organization-specific assessments through real published content.</p></div><div class="category-cloud" aria-label="Assessment categories"><span>School &amp; Academic</span><span>Olympiads</span><span>Entrance</span><span>Competitive</span><span>Professional Certifications</span><span>Recruitment &amp; Skills</span><span>Institutional</span><span>Custom Exams</span></div><div class="public-exam-grid" id="public-exam-list"><div class="public-empty">Loading available assessments…</div></div></section>
+<section class="public-section secure-lifecycle" id="exam-lifecycle"><div class="section-intro"><p class="public-eyebrow">SECURE FROM REGISTRATION TO RESULTS</p><h2>The complete exam lifecycle in one platform</h2><p>MeritIQra connects candidate registration, controlled delivery, continuous answer saving, scoring and result review in one auditable workflow.</p></div><div class="feature-grid"><article><span>01</span><h3>Before the exam</h3><p>Publish the assessment, schedule its window, register learners and control attempts.</p></article><article><span>02</span><h3>During the exam</h3><p>Use server-timed sessions, proctor access, autosave and recorded integrity events.</p></article><article><span>03</span><h3>After submission</h3><p>Score attempts immediately, release results under administrator control and provide worked explanations.</p></article></div></section>
+<section class="public-section public-tint" id="features"><div class="section-intro"><p class="public-eyebrow">ONE INTELLIGENT PLATFORM</p><h2>Create, practice, conduct, assess and improve</h2></div><div class="feature-grid">
+<article><span>01</span><h3>AI Question Generation</h3><p>Create structured, curriculum-aligned questions from flexible prompts and metadata.</p></article>
+<article><span>02</span><h3>Document Digitization</h3><p>Turn source documents, diagrams and selected regions into reusable question content.</p></article>
+<article><span>03</span><h3>Intelligent Question Bank</h3><p>Organize verified questions by subject, domain, level, concept and difficulty.</p></article>
+<article><span>04</span><h3>Secure Exam Conduction</h3><p>Run timed assessments with registration, controlled access and attempt policies.</p></article>
+<article><span>05</span><h3>Intelligent Explanations</h3><p>Help learners understand concepts and learn from every answer.</p></article>
+<article><span>06</span><h3>Results &amp; Insights</h3><p>Review attempts, scores and learning history to guide the next step.</p></article>
+</div></section>
+<section class="public-section" id="how-it-works"><div class="section-intro"><p class="public-eyebrow">HOW IT WORKS</p><h2>From assessment to improvement</h2></div><ol class="process-grid"><li><span>1</span><h3>Choose or Create</h3><p>Select an assessment goal or create one with reusable metadata.</p></li><li><span>2</span><h3>Practice or Conduct</h3><p>Take a structured test or securely deliver it to registered learners.</p></li><li><span>3</span><h3>Evaluate &amp; Understand</h3><p>Review results and clear explanations for each answer.</p></li><li><span>4</span><h3>Improve</h3><p>Focus future practice on the concepts that need attention.</p></li></ol></section>
+<section class="public-section intelligence-story" id="practice"><div class="section-intro"><p class="public-eyebrow">MORE THAN A MOCK TEST</p><h2>Turn every result into action</h2><p>A score is only the starting point. MeritIQra connects assessment history and question metadata to help learners identify topic and concept gaps, understand mistakes and practice with greater focus.</p></div><div class="intelligence-path" aria-label="Assessment improvement cycle"><span>Take Assessment</span><b>→</b><span>Measure</span><b>→</b><span>Diagnose Gaps</span><b>→</b><span>Understand</span><b>→</b><span>Focused Practice</span><b>→</b><span>Re-Assess</span></div></section>
+<section class="public-section public-tint" id="insights"><div class="section-intro"><p class="public-eyebrow">DEEPER PERFORMANCE ANALYSIS</p><h2>Know your position. Know your next step.</h2><p>Review accuracy, difficulty performance, concept strengths and learning gaps. Where sufficient valid participation exists, benchmarking can compare performance with relevant participating cohorts without presenting unsupported ranks.</p></div><div class="insight-grid"><article><h3>Diagnose</h3><p>See which subjects, topics and concepts consistently limit performance.</p></article><article><h3>Understand</h3><p>Separate knowledge, reasoning, speed and avoidable accuracy gaps.</p></article><article><h3>Improve</h3><p>Move from concept revision to foundation, application, higher difficulty and re-assessment.</p></article></div></section>
+<section class="public-section" id="solutions"><div class="section-intro"><p class="public-eyebrow">CONTENT THAT MATCHES THE TARGET</p><h2>Exam-aligned question intelligence</h2><p>Structure content by exam, subject, chapter, topic, subtopic, concept, difficulty, question type, skill, reasoning type and marks. Build assessments from defined blueprints instead of random question selection.</p></div><div class="solution-band"><div><h3>AI-assisted creation</h3><p>Use syllabus, curriculum, metadata and detailed instructions with human review and validation.</p></div><div><h3>Content digitization</h3><p>Preserve equations, chemical notation, diagrams, graphs, tables and answer options from existing material.</p></div><div><h3>Flexible delivery</h3><p>Support public practice, controlled online exams, private institutional assessments and question-bank services.</p></div></div></section>
+<section class="public-section audience-section"><div class="section-intro"><p class="public-eyebrow">BUILT FOR EVERY ASSESSMENT GOAL</p><h2>One platform for learners and assessment teams</h2></div><div class="audience-grid">
+<article id="for-students"><h3>Students &amp; Learners</h3><p>Practice exams, review attempts, learn from explanations and prepare with purpose.</p><button data-open-registration="">Start Practicing</button></article>
+<article id="for-schools"><h3>Schools &amp; Educators</h3><p>Build question banks, create exams, register students and manage results.</p><button data-open-registration="">Explore for Schools</button></article>
+<article id="for-organizations"><h3>Organizations</h3><p>Conduct recruitment, certification, skills and training assessments at scale.</p><button data-open-registration="">Create an Assessment</button></article>
+</div></section>
+<section class="public-section explanation-section"><div><p class="public-eyebrow">LEARN FROM EVERY ANSWER</p><h2>Move beyond right or wrong</h2><p>MeritIQra connects each attempt with explanations and concepts, helping learners understand mistakes and build targeted practice.</p></div><div class="explanation-flow"><span>Question</span><b>→</b><span>Your answer</span><b>→</b><span>Explanation</span><b>→</b><span>Practice again</span></div></section>
+<section class="public-final"><p class="public-eyebrow">YOUR GOAL. YOUR POSITION. YOUR NEXT STEP.</p><h2>Know Where You Stand. Know How to Move Ahead.</h2><p>Question intelligence, examination delivery and performance intelligence in one platform.</p><div class="hero-actions"><button class="public-cta" data-open-registration="">Get Started</button><a class="public-secondary light" href="#assessments">Explore Exams</a></div></section>
 </main>
-<footer class="home-footer">
-  <div class="inner">
-    <span>© 2026 MeritIQra · Cloud examination platform</span>
-    <span><a href="/app">Sign in</a> · <a href="mailto:support@meritiqra.com">support@meritiqra.com</a></span>
-  </div>
-</footer>
+<footer class="public-footer"><div><a class="public-brand" href="/"><img alt="MeritIQra" src="/static/meritiqra-logo.png?v=20260907-updated"/><span>MeritIQra</span></a><p>AI-Powered Assessment Intelligence &amp; Examination Platform</p><small>Think Sharper. Reach Higher. Amplified by AI.</small></div><div><h3>Product</h3><a href="/practice-exams">Explore Exams</a><a href="/features">Features</a><a href="/how-it-works">How It Works</a></div><div><h3>Solutions</h3><a href="/for-students">Students</a><a href="/for-schools">Schools</a><a href="/for-organizations">Organizations</a></div><div><h3>Company</h3><a href="/about">About</a><a href="/app">Secure workspace</a><a href="mailto:support@meritiqra.com">Contact</a></div><p class="copyright">© 2026 MeritIQra</p></footer>
 </div>
-</body>
-</html>
+<div id="student-registration-modal" class="login-screen" hidden>
+<section class="login-card registration-card" aria-labelledby="student-registration-title">
+<button id="student-registration-close" class="login-close" type="button" aria-label="Close registration">×</button>
+<span class="portal-label">Verified student access</span>
+<h2 id="student-registration-title">Register or login with Gmail</h2>
+<p>Choose an open exam. Google will verify your Gmail identity before MeritIQra enrolls you.</p>
+<form id="student-registration-form" class="bootstrap-form">
+<label>Open exam<select name="exam_id" id="public-registration-exam" required><option value="">Select an open exam</option></select></label>
+<button class="primary" type="submit">Continue securely with Google</button>
+</form>
+<p id="student-registration-message" class="muted" role="status">Your password is handled only by Google and is never shared with MeritIQra.</p>
+<p class="registration-signin">Already enrolled? <button type="button" data-student-login>Student login with Google</button></p>
+</section></div>
+<div class="login-screen" hidden="" id="login-screen">
+<section aria-labelledby="login-title" class="login-card"><button aria-label="Close login" class="login-close" id="login-close" type="button">×</button>
+<img alt="MeritIQra" class="brand-logo-full" src="/static/meritiqra-logo.png?v=20260907-updated"/>
+<h2 id="login-title">Think Sharper. Reach Higher.</h2>
+<p>AI-Powered Intelligence Platform</p>
+<div id="student-google-prompt" class="google-login-prompt"><strong>Register or login with Gmail</strong><span>Continue securely with your Google account.</span></div>
+<div id="google-signin"><span class="google-loading">Loading Google sign-in…</span></div>
+<button class="primary" hidden="" id="mock-signin">Development sign in</button>
+<button class="primary" hidden="" id="bootstrap-admin-toggle">Register first administrator</button>
+<button class="primary" id="admin-login-toggle">Administrator login</button>
+<form class="bootstrap-form" hidden="" id="admin-login-form"><label>Administrator email<input autocomplete="username" id="admin-login-email" required="" type="email"/></label><label>Password<input autocomplete="current-password" id="admin-login-password" required="" type="password"/></label><button class="primary" type="submit">Sign in as administrator</button><button id="admin-login-cancel" type="button">Cancel</button></form>
+<form class="bootstrap-form" hidden="" id="bootstrap-admin-form">
+<label>Full name<input autocomplete="name" id="bootstrap-admin-name" maxlength="120" required=""/></label>
+<label>Email address<input autocomplete="email" id="bootstrap-admin-email" required="" type="email"/></label>
+<button class="primary" type="submit">Create administrator</button>
+<button id="bootstrap-admin-cancel" type="button">Cancel</button>
+<small>One-time setup on this machine. Configure Google with the same email before signing out.</small>
+</form>
+<p class="muted" id="login-message" role="status"></p>
+</section>
+</div>
+<script src="/static/public-site.js?v=20260908-workspace-oidc"></script>
+<script src="/static/public-auth.js?v=20260908-oidc"></script>
+<script src="/static/mentor.js?v=20260908-mentor"></script>
+</body></html>
