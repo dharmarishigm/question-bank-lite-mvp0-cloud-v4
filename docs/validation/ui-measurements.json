@@ -1,0 +1,313 @@
+{
+  "measurements": [
+    {
+      "role": "student",
+      "view": "dashboard",
+      "width": 1440,
+      "scroll_height": 900,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "available-exams",
+      "width": 1440,
+      "scroll_height": 1018,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "my-exams",
+      "width": 1440,
+      "scroll_height": 1054,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "my-results",
+      "width": 1440,
+      "scroll_height": 1034,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "student-analytics",
+      "width": 1440,
+      "scroll_height": 1600,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "my-profile",
+      "width": 1440,
+      "scroll_height": 900,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "dashboard",
+      "width": 820,
+      "scroll_height": 1180,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "available-exams",
+      "width": 820,
+      "scroll_height": 2784,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "my-exams",
+      "width": 820,
+      "scroll_height": 2904,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "my-results",
+      "width": 820,
+      "scroll_height": 2193,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "student-analytics",
+      "width": 820,
+      "scroll_height": 2935,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "my-profile",
+      "width": 820,
+      "scroll_height": 1180,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "dashboard",
+      "width": 390,
+      "scroll_height": 844,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "available-exams",
+      "width": 390,
+      "scroll_height": 2863,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "my-exams",
+      "width": 390,
+      "scroll_height": 2983,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "my-results",
+      "width": 390,
+      "scroll_height": 2714,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "student-analytics",
+      "width": 390,
+      "scroll_height": 3165,
+      "overflow": false
+    },
+    {
+      "role": "student",
+      "view": "my-profile",
+      "width": 390,
+      "scroll_height": 844,
+      "overflow": false
+    },
+    {
+      "lab_chart_bottom": {
+        "x": 274.03125,
+        "y": 449.734375,
+        "width": 657.5625,
+        "height": 212.6875
+      },
+      "lab_recommendation": {
+        "x": 958.59375,
+        "y": 376.703125,
+        "width": 458.375,
+        "height": 214.890625
+      }
+    },
+    {
+      "role": "admin",
+      "view": "dashboard",
+      "width": 1440,
+      "scroll_height": 900,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "questions",
+      "width": 1440,
+      "scroll_height": 4594,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "ai-generate",
+      "width": 1440,
+      "scroll_height": 1471,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "upload-crop",
+      "width": 1440,
+      "scroll_height": 900,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "exam",
+      "width": 1440,
+      "scroll_height": 956,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "admin-exams",
+      "width": 1440,
+      "scroll_height": 1107,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "admin-results",
+      "width": 1440,
+      "scroll_height": 900,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "student-analytics",
+      "width": 1440,
+      "scroll_height": 1098,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "dashboard",
+      "width": 820,
+      "scroll_height": 1180,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "questions",
+      "width": 820,
+      "scroll_height": 5446,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "ai-generate",
+      "width": 820,
+      "scroll_height": 1847,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "upload-crop",
+      "width": 820,
+      "scroll_height": 1180,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "exam",
+      "width": 820,
+      "scroll_height": 1180,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "admin-exams",
+      "width": 820,
+      "scroll_height": 1773,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "admin-results",
+      "width": 820,
+      "scroll_height": 1180,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "student-analytics",
+      "width": 820,
+      "scroll_height": 1571,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "dashboard",
+      "width": 390,
+      "scroll_height": 844,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "questions",
+      "width": 390,
+      "scroll_height": 9708,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "ai-generate",
+      "width": 390,
+      "scroll_height": 2446,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "upload-crop",
+      "width": 390,
+      "scroll_height": 844,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "exam",
+      "width": 390,
+      "scroll_height": 1510,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "admin-exams",
+      "width": 390,
+      "scroll_height": 1919,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "admin-results",
+      "width": 390,
+      "scroll_height": 1175,
+      "overflow": false
+    },
+    {
+      "role": "admin",
+      "view": "student-analytics",
+      "width": 390,
+      "scroll_height": 1718,
+      "overflow": false
+    }
+  ],
+  "errors": []
+}

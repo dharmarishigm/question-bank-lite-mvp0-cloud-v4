@@ -26,7 +26,7 @@ Work is on `codex/feature-ui-density-iqramentor`, based on `d5ca886`. No changes
 
 The new `static/workspace-density.css` is a final shared stylesheet. Spacing tokens use 12px gaps and 14px surface padding, a 236px sidebar, and a 26px desktop page title. Operational content can use up to 1680px including padding. Narrow screens use two KPI columns and a full-width tutor drawer.
 
-At 1440×900 using ten synthetic released attempts, the previous Performance Lab recommendation panel began at y=1540. The new panel begins at y=377; the chart, all six KPIs, and recommendations are visible in the first viewport. Topic mastery also starts within that viewport. Before-page height was 1972px; the compact page is approximately 1595px including the new evidence and recent-attempt content. Dataset and viewport affect these measurements.
+At 1440×900 using ten synthetic released attempts, the previous Performance Lab recommendation panel began at y=1540. The new panel begins at y=377; the chart, all six KPIs, and recommendations are visible in the first viewport. Topic mastery also starts within that viewport. Before-page height was 1972px; the compact page is 1600px including the new evidence and recent-attempt content. Dataset and viewport affect these measurements.
 
 ## Analytics and recommendations
 
@@ -69,6 +69,7 @@ Migration `0005_tutor` adds private `tutor_sessions` and `tutor_messages` tables
 - New coverage includes anonymous/CSRF rejection, no-history learner, grounded gaps, small samples, active exams, result release, question ownership, cross-user session/attempt requests, admin denial, strict identity input, bounded filters, stored history, rate limits, provider failure, an exam started during generation, snapshot metadata and benchmark threshold/math/query execution.
 - Both existing Node UI suites pass; edited JavaScript syntax and Python compilation checks pass.
 - Chromium audit: student dashboard, available exams, my exams, results, Performance Lab, profile; administrator dashboard, Question Bank, AI generation, upload/digitization, exam generation, management, results and Performance Lab at 1440×900, 820×1180 and 390×844. After fixes: zero uncaught JavaScript errors and zero document horizontal overflow across 42 combinations. Tables intentionally allow local scrolling.
+- Six mobile public routes, actual mobile menu navigation, released attempt review and question-level tutoring additionally passed.
 - 45 screenshots captured locally, including desktop/mobile mentor and anonymous sign-in state. Live Vertex AI generated a response grounded in the synthetic learner history.
 - A baseline checkout at `d5ca886` was run against a copy of the same synthetic database for the before/after comparison.
 - New standalone browser audit: `tests/validate_workspace_ui.py`. It only permits localhost targets and creates synthetic exam fixtures. Playwright is an optional local QA dependency, not a production dependency.
@@ -98,3 +99,27 @@ Modified: `app.py`, `platform_api.py`, `exam_conduct.py`, `static/index.html`, `
 No reliable syllabus coverage, per-question timing, national/state/institution cohort metadata, or tutoring-permitted practice policy exists yet. Readiness and unsupported comparisons stay unavailable. Older snapshot metadata fallback reflects current taxonomy. The existing admin-wide analytics path is unchanged; the bounded query improvements target learner/tutor traffic. Chat is retained in the application database; automated retention/deletion UI is not part of this delivery. Google OAuth/proctor-device interaction and real-student Gemini quality require authenticated production acceptance; automated tests use synthetic learners. LLM prose can be imperfect; the structured report remains the source for exact figures.
 
 Deployment record is appended after Cloud Run verification.
+
+## Deployment record — 8 September 2026
+
+- Live site: https://meritiqra.com
+- Source implementation: `114e7c4`; final asset-version commit: `845cc6a`.
+- Final Cloud Build: `c46ebc50-d2d3-44ba-ba7e-747adbfb5e44`, SUCCESS.
+- Deployed immutable image digest: `sha256:b9691d23b97f79a0f33811ac0489a1e083ab9ed614d61ee686f71aa84f7c1545`.
+- Cloud Run: `question-bank-cloud-v4`, `asia-south1`, revision `question-bank-cloud-v4-00041-mel`, Ready, 100% traffic.
+- PostgreSQL logs confirm transactional migration `0004_explanation_languages -> 0005_tutor` and successful application startup.
+- Tagged-revision checks passed before traffic promotion. Final live-domain checks confirm public/workspace HTML version URLs, exact CSS source match, anonymous tutor 401, and the mobile sign-in drawer. Mock authentication remains disabled.
+- Fifteen initial deployment checks included exact source hashes for five changed assets, public pages, robots/sitemap, authentication, tutor routes, and the public logo. Browser checks found no JavaScript errors.
+- Authenticated OAuth and real-student production exam flows were not exercised; those behaviors were covered with synthetic authenticated users locally. No production learner accounts or examination attempts were created for validation.
+- Machine-readable evidence: `docs/validation/ui-measurements.json` and `docs/validation/deployment-smoke.json`.
+- Pre-change rollback revision retained: `question-bank-cloud-v4-00038-ksd`. Additive tutor tables can remain if application traffic is rolled back.
+
+Rollback, if needed:
+
+```sh
+gcloud run services update-traffic question-bank-cloud-v4 \
+  --project gen-lang-client-0491787004 --region asia-south1 \
+  --to-revisions question-bank-cloud-v4-00038-ksd=100
+```
+
+All application and delivery-report commits are confined to the pushed Codex feature branch. The pre-existing untracked `.DS_Store` was left untouched.
