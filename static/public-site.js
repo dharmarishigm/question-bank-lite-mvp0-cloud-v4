@@ -3,19 +3,19 @@
   let exams=[];
   const closeOverlays=()=>{login.hidden=true;registration.hidden=true;document.body.classList.remove('public-login-open');};
   const openLogin=mode=>{closeOverlays();login.hidden=false;document.body.classList.add('public-login-open');document.dispatchEvent(new CustomEvent('meritiqra:login-mode',{detail:{mode}}));document.getElementById('login-close')?.focus();};
-  const openRegistration=examId=>{if(examId){sessionStorage.setItem('meritiqra_pending_exam',String(examId));openLogin('student');return;}closeOverlays();registration.hidden=false;document.body.classList.add('public-login-open');document.getElementById('public-registration-exam')?.focus();};
+  const openRegistration=examId=>{if(examId){sessionStorage.setItem('meritiqra_pending_exam',String(examId));location.assign('/app');return;}closeOverlays();registration.hidden=false;document.body.classList.add('public-login-open');document.getElementById('public-registration-exam')?.focus();};
   document.addEventListener('click',event=>{
     const enroll=event.target.closest('[data-enroll-exam]');if(enroll){openRegistration(enroll.dataset.enrollExam);return;}
     if(event.target.closest('[data-open-registration]')){openRegistration();return;}
     if(event.target.closest('[data-admin-login]')){openLogin('admin');return;}
-    if(event.target.closest('[data-student-login]')){openLogin('student');}
+    if(event.target.closest('[data-student-login]')){location.assign('/app');}
   });
   document.getElementById('login-close')?.addEventListener('click',closeOverlays);
   document.getElementById('student-registration-close')?.addEventListener('click',closeOverlays);
   document.getElementById('student-registration-form')?.addEventListener('submit',event=>{
     event.preventDefault();const examId=Number(new FormData(event.currentTarget).get('exam_id'));const status=document.getElementById('student-registration-message');
     if(!examId){status.textContent='Select an open exam first.';return;}
-    sessionStorage.setItem('meritiqra_pending_exam',String(examId));openLogin('student');
+    sessionStorage.setItem('meritiqra_pending_exam',String(examId));location.assign('/app');
   });
   document.getElementById('public-menu-toggle')?.addEventListener('click',event=>{const nav=document.getElementById('public-nav');const open=nav.classList.toggle('open');event.currentTarget.setAttribute('aria-expanded',String(open));});
   document.getElementById('public-nav')?.addEventListener('click',()=>document.getElementById('public-nav').classList.remove('open'));
