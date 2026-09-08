@@ -12,8 +12,8 @@
 <script defer src="/static/vendor/contrib/mhchem.min.js"></script>
 <script defer src="/static/vendor/contrib/auto-render.min.js"></script>
 <link rel="stylesheet" href="/static/app.css" />
-<link rel="stylesheet" href="/static/enterprise.css?v=20260908-density-mentor-v1" />
-<link rel="stylesheet" href="/static/workspace-density.css?v=20260908-mentor" />
+<link rel="stylesheet" href="/static/enterprise.css?v=20260909-web-fixes" />
+<link rel="stylesheet" href="/static/workspace-density.css?v=20260909-web-fixes" />
 </head>
 <body>
 <div id="public-registration" class="login-screen" hidden><section class="login-card registration-card"><img class="brand-logo-full" src="/static/meritiqra-logo.png?v=20260907-updated" alt="MeritIQra — Think Sharper. Reach Higher. Amplified by AI." /><span class="portal-label">Exam registration</span><h2 id="public-exam-name">Exam registration</h2><p id="public-exam-summary"></p><div id="public-google-block" hidden><p class="registration-hint">Sign in with Google to register</p><div id="public-google-signin"></div><button id="public-fallback-toggle" type="button" class="registration-fallback-toggle">or continue without Google</button></div><div id="public-fallback"><div class="registration-choice"><button id="public-new-registration" class="primary">New registration</button><button id="public-continue-login">Already registered? Login</button></div><form id="public-registration-form" class="bootstrap-form"><label>Full name<input name="full_name" autocomplete="name" required maxlength="120" /></label><label>Email address<input name="email" type="email" autocomplete="email" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Phone number<input name="phone_number" type="tel" autocomplete="tel" pattern="[+0-9 ()-]{7,20}" required /></label><label>School name<input name="school_name" required maxlength="160" /></label><button class="primary" type="submit">Register for exam</button></form><form id="public-student-login-form" class="bootstrap-form" hidden><h2>Student login</h2><label>Registered email<input name="email" type="email" autocomplete="username" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Registered phone number<input name="phone_number" type="tel" autocomplete="tel" required /></label><button class="primary" type="submit">Open student portal</button></form></div><p id="public-registration-message" role="status"></p></section></div>
@@ -487,9 +487,9 @@
 
 <input id="upload-file" type="file" accept="image/*" hidden />
 <div id="notification" class="notification" role="status" aria-live="polite" hidden></div>
-<script src="/static/app.js?v=20260908-density-mentor-v1"></script>
-<script src="/static/pdf-viewer.js"></script>
-<script src="/static/platform-ui.js?v=20260908-density-mentor-v1"></script>
+<script src="/static/app.js?v=20260909-web-fixes"></script>
+<script src="/static/pdf-viewer.js?v=20260909-web-fixes"></script>
+<script src="/static/platform-ui.js?v=20260909-web-fixes"></script>
 <script src="/static/performance-workspace.js?v=20260908-mentor"></script>
 <script src="/static/mentor.js?v=20260908-mentor"></script>
 </body>

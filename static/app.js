@@ -440,6 +440,7 @@ document.querySelectorAll('.toolbar').forEach((bar) => {
 });
 
 function renderStructuredExplanation(target, body) {
+  target.lang=body?.language==='te'?'te':'en';
   const data = body?.structured;
   target.dataset.rawExplanation = body?.explanation || '';
   target.dataset.structured = data ? JSON.stringify(data) : '';
@@ -919,7 +920,8 @@ function openCropModal(index) {
 async function openPdfModal(data) {
   parsed = data.questions || [];
   switchReviewTab('documents');
-  const status = await refreshOcrStatus();
+  const status = await refreshOcrStatus().catch(()=>({cloud:{available:false}}));
+  $('upload-crop-panel').append($('pdf-modal'));
   switchMainTab('upload-crop');
   $('pdf-mode-note').textContent = modeNote(data);
   $('pdf-reocr').hidden = !(status.cloud || {}).available || data.source_document?.mime_type !== 'application/pdf';
@@ -935,6 +937,7 @@ async function openPdfModal(data) {
   $('p-image-only').checked = !!data.mostly_garbled;
   $('pdf-list').scrollTop = 0;
   $('pdf-modal').hidden = false;
+  $('pdf-modal').scrollIntoView({block:'start',behavior:'smooth'});
 }
 
 $('pdf-list').addEventListener('click', async (e) => {
@@ -1154,6 +1157,7 @@ function setUploadStatus(isProcessing, message = 'Processing…') {
 }
 
 function showPdfLoadingState(message = 'Processing document…') {
+  $('upload-crop-panel').append($('pdf-modal'));
   switchMainTab('upload-crop');
   $('pdf-modal').hidden = false;
   $('pdf-mode-note').textContent = message;

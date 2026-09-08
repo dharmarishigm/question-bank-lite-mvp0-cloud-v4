@@ -85,7 +85,7 @@ class PlatformSecurityTests(unittest.TestCase):
         self.assertIn('id="admin-nav"',workspace_html)
         self.assertIn('id="public-google-signin"',workspace_html)
         self.assertIn('oncopy="return false"',workspace_html)
-        self.assertIn('workspace-oidc',workspace_html)
+        self.assertRegex(workspace_html,r'/static/platform-ui\.js\?v=[^\"]+')
         self.assertNotIn('value="admin@example.test"',workspace_html)
 
     def test_public_exam_catalog_exposes_only_safe_open_metadata(self):

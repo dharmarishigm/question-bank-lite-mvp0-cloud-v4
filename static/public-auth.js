@@ -4,7 +4,7 @@
   const showStudentGoogleState=()=>{byId('login-title').textContent='Student login';byId('student-google-prompt').hidden=false;byId('google-signin').hidden=false;byId('login-message').textContent=authConfig.client_id?'Register or login securely with the Google button above. Your Gmail identity will be verified before enrollment.':'Google sign-in is loading. Please wait a moment and try again.';};
   const json=async(url,options={})=>{const response=await fetch(url,options);const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.detail||'Sign in failed');return body;};
   const complete=()=>location.assign('/app');
-  fetch('/api/auth/config',{cache:'no-store'}).then(config=>{authConfig=config;
+  json('/api/auth/config',{cache:'no-store'}).then(config=>{authConfig=config;
     byId('bootstrap-admin-toggle').hidden=!config.bootstrap_available;
     byId('admin-login-toggle').disabled=!config.local_admin;
     byId('admin-login-email').value='';
