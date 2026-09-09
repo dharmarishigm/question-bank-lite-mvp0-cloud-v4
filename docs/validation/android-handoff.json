@@ -1,0 +1,8 @@
+{
+  "system_browser": "Chrome",
+  "pkce_handoff": "passed with synthetic locally authenticated user",
+  "server_derived_role": "STUDENT",
+  "old_owner_answers_cleared": true,
+  "session_cookie_exposed_to_js": false,
+  "google_account_selection": "not exercised"
+}

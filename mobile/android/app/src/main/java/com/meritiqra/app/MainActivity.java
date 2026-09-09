@@ -12,6 +12,11 @@ import java.util.Map;
 public class MainActivity extends BridgeActivity {
     @Override public void onCreate(Bundle savedInstanceState){
         registerPlugin(MeritIQraPlugin.class);super.onCreate(savedInstanceState);
+        // Capacitor's default java.net cookie bridge must not capture native session cookies.
+        // Authentication belongs exclusively to the Keystore vault and explicit HTTP headers.
+        java.net.CookieHandler.setDefault(null);
+        android.webkit.CookieManager.getInstance().setAcceptCookie(false);
+        android.webkit.CookieManager.getInstance().removeAllCookies(null);
         bridge.setWebViewClient(new BridgeWebViewClient(bridge){
             @Override public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){
                 String path=request.getUrl().getEncodedPath();

@@ -28,9 +28,11 @@ final class SecureVault {
         if(stored==null)return new JSONObject();
         byte[] encoded=Base64.decode(stored,Base64.NO_WRAP),iv=java.util.Arrays.copyOfRange(encoded,0,12),data=java.util.Arrays.copyOfRange(encoded,12,encoded.length);
         Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.DECRYPT_MODE,key(),new GCMParameterSpec(128,iv));
-        return new JSONObject(new String(cipher.doFinal(data),java.nio.charset.StandardCharsets.UTF_8));
+        JSONObject value=new JSONObject(new String(cipher.doFinal(data),java.nio.charset.StandardCharsets.UTF_8));
+        return BuildConfig.API_BASE_URL.equals(value.optString("_origin"))?value:new JSONObject();
     }
     synchronized void write(JSONObject value) throws Exception {
+        value.put("_origin",BuildConfig.API_BASE_URL);
         Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.ENCRYPT_MODE,key());byte[] encrypted=cipher.doFinal(value.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         byte[] all=new byte[12+encrypted.length];System.arraycopy(cipher.getIV(),0,all,0,12);System.arraycopy(encrypted,0,all,12,encrypted.length);
         if(!context.getSharedPreferences("meritiqra-secure",Context.MODE_PRIVATE).edit().putString("ciphertext",Base64.encodeToString(all,Base64.NO_WRAP)).commit())throw new java.io.IOException("Secure persistence failed");

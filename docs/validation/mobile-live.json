@@ -1,0 +1,18 @@
+{
+  "base": "https://meritiqra.com",
+  "commit": "bafbab6",
+  "revision": "question-bank-cloud-v4-00045-vuk",
+  "/healthz": 200,
+  "/": 200,
+  "/app": 200,
+  "/practice-exams": 200,
+  "/sitemap.xml": 200,
+  "/robots.txt": 200,
+  "/api/mobile/config": 200,
+  "/.well-known/assetlinks.json": 200,
+  "/mobile/callback": 200,
+  "/sw.js": 200,
+  "assets": "match committed source",
+  "authorization": "anonymous protected requests denied",
+  "mock_authentication": false
+}
