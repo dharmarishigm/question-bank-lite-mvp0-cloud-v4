@@ -43,17 +43,6 @@ CREATE TABLE IF NOT EXISTS paper_generation_runs (
  blueprint_version_id INTEGER NOT NULL REFERENCES blueprint_versions(id), status TEXT NOT NULL DEFAULT 'DRAFT',
  payload_json TEXT NOT NULL, payload_hash TEXT NOT NULL, created_by INTEGER NOT NULL REFERENCES users(id), created_at REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_paper_runs_program ON paper_generation_runs(program_id,status);
-CREATE TABLE IF NOT EXISTS blueprint_generation_jobs (
- id INTEGER PRIMARY KEY AUTOINCREMENT, program_id INTEGER NOT NULL REFERENCES programs(id),
- run_id INTEGER NOT NULL REFERENCES paper_generation_runs(id), slot_position INTEGER NOT NULL,
- author_prompt_id INTEGER NOT NULL REFERENCES blueprint_prompts(id), verifier_prompt_id INTEGER NOT NULL REFERENCES blueprint_prompts(id),
- status TEXT NOT NULL DEFAULT 'QUEUED', result_json TEXT NOT NULL DEFAULT '{}', error TEXT NOT NULL DEFAULT '',
- created_by INTEGER NOT NULL REFERENCES users(id), created_at REAL NOT NULL, updated_at REAL NOT NULL,
- UNIQUE(run_id,slot_position));
-CREATE INDEX IF NOT EXISTS idx_generation_jobs_program ON blueprint_generation_jobs(program_id,status);
-CREATE TABLE IF NOT EXISTS paper_question_exposure (
- run_id INTEGER NOT NULL REFERENCES paper_generation_runs(id), snapshot_id INTEGER NOT NULL REFERENCES blueprint_question_snapshots(id),
- PRIMARY KEY(run_id,snapshot_id));
 CREATE TABLE IF NOT EXISTS blueprint_prompts (
  id INTEGER PRIMARY KEY AUTOINCREMENT, program_id INTEGER NOT NULL REFERENCES programs(id),
  purpose TEXT NOT NULL, version_number INTEGER NOT NULL, template TEXT NOT NULL,
@@ -66,6 +55,17 @@ CREATE TABLE IF NOT EXISTS blueprint_refinements (
  decisions_json TEXT NOT NULL DEFAULT '{}', error TEXT NOT NULL DEFAULT '', created_by INTEGER NOT NULL REFERENCES users(id),
  created_at REAL NOT NULL, updated_at REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_refinements_program ON blueprint_refinements(program_id,status);
+CREATE TABLE IF NOT EXISTS blueprint_generation_jobs (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, program_id INTEGER NOT NULL REFERENCES programs(id),
+ run_id INTEGER NOT NULL REFERENCES paper_generation_runs(id), slot_position INTEGER NOT NULL,
+ author_prompt_id INTEGER NOT NULL REFERENCES blueprint_prompts(id), verifier_prompt_id INTEGER NOT NULL REFERENCES blueprint_prompts(id),
+ status TEXT NOT NULL DEFAULT 'QUEUED', result_json TEXT NOT NULL DEFAULT '{}', error TEXT NOT NULL DEFAULT '',
+ created_by INTEGER NOT NULL REFERENCES users(id), created_at REAL NOT NULL, updated_at REAL NOT NULL,
+ UNIQUE(run_id,slot_position));
+CREATE INDEX IF NOT EXISTS idx_generation_jobs_program ON blueprint_generation_jobs(program_id,status);
+CREATE TABLE IF NOT EXISTS paper_question_exposure (
+ run_id INTEGER NOT NULL REFERENCES paper_generation_runs(id), snapshot_id INTEGER NOT NULL REFERENCES blueprint_question_snapshots(id),
+ PRIMARY KEY(run_id,snapshot_id));
 CREATE TABLE IF NOT EXISTS historical_observations (
  id INTEGER PRIMARY KEY AUTOINCREMENT, program_id INTEGER NOT NULL REFERENCES programs(id),
  source_id INTEGER NOT NULL REFERENCES blueprint_sources(id), source_question_ref TEXT NOT NULL,
