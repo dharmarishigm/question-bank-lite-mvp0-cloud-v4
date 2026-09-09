@@ -74,7 +74,7 @@
   <nav id="admin-nav" aria-label="Administrator navigation" hidden>
     <p>Workspace</p><button data-view="dashboard">Dashboard</button>
     <p>Content Studio</p><button data-view="questions">Question Bank</button><button data-view="ai-generate">Generate Questions by AI</button><button data-view="upload-crop">Upload &amp; Digitise</button>
-    <p>Exams</p><button data-view="exam">Generate Exam</button><button data-view="admin-exams">Manage Exams &amp; Registrations</button><button data-view="admin-results">Results</button><button data-view="student-analytics">Performance Lab</button>
+    <p>Exams</p><button data-view="exam">Generate Exam</button><button data-view="admin-exams" title="Manage Exams &amp; Registrations">Exam Admin</button><button data-view="admin-results">Results</button><button data-view="student-analytics">Performance Lab</button>
   </nav>
   <nav id="student-nav" aria-label="Student navigation" hidden>
     <p>Learning</p><button data-view="dashboard">Home</button><button data-view="available-exams">Available Exams</button><button data-view="my-exams">My Exams</button><button data-view="my-results">My Results</button><button data-view="student-analytics">Performance Lab</button><button data-view="my-profile">My Profile</button>
@@ -86,12 +86,12 @@
   <div class="main-tabs legacy-tabs" aria-label="Main UI tabs">
     <button type="button" class="main-tab active" data-main-tab="questions">Questions</button>
     <button type="button" class="main-tab" data-main-tab="edit">Edit</button>
-    <button type="button" class="main-tab" data-main-tab="exam-registration">Exam registration</button>
+    <button type="button" class="main-tab" data-main-tab="exam-registration">Registration</button>
     <button type="button" class="main-tab" data-main-tab="exam">Exam</button>
     <button type="button" class="main-tab" data-main-tab="upload-crop">Import &amp; digitise</button>
   </div>
 
-  <section id="dashboard-panel" class="tab-panel" hidden><div class="page-header"><div><h2 id="dashboard-title">Dashboard</h2><p>Current platform activity at a glance.</p></div></div><div id="dashboard-metrics" class="metric-strip"></div></section>
+  <section id="dashboard-panel" class="tab-panel" hidden><div class="page-header"><div><p class="eyebrow">PLATFORM OVERVIEW</p><h2 id="dashboard-title">Dashboard</h2><p>Current platform activity at a glance.</p></div></div><div id="dashboard-metrics" class="metric-strip admin-dashboard-metrics"></div><div id="dashboard-detail" class="admin-dashboard-detail" hidden></div></section>
   <section id="available-exams-panel" class="tab-panel" hidden><div class="page-header"><div><h2>Available Exams</h2><p>Browse examinations that are open now and enroll.</p></div></div><div id="available-exams-list" class="data-grid"></div></section>
   <section id="my-exams-panel" class="tab-panel" hidden><div class="page-header"><div><h2>My Exams</h2><p>Your enrollments and active attempts.</p></div></div><div id="my-exams-list" class="data-grid"></div></section>
   <section id="my-results-panel" class="tab-panel" hidden><div class="page-header"><div><h2>My Results</h2><p>Your completed attempts.</p></div></div><div id="my-results-list" class="table-wrap"></div></section>
