@@ -3,7 +3,7 @@ window.setupSharedGoogleEnrollment=async(token,exam)=>{
   const config=await fetch('/api/auth/config',{cache:'no-store'}).then(r=>r.json());let current=null;try{current=await api('/api/auth/me');}catch{}
   if(!config.client_id&&!window.MeritIQraNative&&!current)return false;
   const block=$('public-google-block'),fallback=$('public-fallback'),form=$('public-registration-form'),message=$('public-registration-message');
-  block.hidden=false;fallback.hidden=true;$('public-fallback-toggle').hidden=true;
+  block.hidden=false;fallback.hidden=true;$('public-fallback-toggle').hidden=true;$('public-fallback-toggle').textContent='Option 2 · Login without Gmail';
   async function signedIn(user){
     if(user.role!=='STUDENT'||!user.email_verified){message.textContent='This link is for student enrollment. Sign in with your student Google account.';return;}
     current=user;block.hidden=true;fallback.hidden=false;fallback.querySelector('.registration-choice').hidden=true;$('public-student-login-form').hidden=true;form.hidden=false;
@@ -11,7 +11,7 @@ window.setupSharedGoogleEnrollment=async(token,exam)=>{
     form.elements.email.value=user.email;
     try{const profile=await api('/api/student/profile');form.elements.phone_number.value=profile.phone_number||'';}catch{}
     message.textContent='Your Google email is verified. Add your mobile number to continue.';
-    form.onsubmit=async e=>{e.preventDefault();const button=form.querySelector('button');button.disabled=true;message.textContent='Enrolling…';try{await api(`/api/register/exam/${encodeURIComponent(token)}/enroll`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone_number:form.elements.phone_number.value})});$('public-registration').hidden=true;history.replaceState({},'','/app');window.sharedRegistrationSignedIn=null;await finishLogin(current);showView('my-exams');notify('You are enrolled. Open the exam from My Exams.');}catch(error){message.textContent=error.message;}finally{button.disabled=false;}};
+    form.onsubmit=async e=>{e.preventDefault();const button=form.querySelector('button');button.disabled=true;message.textContent='Enrolling…';try{await api(`/api/register/exam/${encodeURIComponent(token)}/enroll`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone_number:form.elements.phone_number.value})});$('public-registration').hidden=true;history.replaceState({},'','/app');window.sharedRegistrationSignedIn=null;await finishLogin(current);showView('my-exams');$('my-exams-panel')?.scrollIntoView({behavior:'smooth',block:'start'});notify('You are enrolled. My Exams is open — choose Start exam when ready.');}catch(error){message.textContent=error.message;}finally{button.disabled=false;}};
   }
   window.sharedRegistrationSignedIn=signedIn;
   if(current&&current.role==='STUDENT'&&current.email_verified){await signedIn(current);return true;}
