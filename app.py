@@ -326,6 +326,8 @@ from platform_api import init_platform, router as platform_router
 if not os.getenv("DATABASE_URL"):
     init_platform()
 app.include_router(platform_router)
+from blueprint_api import router as programs_router
+app.include_router(programs_router)
 from tutor_agent import router as tutor_router
 app.include_router(tutor_router)
 from mobile_api import router as mobile_router, init_mobile

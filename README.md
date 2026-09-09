@@ -179,3 +179,7 @@ The automated suite is offline and makes no paid GCP calls. A live GCP golden-co
 ## MVP scope / non-goals
 
 Not included: microservices, Cloud Run, Pub/Sub, Postgres, vector search, RAG, agents, authentication, graph-to-SVG conversion or online exam functionality. Those are intentionally excluded so engineering effort remains focused on **question digitization fidelity**.
+
+## Generic Programs and Blueprints (feature branch)
+
+The additive Programs workspace manages immutable exam/question blueprints, reviewed evidence, historical profiles, Gemini proposals, and frozen paper-generation runs. See [the feature guide](docs-generic-blueprints.md) for setup, API paths, review gates, tests, and the remaining production-specification gaps. Existing exam flows continue separately.

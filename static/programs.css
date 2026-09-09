@@ -1,0 +1,16 @@
+#programs-panel{max-width:1400px}#programs-panel [data-program-workspace]{margin-top:16px;padding:16px}#programs-panel [data-program-content]{margin-top:12px}#programs-panel dialog{width:min(700px,calc(100vw - 24px));max-height:90dvh;overflow:auto;border:1px solid #c6dbd5;border-radius:12px;padding:18px}#programs-panel dialog::backdrop{background:#102b4266}#programs-panel [data-blueprint-form]{display:grid;gap:10px;margin:14px 0}#programs-panel [data-blueprint-form] label{display:grid;gap:4px;font-weight:700}#programs-panel textarea{max-width:100%;font:13px/1.5 ui-monospace,monospace}#programs-panel .actions{flex-wrap:wrap;gap:8px}#programs-panel [role=status]{white-space:pre-wrap;overflow-wrap:anywhere}#programs-panel [data-version-list]{display:grid;gap:8px}
+#programs-panel fieldset {min-width:0;border:1px solid #cbd5e1;border-radius:10px;padding:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px;margin:8px 0}
+#programs-panel legend {font-weight:700;color:#164e63;padding:0 6px}
+#programs-panel .blueprint-field:has(>fieldset) {grid-column:1/-1}
+#programs-panel .blueprint-field label {display:block;font-weight:600;font-size:.85rem}
+#programs-panel .blueprint-field input,#programs-panel .blueprint-field select {width:100%;min-width:0;box-sizing:border-box}
+#programs-panel .blueprint-array-row {grid-column:1/-1;border-left:3px solid #0d9488;padding-left:10px}
+#programs-panel .exam-tile {min-height:0;display:block;padding:14px}
+#programs-panel .exam-tile h3,#programs-panel .exam-tile h4 {margin:8px 0}
+#programs-panel .exam-tile p {margin:8px 0}
+#programs-panel pre {white-space:pre-wrap;overflow-wrap:anywhere;max-height:420px;overflow:auto;background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px}
+#programs-panel details {margin:8px 0;padding:8px;border:1px solid #d5e1e5;border-radius:8px}
+#programs-panel summary {cursor:pointer;font-weight:700;color:#155e75}
+#programs-panel table {display:block;max-width:100%;overflow:auto;border-collapse:collapse}
+#programs-panel td {border:1px solid #d5e1e5;padding:7px}
+#programs-panel [data-program-tab][aria-current=true] {background:#155e75;color:white}

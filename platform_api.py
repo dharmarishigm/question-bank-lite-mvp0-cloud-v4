@@ -84,6 +84,8 @@ def init_platform():
     init_mobile()
     from registration_identity import init_identities
     init_identities()
+    from blueprint_store import init_blueprints
+    init_blueprints()
 
 def _hash(value: str) -> str: return hashlib.sha256(value.encode()).hexdigest()
 def _admins(): return {x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
