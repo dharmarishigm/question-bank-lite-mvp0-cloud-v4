@@ -15,6 +15,8 @@
   const main=document.getElementById('main-content'); main.insertBefore(panel,main.querySelector('footer'));
   matchMedia('(max-width:800px)').addEventListener('change', event => {if(event.matches && !panel.hidden){document.getElementById('app-shell').classList.remove('nav-open');document.getElementById('sidebar-toggle').setAttribute('aria-expanded','false');}});
   const find = selector => panel.querySelector(selector);
+  const setupButton=document.createElement('button');setupButton.dataset.programTab='setup';setupButton.textContent='Generate setup with Gemini';setupButton.className='primary';
+  find('[aria-label="Program sections"]').prepend(setupButton);
   const escape = value => { const node = document.createElement('span'); node.textContent = String(value ?? ''); return node.innerHTML.replaceAll('"', '&quot;').replaceAll("'", '&#39;'); };
   let offset = 0, items = [], current = null, editing = null;
   async function request(path, method = 'GET', payload) {
@@ -47,12 +49,13 @@
       panel.querySelectorAll('[data-program-tab]').forEach(b=>b.setAttribute('aria-current',String(b.dataset.programTab===tab)));
       current = await request('/' + current.id); find('[data-program-title]').textContent = current.name;
       find('[data-program-workspace]').hidden = false;
-      if (tab === 'overview') { content.innerHTML = `<p>${escape(current.payload.description)}</p><dl><dt>Authority</dt><dd>${escape(current.payload.authority || 'Not specified')}</dd><dt>Revision</dt><dd>${current.revision}</dd><dt>Status</dt><dd>${escape(current.status)}</dd></dl>`; return; }
+      if (tab === 'overview') { content.innerHTML = `<p>${escape(current.payload.description)}</p><dl><dt>Authority</dt><dd>${escape(current.payload.authority || 'Not specified')}</dd><dt>Revision</dt><dd>${current.revision}</dd><dt>Status</dt><dd>${escape(current.status)}</dd></dl><button class="primary" data-program-tab="setup">Generate setup with Gemini</button><p>Prepare program details, curriculum, blueprints, prompts and a practice preview from the program name.</p>`; return; }
+      if (tab === 'setup') {await ProgramSetup.render(content,current,request);return;}
       if (tab === 'audit') {
         const rows = await request('/' + current.id + '/audit');
         content.innerHTML = '<ol>' + rows.map(r => `<li><strong>${escape(r.action)}</strong> · ${escape(new Date(r.created_at * 1000).toLocaleString())}</li>`).join('') + '</ol>'; return;
       }
-      if (['curriculum','evidence','gemini','papers'].includes(tab)) {await BlueprintWorkspace.render(content, current.id, tab, request); return;}
+      if (['curriculum','evidence','gemini','papers'].includes(tab)) {await BlueprintWorkspace.render(content, current.id, tab, request); if(tab==='evidence')await ProgramSetup.evidence(content,current.id,request); return;}
       const rows = (await request('/' + current.id + '/blueprints')).filter(r => r.kind === tab);
       content.innerHTML = `<p>Each save creates a new immutable payload. Publication is a separate reviewed action.</p><button data-blueprint-new="${tab}">Create blueprint</button><div class="data-grid">${rows.map(b => `<article class="exam-tile"><h4>${escape(b.name)}</h4><span>${b.revision} versions</span><button data-blueprint-open="${b.id}">Edit / versions</button></article>`).join('')}</div><div data-blueprint-detail></div>`;
       content.querySelector('[data-blueprint-new]').onclick = () => blueprintEditor({kind:tab, name:'', revision:0});

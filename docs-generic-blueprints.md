@@ -75,6 +75,40 @@ No new GCP services, secrets, API keys, IAM bindings, buckets or deployment chan
 
 ## Programs and designers
 
+### Generate a setup with minimal input
+
+Open a program and choose **Generate setup with Gemini**. The existing program name is
+the only required context; exam/class and additional guidance are optional, and language
+defaults to English. **Generate setup** creates a persisted background job. Review the
+suggested curriculum, five difficulty profiles, practice layout, assumptions and evidence
+checklist, then choose **Apply setup as drafts**.
+
+Application is atomic and idempotent: it updates program metadata, creates a draft
+curriculum and subject/chapter/topic question blueprints with inheritance, adds an
+illustrative practice pattern and generator, versions all ten prompt templates, and
+freezes a practice-paper feasibility preview. Existing blueprints remain intact. If the
+program changes while Gemini is working, the stale proposal cannot overwrite it.
+
+Gemini does not fabricate official rules, evidence hashes or historical statistics. The
+generated pattern is marked sample-only and cannot be published as an official exam.
+The Historical evidence tab displays the generated document checklist; real reviewed
+papers remain necessary to populate historical analytics. Publication and academic
+approval remain separate review actions.
+
+Migration `0009_program_setup` adds setup jobs. The API paths are
+`/{pid}/setup` (POST and GET), `/{pid}/setup/{jid}/apply` and
+`/{pid}/setup/{jid}/retry`, under `/api/programs`. Failed/stalled jobs can be retried;
+claim timestamps prevent stale workers from overwriting retries. Setup telemetry records
+`program-setup-v1`, model, parameters, usage and timing. The model resolves from
+`BLUEPRINT_PROGRAM_SETUP_MODEL`, then `BLUEPRINT_GEMINI_MODEL`, then the application's
+existing Vertex model configuration/default. No API key is required. A smaller serving
+schema avoids Vertex grammar limits; full typed constraints are enforced on the result.
+
+Run `PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_program_setup.py` and
+`.venv/bin/python tests/validate_program_setup_ui.py` for local acceptance. The latter
+starts its own isolated localhost server, mocks Gemini, creates synthetic data, and
+checks generation, review, apply and all program tabs at desktop/tablet/mobile widths.
+
 Open **Admin → Programs**. Add a program, search by code/name, edit metadata, archive or restore. Open its workspace:
 
 - **Patterns:** create an edition and authority, languages, timing and exact scoring; add sections and blocks. Sample patterns must remain sample-only.

@@ -12,6 +12,12 @@ from pydantic import BaseModel, Field, field_validator
 from llm_extract import gcp_project_id, gcp_region
 
 SYSTEM_PROMPT_VERSION = "question-generation-v1"
+
+
+def configured_vertex_model():
+    """Shared default for application-native Gemini authoring and program setup."""
+    return os.getenv('VERTEX_MODEL_PRIMARY') or 'gemini-3.5-flash'
+
 SYSTEM_INSTRUCTION = """You are an AI question-generation engine integrated into a digital question bank.
 Generate questions according to the detailed generation prompt supplied by the administrator.
 Use the supplied examination metadata and syllabus as contextual information. The administrator's generation prompt defines the intended examination style, reasoning level, curriculum usage, difficulty characteristics and question-generation behaviour.
@@ -148,7 +154,7 @@ def fingerprint(statement: str) -> str:
 
 def generate_prompt_guidance(request: PromptGuidanceRequest, client=None) -> tuple[PromptGuidance,str]:
     if not gcp_project_id():raise RuntimeError("Vertex AI is unavailable. Configure GCP_PROJECT_ID and credentials.")
-    model=os.getenv("VERTEX_MODEL_PRIMARY","gemini-3.5-flash")
+    model=configured_vertex_model()
     from google.genai import types
     if client is None:
         from google import genai
@@ -199,7 +205,7 @@ def parse_generated_batch(response) -> GeneratedQuestionBatch:
 
 def generate_questions(request: GenerationRequest, client=None) -> tuple[GeneratedQuestionBatch, dict, str]:
     if not gcp_project_id(): raise RuntimeError("Vertex AI is unavailable. Configure GCP_PROJECT_ID and credentials.")
-    model=os.getenv("VERTEX_MODEL_PRIMARY", "gemini-3.5-flash")
+    model=configured_vertex_model()
     if client is None:
         from google import genai
         from google.genai import types

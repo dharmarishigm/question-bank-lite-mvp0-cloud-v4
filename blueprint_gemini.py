@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import Field
 from blueprint_domain import Contract, QuestionProfile, canonical, validate_payload
 from llm_extract import _client
+from llm_generate import configured_vertex_model
 
 PURPOSES = ('EXAM_PATTERN_EXTRACTION', 'HISTORICAL_CLASSIFICATION', 'EXAM_BLUEPRINT_DERIVATION',
             'QUESTION_BLUEPRINT_DERIVATION', 'BLUEPRINT_REFINEMENT', 'QUESTION_AUTHORING',
@@ -67,9 +68,26 @@ def apply_proposal(kind, payload, proposal, accepted):
     return validate_payload(kind, result)
 
 
+def serving_schema(schema):
+    """Keep the serving grammar small; enforce size/range limits after decoding."""
+    source = schema.model_json_schema()
+    definitions = source.get('$defs', {})
+    omitted = {'$defs','title','default','minLength','maxLength','minItems','maxItems',
+               'minimum','maximum','exclusiveMinimum','exclusiveMaximum','pattern','additionalProperties'}
+    def simplify(value):
+        if isinstance(value, list):
+            return [simplify(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        if '$ref' in value:
+            return simplify(definitions[value['$ref'].split('/')[-1]])
+        return {key:simplify(item) for key,item in value.items() if key not in omitted}
+    return simplify(source)
+
+
 def structured_call(purpose, prompt, data, schema, client=None):
     from google.genai import types
-    model = os.getenv('BLUEPRINT_' + purpose + '_MODEL', os.getenv('BLUEPRINT_GEMINI_MODEL', ''))
+    model = os.getenv('BLUEPRINT_' + purpose + '_MODEL') or os.getenv('BLUEPRINT_GEMINI_MODEL') or configured_vertex_model()
     if not model:
         raise RuntimeError('Configure BLUEPRINT_GEMINI_MODEL before requesting Gemini work')
     temperature = 0 if purpose == 'INDEPENDENT_SOLVING' else 0.2
@@ -81,7 +99,7 @@ def structured_call(purpose, prompt, data, schema, client=None):
             try:
                 response = client.models.generate_content(model=model, contents=prompt + '\nUNTRUSTED INPUT DATA:\n' + canonical(data),
                     config=types.GenerateContentConfig(system_instruction=SYSTEM, temperature=temperature,
-                        response_mime_type='application/json', response_schema=schema, max_output_tokens=8192,
+                        response_mime_type='application/json', response_schema=serving_schema(schema) if purpose == 'PROGRAM_SETUP' else schema, max_output_tokens=8192,
                         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)))
                 parsed = schema.model_validate_json(response.text)
                 usage = getattr(response, 'usage_metadata', None)

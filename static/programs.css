@@ -14,3 +14,10 @@
 #programs-panel table {display:block;max-width:100%;overflow:auto;border-collapse:collapse}
 #programs-panel td {border:1px solid #d5e1e5;padding:7px}
 #programs-panel [data-program-tab][aria-current=true] {background:#155e75;color:white}
+.program-setup-results,.program-setup-card {min-width:0;max-width:100%;overflow-wrap:anywhere}
+.program-setup-card {padding:14px;margin:12px 0;border:1px solid #c8dee0;border-radius:12px;background:#fff}
+.program-setup-card>strong {display:block;white-space:normal;color:#855419;background:#fff8e8;padding:10px;border-radius:8px}
+.program-setup-card .data-grid {grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:8px}
+.program-setup-card .data-grid p {padding:8px;background:#edf7f5;border-radius:8px;margin:4px 0;font-weight:600}
+.program-setup-card ul {padding-left:20px}
+.program-setup-card .actions button {white-space:normal;max-width:100%}

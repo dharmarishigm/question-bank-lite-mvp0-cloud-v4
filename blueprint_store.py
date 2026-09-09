@@ -88,6 +88,8 @@ CREATE INDEX IF NOT EXISTS idx_blueprint_audit_program ON blueprint_audit_events
 def init_blueprints():
     from contextlib import closing
     from platform_api import db
+    from program_setup_schema import SCHEMA as SETUP_SCHEMA
     with closing(db()) as conn:
         conn.executescript(SCHEMA)
+        conn.executescript(SETUP_SCHEMA)
         conn.commit()
