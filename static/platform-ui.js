@@ -147,7 +147,7 @@ $('admin-login-form').onsubmit=async e=>{e.preventDefault();$('login-message').t
 $('mock-signin').onclick=async()=>finishLogin(await api('/api/auth/mock',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}));
 $('auth-logout').onclick=async()=>{await api('/api/auth/logout',{method:'POST'});location.reload();};
 $('login-close').onclick=()=>location.assign('/');
-$('workspace-switch').onclick=()=>setWorkspace($('workspace-switch').dataset.mode==='student'?'admin':'student');
+$('workspace-switch').onclick=()=>{setWorkspace($('workspace-switch').dataset.mode==='student'?'admin':'student');document.querySelectorAll('.account-menu[open]').forEach(panel=>panel.open=false);$('app-shell').classList.remove('nav-open');$('sidebar-toggle').setAttribute('aria-expanded','false');};
 $('student-profile-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/student/profile',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({full_name:$('profile-name').value,date_of_birth:$('profile-dob').value,phone_number:$('profile-phone').value,school_name:$('profile-school').value})});notify('Profile saved.');}catch(err){notify(err.message);}};
 async function bootstrapPublicRegistration(){
   const match=location.pathname.match(/^\/register\/exam\/([^/]+)$/);if(!match)return false;
@@ -155,6 +155,7 @@ async function bootstrapPublicRegistration(){
   try{
     const exam=await fetch(`/api/register/exam/${token}`,{cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw new Error(d.detail);return d;});
     $('public-exam-name').textContent=exam.name;$('public-exam-summary').textContent=`${exam.subject||'Examination'} · ${exam.duration_minutes} minutes`;
+    if(window.setupSharedGoogleEnrollment&&await window.setupSharedGoogleEnrollment(token,exam))return true;
     const showRegistration=()=>{$('public-registration-form').hidden=false;$('public-student-login-form').hidden=true;$('public-new-registration').classList.add('primary');$('public-continue-login').classList.remove('primary');$('public-registration-message').textContent='';};
     const showStudentLogin=()=>{$('public-registration-form').hidden=true;$('public-student-login-form').hidden=false;$('public-new-registration').classList.remove('primary');$('public-continue-login').classList.add('primary');$('public-student-login-form').elements.email.focus();};
     $('public-new-registration').onclick=showRegistration;$('public-continue-login').onclick=showStudentLogin;

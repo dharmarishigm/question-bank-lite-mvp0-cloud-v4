@@ -123,3 +123,13 @@ gcloud run services update-traffic question-bank-cloud-v4 \
 ```
 
 All application and delivery-report commits are confined to the pushed Codex feature branch. The pre-existing untracked `.DS_Store` was left untouched.
+
+## Mentor conversation and shared enrollment — September 2026
+
+The follow-up delivery is on `codex/feature-mentor-verified-enrollment`, based on the UI-density branch. IQraMentor now uses short conversational turns with structured bullets, a single follow-up question, suggested replies, history titles, retry state, and a compact evidence panel. Telugu and other model output remains rendered through the existing safe markdown path; model image syntax is removed before rendering.
+
+Google Identity Services remains the identity check for shared enrollment. A learner following a public exam link signs in with Google, the server uses the verified Google identity, and the learner supplies a mobile number that is reserved against duplicate registration before enrollment. The enrollment route is idempotent for the same learner and rejects a previously claimed mobile number owned by another account. Existing users, enrollments, attempts, and legacy duplicate records are preserved; the new identity table records legacy conflicts without merging or deleting data. Proctoring, exam windows, capacity, and normal start checks remain enforced.
+
+SMS OTP and email OTP are intentionally out of scope for this release, per product direction. The mobile field is recorded and duplicate-protected, but it is not presented as independently verified. Brevo and Fast2SMS secrets were not added or changed.
+
+Validation for this delivery includes 103 backend tests, both existing Node UI suites, JavaScript syntax and diff checks, synthetic Google shared-link enrollment with retry/capacity coverage, duplicate email/mobile and legacy-conflict coverage, private conversation-history checks, Chromium phone/desktop interaction checks, and a live two-turn Vertex response with continuity. Machine-readable evidence is in `docs/validation/mentor-registration-ui.json` and `docs/validation/mentor-live-model.json`. Deployment details are appended after the Cloud Run promotion.
