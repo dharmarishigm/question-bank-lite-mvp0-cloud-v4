@@ -128,6 +128,20 @@
 #app-header #sidebar-toggle { min-width:48px; min-height:44px; font-size:18px; }
 @media(max-width:800px){#app-header #sidebar-toggle{order:-1;flex-basis:48px;margin-right:4px}.sidebar nav button{min-height:44px}.sidebar{width:min(280px,88vw)}#app-header .brand-symbol{width:38px;height:38px;flex-basis:38px}#app-header .app-brand-name{font-size:17px}.account-menu summary{padding:4px}.ai-question-grid{grid-template-columns:1fr}.ai-question-card .ai-question-body{max-height:none}.explain-language-label select{min-width:110px}.modal-head{flex-wrap:wrap}.explain-hero h2{font-size:20px}.exam-focus #main-content{padding:10px 8px max(16px,env(safe-area-inset-bottom))}.exam-option-item{min-height:48px;padding:12px}.exam-question-card img,.exam-question-card svg{max-width:100%;height:auto}}
 .public-account { position:relative; min-width:120px; max-width:220px; }
+.result-history-card { gap:6px 14px; padding:12px; border-top:4px solid #168c85; }
+.result-history-card h3 { font-weight:850; }
+.result-history-card p { font-size:12px; }
+.result-history-score { font-weight:900; }
+.result-history-marks { color:var(--muted); font-size:12px; }.result-history-marks strong { color:var(--ink); font-size:14px; }
+.result-history-actions { display:flex; flex-wrap:wrap; gap:7px; grid-column:1/-1; }.result-history-actions button { min-height:34px; padding:7px 11px; font-weight:800; }
+.result-tone-strong { border-top-color:#15966b; background:linear-gradient(135deg,#fff,#f0fbf6); }.result-tone-strong .result-history-score { color:#08764f; }
+.result-tone-steady { border-top-color:#d28b24; background:linear-gradient(135deg,#fff,#fff9ed); }.result-tone-steady .result-history-score { color:#9b6208; }
+.result-tone-focus { border-top-color:#d34b58; background:linear-gradient(135deg,#fff,#fff3f3); }.result-tone-focus .result-history-score { color:#b52e3d; }
+.mentor-drawer { border:1px solid #9ccfc4; box-shadow:0 18px 55px #173d5b35; }
+.mentor-drawer header { color:#fff; background:linear-gradient(120deg,#123f72,#087f78 70%,#23aa86); border-bottom:0; }.mentor-drawer header small { color:#d8f6ef; }.mentor-drawer header button { color:#fff; background:#ffffff20; border-color:#ffffff4d; }
+.mentor-message.assistant { background:linear-gradient(135deg,#eefaf7,#f4f1ff); border-left:3px solid #168c85; }.mentor-message.user { background:#edf3ff; border-left:3px solid #5879cf; }
+.mentor-prompts button { color:#075a72; background:#edf7f6; border-color:#b9ded5; font-weight:750; }.mentor-drawer form button { color:#fff; background:linear-gradient(135deg,#087f78,#6350b8); border:0; font-weight:850; }
+.page-header h2,.section-heading h2,.section-heading h3 { font-weight:850; letter-spacing:-.02em; }.tab-panel button,.main-tabs button { font-weight:750; }
 .public-account summary { display:grid; padding:6px 12px; border:1px solid #c9d9e1; border-radius:9px; cursor:pointer; color:#073d78; }
 .public-account-name { font-weight:750; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }.public-account-role { color:#176b63; font-size:11px; }
 .public-account-menu { position:absolute; right:0; top:100%; z-index:60; display:grid; gap:10px; min-width:240px; padding:14px; background:white; color:#17212b; border:1px solid #dce3e8; border-radius:9px; box-shadow:0 8px 30px #102d2a20; }.public-account-email { overflow-wrap:anywhere; font-size:12px; }

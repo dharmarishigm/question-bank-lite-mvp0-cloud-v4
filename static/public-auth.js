@@ -14,12 +14,12 @@
       document.head.append(script);
     }else if(config.mock){byId('mock-signin').hidden=false;}
     else if(config.bootstrap_available)byId('login-message').textContent='Create the first administrator to complete initial setup.';
-    else if(config.local_admin)byId('login-message').textContent='Google sign-in is not configured. Use administrator login below.';
+    else if(config.local_admin)byId('login-message').textContent='Google sign-in is not configured. Use Login below.';
     else byId('login-message').textContent='Google sign-in is not configured. Set GOOGLE_CLIENT_ID and restart the app.';
   });
   document.addEventListener('meritiqra:login-mode',event=>{
     const admin=event.detail.mode==='admin';
-    byId('login-title').textContent=admin?'Administrator login':'Student login';
+    byId('login-title').textContent=admin?'Administrator login':'Student login';byId('admin-login-toggle').textContent=admin?'Login':'Login';
     byId('student-google-prompt').hidden=admin;byId('google-signin').hidden=admin;byId('mock-signin').hidden=admin||!authConfig.mock;
     byId('admin-login-toggle').hidden=true;byId('admin-login-form').hidden=!admin;
     byId('bootstrap-admin-toggle').hidden=true;byId('bootstrap-admin-form').hidden=true;
