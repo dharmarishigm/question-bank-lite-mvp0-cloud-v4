@@ -1,0 +1,5 @@
+/* Only packaged public assets are cached. API, HTML, uploads and identities never enter this cache. */
+const VERSION='meritiqra-static-20260909-conversations';
+self.addEventListener('install',event=>{event.waitUntil(caches.open(VERSION).then(cache=>cache.addAll(['/static/app-icon.svg','/static/workspace-density.css?v=20260909-conversations'])));self.skipWaiting();});
+self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('meritiqra-static-')&&key!==VERSION).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
+self.addEventListener('fetch',event=>{const url=new URL(event.request.url);if(event.request.method!=='GET'||url.origin!==self.location.origin||!/^\/static\/[^?]+\.(?:css|js|svg|woff2?)$/.test(url.pathname))return;event.respondWith(fetch(event.request).then(response=>{if(response.ok){const copy=response.clone();event.waitUntil(caches.open(VERSION).then(cache=>cache.put(event.request,copy)));}return response;}).catch(()=>caches.match(event.request)));});

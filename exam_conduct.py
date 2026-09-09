@@ -113,12 +113,15 @@ async def start(exam_id:int,request:Request):
 async def security_event(session_id:int,request:Request):
     from platform_api import _auth,_submit
     user=_auth(request,True);body=await request.json();kind=str(body.get('event_type','')).upper()
-    allowed={'COPY_ATTEMPT','CUT_ATTEMPT','PASTE_ATTEMPT','CONTEXT_MENU','PRINT_ATTEMPT','DEVTOOLS_SHORTCUT','TAB_SWITCH','WINDOW_BLUR','FULLSCREEN_EXIT','NAVIGATION_ATTEMPT'}
+    allowed={'APP_BACKGROUND','APP_FOREGROUND','COPY_ATTEMPT','CUT_ATTEMPT','PASTE_ATTEMPT','CONTEXT_MENU','PRINT_ATTEMPT','DEVTOOLS_SHORTCUT','TAB_SWITCH','WINDOW_BLUR','FULLSCREEN_EXIT','NAVIGATION_ATTEMPT'}
     if kind not in allowed:raise HTTPException(422,'Invalid security event')
     with closing(db()) as conn:
         session=conn.execute("SELECT * FROM exam_sessions WHERE id=? AND user_id=?",(session_id,user['id'])).fetchone()
         if not session:raise HTTPException(404,'Active exam session not found')
         if session['status']!='IN_PROGRESS':return {'recorded':False,'status':session['status']}
+        if kind in {'APP_BACKGROUND','APP_FOREGROUND'}:
+            audit(conn,kind,exam_id=session['exam_id'],user_id=user['id'],session_id=session_id);conn.commit()
+            return {'recorded':True,'signal_only':True}
         audit(conn,'SECURITY_VIOLATION',exam_id=session['exam_id'],user_id=user['id'],session_id=session_id,metadata={'type':kind})
         count=conn.execute("SELECT COUNT(*) n FROM exam_audit_log WHERE session_id=? AND event_type='SECURITY_VIOLATION'",(session_id,)).fetchone()['n']
         maximum=max(1,int(os.getenv('EXAM_SECURITY_MAX_VIOLATIONS','3')))
@@ -240,13 +243,13 @@ def registrations(exam_id:int,request:Request):
         linked=[dict(r) for r in conn.execute("SELECT r.*,u.email,u.display_name,e.max_attempts exam_max_attempts,COALESCE(r.max_attempts_override,e.max_attempts) effective_max_attempts,(SELECT COUNT(*) FROM exam_sessions s WHERE s.registration_id=r.id) attempts_used FROM exam_enrollments r JOIN users u ON u.id=r.user_id JOIN exams e ON e.id=r.exam_id WHERE r.exam_id=?",(exam_id,)).fetchall()];pending=[dict(r) for r in conn.execute("SELECT * FROM pending_exam_registrations WHERE exam_id=?",(exam_id,)).fetchall()]
     return {"linked":linked,"pending":pending}
 
-def _registration_link(conn,token):
+def _registration_link(conn,token,check_capacity=True):
     digest=hashlib.sha256(token.encode()).hexdigest();now=time.time()
     row=conn.execute("SELECT l.*,e.name,e.description,e.subject,e.level,e.duration_minutes FROM exam_registration_links l JOIN exams e ON e.id=l.exam_id WHERE l.token_hash=?",(digest,)).fetchone()
     if not row:raise HTTPException(404,"Registration link is invalid")
     if row["status"]!="ACTIVE":raise HTTPException(410,"Registration link has been revoked")
     if row["valid_from"]>now or (row["valid_until"] and row["valid_until"]<now):raise HTTPException(410,"Registration link has expired")
-    if row["max_registrations"] is not None and row["registration_count"]>=row["max_registrations"]:raise HTTPException(410,"Registration link has reached its limit")
+    if check_capacity and row["max_registrations"] is not None and row["registration_count"]>=row["max_registrations"]:raise HTTPException(410,"Registration link has reached its limit")
     return row
 
 @router.post("/admin/exams/{exam_id}/registration-links")
@@ -287,6 +290,8 @@ async def public_registration(token:str,request:Request):
     with closing(db()) as conn:
         try:
             conn.execute("BEGIN IMMEDIATE");link=_registration_link(conn,token)
+            from registration_identity import reserve_email,reserve_phone
+            reserve_email(conn,email);reserve_phone(conn,phone,email)
             existing=conn.execute("SELECT 1 FROM pending_exam_registrations WHERE exam_id=? AND lower(registered_email)=? AND status IN ('PENDING','LINKED')",(link["exam_id"],email)).fetchone()
             if existing:raise HTTPException(409,"This email is already registered for the exam")
             conn.execute("INSERT INTO pending_exam_registrations(exam_id,registered_email,status,registration_source,created_by,created_at,updated_at,full_name,date_of_birth,phone_number,school_name,registration_link_id) VALUES(?,?,'PENDING','SHARED_LINK',?,?,?,?,?,?,?,?)",(link["exam_id"],email,link["created_by"],now,now,name,dob,phone,school,link["id"]));conn.execute("UPDATE exam_registration_links SET registration_count=registration_count+1 WHERE id=?",(link["id"],));conn.commit()
@@ -304,7 +309,10 @@ async def update_student_profile(request:Request):
     from platform_api import _auth
     user=_auth(request,True);body=await request.json();name=str(body.get("full_name","")).strip();dob=str(body.get("date_of_birth","")).strip();phone=str(body.get("phone_number","")).strip();school=str(body.get("school_name","")).strip()
     if not name or not dob or not re.fullmatch(r"[+0-9 ()-]{7,20}",phone) or not school:raise HTTPException(422,"Complete all profile fields")
-    with closing(db()) as conn:conn.execute("UPDATE users SET display_name=?,date_of_birth=?,phone_number=?,school_name=?,profile_completed=1,updated_at=? WHERE id=?",(name,dob,phone,school,time.time(),user["id"]));conn.commit()
+    with closing(db()) as conn:
+        from registration_identity import reserve_phone,phone_key
+        if phone_key(user['phone_number'])!=phone_key(phone):reserve_phone(conn,phone,user['email'])
+        conn.execute("UPDATE users SET display_name=?,date_of_birth=?,phone_number=?,school_name=?,profile_completed=1,updated_at=? WHERE id=?",(name,dob,phone,school,time.time(),user["id"]));conn.commit()
     return {"saved":True}
 
 @router.put("/admin/exams/{exam_id}/registrations/{registration_id}/status")
@@ -388,3 +396,35 @@ def proctor_dashboard(exam_id:int,request:Request):
         exam=conn.execute("SELECT id,name,status,exam_start_at,exam_end_at,assigned_proctor_id FROM exams WHERE id=?",(exam_id,)).fetchone();counts=conn.execute("SELECT COUNT(*) total,SUM(CASE WHEN status='IN_PROGRESS' THEN 1 ELSE 0 END) active,SUM(CASE WHEN status IN ('SUBMITTED','AUTO_SUBMITTED') THEN 1 ELSE 0 END) submitted FROM exam_sessions WHERE exam_id=?",(exam_id,)).fetchone();registered=conn.execute("SELECT COUNT(*) n FROM exam_enrollments WHERE exam_id=? AND status='ENROLLED'",(exam_id,)).fetchone()["n"]
     if not exam:raise HTTPException(404,"Exam not found")
     return {"exam":dict(exam),"registered_students":registered,"students_started":counts["total"],"currently_active":counts["active"] or 0,"submitted":counts["submitted"] or 0,"not_started":max(0,registered-(counts["total"] or 0))}
+
+@router.post('/register/exam/{token}/enroll')
+async def enroll_shared_link(token:str,request:Request):
+    from platform_api import _auth
+    from registration_identity import reserve_email,reserve_phone,phone_key
+    user=_auth(request,True)
+    if user['role']!='STUDENT' or not user['email_verified']:raise HTTPException(403,'Sign in with Google to enroll using this link.')
+    body=await request.json();phone=str(body.get('phone_number','')).strip()
+    if not re.fullmatch(r'\+?[0-9 ()-]{10,20}',phone) or not 10<=len(re.sub(r'\D','',phone))<=15:raise HTTPException(422,'Enter a valid mobile number including the country code.')
+    now=time.time()
+    with closing(db()) as conn:
+        try:
+            conn.execute('BEGIN IMMEDIATE')
+            # Serialize link-capacity checks across Cloud Run instances.
+            digest=hashlib.sha256(token.encode()).hexdigest()
+            conn.execute('UPDATE exam_registration_links SET registration_count=registration_count WHERE token_hash=?',(digest,))
+            link=_registration_link(conn,token,check_capacity=False)
+            exam=conn.execute('SELECT * FROM exams WHERE id=?',(link['exam_id'],)).fetchone()
+            if exam['status'] not in {'PUBLISHED','OPEN'} or not exam['allow_registration_link']:raise HTTPException(409,'Registration is not available for this exam.')
+            if (exam['registration_start_at'] and now<exam['registration_start_at']) or (exam['registration_end_at'] and now>exam['registration_end_at']):raise HTTPException(403,'Registration window is closed.')
+            existing=conn.execute('SELECT status FROM exam_enrollments WHERE exam_id=? AND user_id=?',(link['exam_id'],user['id'])).fetchone()
+            if existing:
+                if existing['status'] not in {'ENROLLED','COMPLETED'}:raise HTTPException(403,'This registration is not active. Contact the exam administrator.')
+                return {'enrolled':True,'already_enrolled':True,'exam_id':link['exam_id']}
+            if link['max_registrations'] is not None and link['registration_count']>=link['max_registrations']:raise HTTPException(410,'Registration link has reached its limit.')
+            reserve_email(conn,user['email']);reserve_phone(conn,phone,user['email'])
+            conn.execute('UPDATE users SET phone_number=?,updated_at=? WHERE id=?',(phone,now,user['id']))
+            conn.execute("INSERT INTO exam_enrollments(exam_id,user_id,status,registered_at,created_at,updated_at,registered_email,registration_source,created_by,registration_link_id) VALUES(?,?,'ENROLLED',?,?,?,?,'SHARED_LINK',?,?)",(link['exam_id'],user['id'],now,now,now,user['email'],user['id'],link['id']))
+            conn.execute('UPDATE exam_registration_links SET registration_count=registration_count+1 WHERE id=?',(link['id'],))
+            audit(conn,'SHARED_LINK_ENROLLED',exam_id=link['exam_id'],user_id=user['id']);conn.commit()
+        except Exception:conn.rollback();raise
+    return {'enrolled':True,'exam_id':link['exam_id']}

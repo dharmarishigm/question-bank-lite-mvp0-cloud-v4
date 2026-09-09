@@ -6,7 +6,7 @@ from contextlib import closing
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Cookie, Header, HTTPException, Request, Response
+from fastapi import BackgroundTasks, APIRouter, Cookie, Header, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field, ValidationError
 
@@ -80,11 +80,15 @@ def init_platform():
     init_exam_conduct()
     from tutor_agent import init_tutor
     init_tutor()
+    from mobile_api import init_mobile
+    init_mobile()
+    from registration_identity import init_identities
+    init_identities()
 
 def _hash(value: str) -> str: return hashlib.sha256(value.encode()).hexdigest()
 def _admins(): return {x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
 def _public_user(row):
-    return {k: row[k] for k in ('id','email','display_name','given_name','family_name','profile_picture','role','status')}
+    return {**{k: row[k] for k in ('id','email','display_name','given_name','family_name','profile_picture','role','status')},'email_verified':bool(row['email_verified'])}
 
 def _local_request(request: Request) -> bool:
     host=(request.client.host if request.client else '').split('%')[0]
@@ -99,16 +103,22 @@ def _bootstrap_available(request: Request) -> bool:
         return conn.execute('SELECT COUNT(*) n FROM users').fetchone()['n']==0
 
 def _create_login(identity: dict, response: Response):
-    sub, email = str(identity.get('sub','')), str(identity.get('email','')).lower()
+    sub, email = str(identity.get('sub','')), str(identity.get('email','')).strip().lower()
     if not sub or not email or not identity.get('email_verified'): raise HTTPException(401,'Verified Google identity required')
     now=time.time(); role='ADMIN' if email in _admins() else 'STUDENT'
     with closing(db()) as conn:
+        from registration_identity import reserve_email,reserve_phone,phone_key
+        reserve_email(conn,email)
         row=conn.execute('SELECT * FROM users WHERE google_sub=?',(sub,)).fetchone()
         if not row:
-            bootstrap=conn.execute("SELECT * FROM users WHERE lower(email)=? AND google_sub LIKE 'bootstrap:%'",(email,)).fetchone()
-            if bootstrap:
-                conn.execute('UPDATE users SET google_sub=? WHERE id=?',(sub,bootstrap['id']))
-                row=conn.execute('SELECT * FROM users WHERE id=?',(bootstrap['id'],)).fetchone()
+            existing=conn.execute("SELECT * FROM users WHERE lower(trim(email))=? ORDER BY email_verified DESC,id LIMIT 1",(email,)).fetchone()
+            if existing:
+                if not existing['google_sub'].startswith(('bootstrap:','registration:')):
+                    raise HTTPException(409,'This email already belongs to an account. Sign in using the original Google account.')
+                conn.execute('UPDATE users SET google_sub=? WHERE id=?',(sub,existing['id']))
+                row=conn.execute('SELECT * FROM users WHERE id=?',(existing['id'],)).fetchone()
+        if row and row['email'].strip().lower()!=email and conn.execute('SELECT 1 FROM users WHERE lower(trim(email))=? AND id<>?',(email,row['id'])).fetchone():
+            raise HTTPException(409,'This email is already registered to another account.')
         if row:
             next_role = 'ADMIN' if email in _admins() else row['role']
             conn.execute('UPDATE users SET email=?,email_verified=1,display_name=?,given_name=?,family_name=?,profile_picture=?,role=?,last_login_at=?,updated_at=? WHERE id=?',
@@ -121,6 +131,10 @@ def _create_login(identity: dict, response: Response):
         for registration in pending:
             conn.execute("INSERT INTO exam_enrollments(exam_id,user_id,status,registered_at,created_at,updated_at,registered_email,registration_source,created_by,full_name_snapshot,registration_link_id) VALUES(?,?,'ENROLLED',?,?,?,?,?,?,?,?) ON CONFLICT(exam_id,user_id) DO NOTHING",(registration['exam_id'],uid,now,now,now,email,registration['registration_source'],registration['created_by'],registration['full_name'],registration['registration_link_id']))
             if registration['full_name']:
+                try:reserve_phone(conn,registration['phone_number'],email)
+                except HTTPException:
+                    # Preserve the account and its history; conflicting legacy profile data is not copied.
+                    continue
                 conn.execute("UPDATE users SET display_name=?,date_of_birth=?,phone_number=?,school_name=?,profile_completed=1,updated_at=? WHERE id=?",(registration['full_name'],registration['date_of_birth'],registration['phone_number'],registration['school_name'],now,uid))
             conn.execute("UPDATE pending_exam_registrations SET status='LINKED',updated_at=? WHERE id=?",(now,registration['id']))
         raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(24)
@@ -209,14 +223,18 @@ async def admin_login(request:Request,response:Response):
 async def student_registration_login(request:Request,response:Response):
     data=await request.json();email=str(data.get('email','')).strip().lower();dob=str(data.get('date_of_birth','')).strip();phone=re.sub(r'\D','',str(data.get('phone_number','')));now=time.time()
     with closing(db()) as conn:
+        from registration_identity import reserve_email,reserve_phone,phone_key
+        reserve_email(conn,email)
         pending=conn.execute("SELECT * FROM pending_exam_registrations WHERE lower(registered_email)=? AND status IN ('PENDING','LINKED') ORDER BY id DESC",(email,)).fetchall()
         match=next((r for r in pending if r['date_of_birth']==dob and re.sub(r'\D','',r['phone_number'])==phone),None)
         if not match:raise HTTPException(401,'Registration details do not match. Use the email, date of birth and phone entered during registration.')
         user=conn.execute("SELECT * FROM users WHERE lower(email)=?",(email,)).fetchone()
         if user and user['role']!='STUDENT':raise HTTPException(403,'This email belongs to a staff account')
         if not user:
+            reserve_phone(conn,match['phone_number'],email)
             cur=conn.execute("INSERT INTO users(google_sub,email,email_verified,display_name,role,status,created_at,updated_at,last_login_at,date_of_birth,phone_number,school_name,profile_completed) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,1)",(f"registration:{secrets.token_urlsafe(18)}",email,0,match['full_name'],'STUDENT','ACTIVE',now,now,now,match['date_of_birth'],match['phone_number'],match['school_name']));uid=cur.lastrowid
         else:
+            if phone_key(user['phone_number'])!=phone_key(match['phone_number']):reserve_phone(conn,match['phone_number'],email)
             uid=user['id'];conn.execute("UPDATE users SET display_name=?,date_of_birth=?,phone_number=?,school_name=?,profile_completed=1,last_login_at=?,updated_at=? WHERE id=?",(match['full_name'],match['date_of_birth'],match['phone_number'],match['school_name'],now,now,uid))
         for registration in pending:
             if registration['status']=='PENDING' and registration['date_of_birth']==dob and re.sub(r'\D','',registration['phone_number'])==phone:
@@ -358,6 +376,8 @@ async def public_exam_registration(exam_id:int,request:Request,response:Response
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}',dob):raise HTTPException(422,'Enter a valid date of birth')
     if not re.fullmatch(r'[^\s@]+@gmail\.com',email):raise HTTPException(422,'Enter a valid Gmail address')
     with closing(db()) as conn:
+        from registration_identity import reserve_email
+        reserve_email(conn,email)
         exam=conn.execute("SELECT * FROM exams WHERE id=? AND status='OPEN' AND allow_self_registration=1",(exam_id,)).fetchone()
         if not exam:raise HTTPException(404,'This exam is not available for public registration')
         if (exam['registration_start_at'] and now<exam['registration_start_at']) or (exam['registration_end_at'] and now>exam['registration_end_at']):raise HTTPException(403,'Registration window is closed')
@@ -502,7 +522,7 @@ def start_exam(exam_id:int,request:Request):
 def get_session(sid:int,request:Request):
     user=_auth(request)
     with closing(db()) as conn:
-        s=_session(conn,sid,user['id']); exam=conn.execute('SELECT name,instructions FROM exams WHERE id=?',(s['exam_id'],)).fetchone()
+        s=_session(conn,sid,user['id']); exam=conn.execute('SELECT name,instructions,proctor_required FROM exams WHERE id=?',(s['exam_id'],)).fetchone()
         snapshot=json.loads(s['question_set_json'] or '[]') if 'question_set_json' in s.keys() else []
         if snapshot:
             answers={r['question_id']:r for r in conn.execute('SELECT question_id,selected_answer,answer_payload_json,status FROM exam_answers WHERE session_id=?',(sid,)).fetchall()};questions=[{'id':q['id'],'number':q['display_order'],'statement':q['statement'],'options':q['options'],'marks':q['marks'],'section':q.get('section_name',''),'selected_answer':answers[q['id']]['selected_answer'] if q['id'] in answers else '','state':answers[q['id']]['status'] if q['id'] in answers else 'NOT_VISITED'} for q in snapshot]
@@ -523,7 +543,7 @@ async def save_answer(sid:int,qid:int,request:Request):
         audit(conn,'ANSWER_SAVED',exam_id=s['exam_id'],user_id=user['id'],session_id=sid,metadata={'question_id':qid});conn.commit()
     return {'saved':True}
 @router.post('/sessions/{sid}/submit')
-def submit(sid:int,request:Request):
+def submit(sid:int,request:Request,background_tasks:BackgroundTasks):
     user=_auth(request,True)
     with closing(db()) as conn:
         s=_session(conn,sid,user['id'])
@@ -531,6 +551,8 @@ def submit(sid:int,request:Request):
         _submit(conn,s)
         from exam_conduct import audit
         audit(conn,'EXAM_SUBMITTED',exam_id=s['exam_id'],user_id=user['id'],session_id=sid);conn.commit()
+    from mobile_notifications import notify_result
+    background_tasks.add_task(notify_result,user['id'])
     return {'submitted':True}
 @router.get('/my/results')
 def results(request:Request):

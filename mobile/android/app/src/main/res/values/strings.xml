@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">MeritIQra</string>
+    <string name="title_activity_main">MeritIQra</string>
+    <string name="package_name">com.meritiqra.app</string>
+    <string name="custom_url_scheme">com.meritiqra.app</string>
+</resources>

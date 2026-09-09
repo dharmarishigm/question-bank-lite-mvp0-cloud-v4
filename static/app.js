@@ -81,6 +81,12 @@ function renderMarkdownBlocks(text) {
       i += 1;
       continue;
     }
+    if (/^\s*\|.*\|\s*$/.test(line) && /^[\s|:-]+$/.test(lines[i+1] || '') && (lines[i+1] || '').includes('|')) {
+      const table = [lines[i++], lines[i++]];
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) table.push(lines[i++]);
+      blocks.push(renderTables(table).join(''));
+      continue;
+    }
     if (/^#{1,6}\s+/.test(line)) {
       const match = line.match(/^(#{1,6})\s+(.*)$/);
       if (match) {
@@ -440,6 +446,7 @@ document.querySelectorAll('.toolbar').forEach((bar) => {
 });
 
 function renderStructuredExplanation(target, body) {
+  target.lang=body?.language==='te'?'te':'en';
   const data = body?.structured;
   target.dataset.rawExplanation = body?.explanation || '';
   target.dataset.structured = data ? JSON.stringify(data) : '';
@@ -919,7 +926,8 @@ function openCropModal(index) {
 async function openPdfModal(data) {
   parsed = data.questions || [];
   switchReviewTab('documents');
-  const status = await refreshOcrStatus();
+  const status = await refreshOcrStatus().catch(()=>({cloud:{available:false}}));
+  $('upload-crop-panel').append($('pdf-modal'));
   switchMainTab('upload-crop');
   $('pdf-mode-note').textContent = modeNote(data);
   $('pdf-reocr').hidden = !(status.cloud || {}).available || data.source_document?.mime_type !== 'application/pdf';
@@ -935,6 +943,7 @@ async function openPdfModal(data) {
   $('p-image-only').checked = !!data.mostly_garbled;
   $('pdf-list').scrollTop = 0;
   $('pdf-modal').hidden = false;
+  $('pdf-modal').scrollIntoView({block:'start',behavior:'smooth'});
 }
 
 $('pdf-list').addEventListener('click', async (e) => {
@@ -1154,6 +1163,7 @@ function setUploadStatus(isProcessing, message = 'Processing…') {
 }
 
 function showPdfLoadingState(message = 'Processing document…') {
+  $('upload-crop-panel').append($('pdf-modal'));
   switchMainTab('upload-crop');
   $('pdf-modal').hidden = false;
   $('pdf-mode-note').textContent = message;
@@ -1616,7 +1626,7 @@ function clearCurrentAnswer() {
   const questionKey = getExamQuestionKey(examState.currentIndex);
   delete examState.answers[questionKey];
   const sessionId=$('exam-current-question')?.dataset.session;
-  if(sessionId){const question=examState.questions[examState.currentIndex];fetch(`/api/sessions/${sessionId}/answers/${question.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({selected_answer:''})}).catch(()=>notify('Could not clear saved answer.'));}
+  if(sessionId&&window.MeritIQraNative){window.saveMobileAnswer?.(sessionId,examState.questions[examState.currentIndex].id,'');}else if(sessionId){const question=examState.questions[examState.currentIndex];fetch(`/api/sessions/${sessionId}/answers/${question.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({selected_answer:''})}).catch(()=>notify('Could not clear saved answer.'));}
   renderExamNav();
   renderExamCurrentQuestion();
 }
@@ -1625,6 +1635,7 @@ function moveExamQuestion(nextIndex) {
   if (!examState.questions.length) return;
   examState.currentIndex = Math.max(0, Math.min(examState.questions.length - 1, nextIndex));
   renderExamSession();
+  if(window.MeritIQraNative){const session=Number($('exam-current-question').dataset.session);if(session)window.MeritIQraNative.Native.examPosition({session,index:examState.currentIndex});}
 }
 
 function stopExamTimer() {

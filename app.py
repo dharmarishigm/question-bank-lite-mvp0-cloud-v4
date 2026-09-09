@@ -23,7 +23,7 @@ from xml.etree import ElementTree as ET
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from starlette.concurrency import run_in_threadpool
 
 from llm_extract import extract_image, extract_pdf, extract_source, llm_status
@@ -328,6 +328,9 @@ if not os.getenv("DATABASE_URL"):
 app.include_router(platform_router)
 from tutor_agent import router as tutor_router
 app.include_router(tutor_router)
+from mobile_api import router as mobile_router, init_mobile
+if not os.getenv("DATABASE_URL"): init_mobile()
+app.include_router(mobile_router)
 from exam_conduct import init_exam_conduct, router as exam_conduct_router
 if not os.getenv("DATABASE_URL"):
     init_exam_conduct()
@@ -547,12 +550,43 @@ EXPLANATION_LANGUAGES = {
 }
 
 
+def explanation_prose(value):
+    """Unwrap model JSON containers without damaging TeX braces or Telugu text."""
+    if value is None: return ''
+    if isinstance(value, str):
+        stripped=value.strip()
+        if stripped.startswith(('"', '[', '{')):
+            try:
+                decoded=json.loads(stripped)
+                if decoded != value: return explanation_prose(decoded)
+            except (ValueError,TypeError): pass
+        return value
+    if isinstance(value, list): return '\n\n'.join(filter(None,(explanation_prose(x) for x in value)))
+    if isinstance(value, dict):
+        return '\n\n'.join(filter(None,(explanation_prose(value[k]) for k in ('text','content','explanation','description','reason','value','paragraphs') if k in value))) or '\n\n'.join(explanation_prose(x) for x in value.values())
+    return str(value)
+
+
 class ExplanationDistractor(BaseModel):
+    @field_validator('option','reason',mode='before')
+    @classmethod
+    def prose(cls,value): return explanation_prose(value)
     option: str = ''
     reason: str = Field(description='Two or more sentences explaining the misconception and why this option does not answer the question.')
 
 
 class StructuredExplanation(BaseModel):
+    @field_validator('title','summary','concept','correct_answer','background','memory_tip',mode='before')
+    @classmethod
+    def prose(cls,value): return explanation_prose(value)
+
+    @field_validator('steps','references',mode='before')
+    @classmethod
+    def prose_list(cls,value):
+        if isinstance(value,str):
+            try: value=json.loads(value)
+            except ValueError: value=[value]
+        return [explanation_prose(x) for x in (value or [])]
     title: str = Field(description='A clear, engaging lesson title.')
     summary: str = Field(description='A useful two-to-three sentence overview of what the student will understand.')
     concept: str = Field(description='A thorough concept explanation with intuition, definitions, and any relevant formula; at least two substantial paragraphs.')
@@ -585,7 +619,10 @@ def explanation_markdown(payload: dict) -> str:
 
 def decode_explanation(value: str) -> tuple[str, Optional[dict]]:
     try:
-        payload = json.loads(value)
+        cleaned=re.sub(r'^```(?:json)?\s*|\s*```$', '', value.strip(),flags=re.I)
+        payload=json.loads(cleaned)
+        if isinstance(payload,str): payload=json.loads(payload)
+        if isinstance(payload,dict) and isinstance(payload.get('structured'),dict):payload=payload['structured']
         if isinstance(payload, dict) and payload.get('title') and payload.get('concept'):
             validated = StructuredExplanation.model_validate(payload).model_dump()
             return explanation_markdown(validated), validated
@@ -778,7 +815,14 @@ def _record_source(content: bytes, filename: str, mime_type: str, page_count: in
     with closing(connect()) as conn:
         existing = conn.execute("SELECT * FROM source_documents WHERE sha256 = ?", (sha,)).fetchone()
         if existing:
-            return dict(existing)
+            # Deduplicated DB records may outlive a local disk or data-directory move.
+            record=dict(existing)
+            if not os.path.isfile(record['local_path']):
+                path=os.path.join(SOURCE_DIR, record['id'] + (Path(filename).suffix.lower() or '.pdf'))
+                with open(path,'wb') as fh: fh.write(content)
+                conn.execute('UPDATE source_documents SET local_path=? WHERE id=?',(path,record['id']));conn.commit()
+                record['local_path']=path
+            return record
         doc_id = uuid.uuid4().hex
         ext = Path(filename).suffix.lower() or (".pdf" if mime_type == "application/pdf" else ".bin")
         stored = f"{doc_id}{ext}"
@@ -932,7 +976,7 @@ def explain_question(qid: int, language: str = 'en'):
             contents=[prompt],
             config=types.GenerateContentConfig(
                 temperature=0.25,
-                max_output_tokens=3200,
+                max_output_tokens=8192 if language=='te' else 5000,
                 response_mime_type='application/json',
                 response_schema=StructuredExplanation,
                 system_instruction='You are a patient, concept-focused tutor who teaches exam concepts deeply. Explain the underlying principle, connect it to the correct option and the distractors, add relevant background knowledge, and give cautious textbook/YouTube references only when they are broadly appropriate. Use bold emphasis for the key teaching points. Never invent exact URLs or false video claims.',
@@ -1038,9 +1082,11 @@ def explain_question(qid: int, language: str = 'en'):
         cleaned = text.strip()
         if structured is None:
             try:
-                structured = StructuredExplanation.model_validate_json(cleaned).model_dump()
+                _, structured = decode_explanation(cleaned)
             except ValueError:
                 structured = None
+        if structured is None and cleaned.lstrip().startswith(('{','[','```json')):
+            raise ValueError('The explanation was incomplete. Please retry.')
         markdown = explanation_markdown(structured) if structured else cleaned
         return {"explanation": markdown, "structured": structured, "language": language, "cached": False}
     except Exception as exc:
@@ -1702,6 +1748,19 @@ async def preview_pdf(file: UploadFile = File(...)):
     return await run_in_threadpool(_prepare_pdf_preview, content, filename)
 
 
+def _read_pdf_source(source):
+    # Read through Python IO rather than MuPDF file mapping on a GCS FUSE mount.
+    paths=[source['local_path'],os.path.join(SOURCE_DIR,os.path.basename(source['local_path']))]
+    for path in dict.fromkeys(paths):
+        try:
+            with open(path,'rb') as fh:
+                content=fh.read(MAX_SOURCE_BYTES+1)
+            if not content or len(content)>MAX_SOURCE_BYTES: continue
+            return content
+        except FileNotFoundError: continue
+    raise HTTPException(409,'The stored PDF is unavailable. Upload the original PDF again to restore its pages.')
+
+
 @app.get("/api/sources/{source_id}/pages/{page_number}")
 def preview_pdf_page(source_id: str, page_number: int):
     import pymupdf
@@ -1710,14 +1769,14 @@ def preview_pdf_page(source_id: str, page_number: int):
     if source is None or source["mime_type"] != "application/pdf":
         raise HTTPException(404, "PDF not found")
     try:
-        with pymupdf.open(source["local_path"]) as doc:
+        with pymupdf.open(stream=_read_pdf_source(source), filetype="pdf") as doc:
             if not 1 <= page_number <= len(doc):
                 raise HTTPException(404, "Page not found")
             page = doc[page_number - 1]
             scale = min(1.8, 2400 / max(1, page.rect.width, page.rect.height))
             png = page.get_pixmap(matrix=pymupdf.Matrix(scale, scale), alpha=False).tobytes("png")
         from fastapi.responses import Response
-        return Response(png, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
+        return Response(png, media_type="image/png", headers={"Cache-Control": "private, no-store"})
     except HTTPException:
         raise
     except Exception as exc:
@@ -1756,7 +1815,7 @@ def _render_pdf_crop(source_id: str, req: PdfCropRequest) -> tuple[dict, bytes]:
         raise HTTPException(404, "PDF not found. Upload the document again.")
     source = dict(row)
     try:
-        with pymupdf.open(source["local_path"]) as doc:
+        with pymupdf.open(stream=_read_pdf_source(source), filetype="pdf") as doc:
             if req.page > len(doc):
                 raise HTTPException(404, "Page not found")
             page = doc[req.page - 1]
@@ -1933,6 +1992,10 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 
+@app.get("/sw.js", include_in_schema=False)
+def mobile_service_worker():
+    return FileResponse("static/sw.js", media_type="application/javascript", headers={"Cache-Control":"no-cache","Service-Worker-Allowed":"/"})
+
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
@@ -1970,6 +2033,8 @@ def public_page(public_path: str):
     if public_path in public_routes:
         # Previously indexed marketing URLs keep resolving to the home document.
         return FileResponse(os.path.join(BASE_DIR, "static", "home.html"), headers={"Cache-Control":"no-cache"})
+    if public_path == "mobile/callback":
+        return FileResponse(os.path.join(BASE_DIR,"static","mobile-callback.html"),headers={"Cache-Control":"no-store"})
     if public_path.startswith("register/exam/"):
         return FileResponse(os.path.join(BASE_DIR, "static", "index.html"), headers={"Cache-Control":"no-store"})
     raise HTTPException(404, "Page not found")

@@ -24,3 +24,11 @@ uploads/
 *.tfstate
 *.tfstate.*
 infra/terraform.tfvars
+node_modules/
+mobile/dist/
+mobile/android/.gradle/
+mobile/android/**/build/
+mobile/android/local.properties
+*.jks
+*.keystore
+mobile/android/app/google-services.json

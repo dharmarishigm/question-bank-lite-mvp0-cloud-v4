@@ -1,0 +1,15 @@
+{
+  "mobile/android/app/build/outputs/apk/debug/app-debug.apk": {
+    "bytes": 7003351,
+    "sha256": "d1f4d0ed86470bc543aa0fb37713b02a989780015ef3be5b03ab20bdd9e10024"
+  },
+  "mobile/android/app/build/outputs/bundle/release/app-release.aab": {
+    "bytes": 5355020,
+    "sha256": "f9f14e14560c50d0d069a187b79c15f61cb6cda74c4ea3b64f954e1a4aa92395"
+  },
+  "production_install": {
+    "mobile_api": "passed",
+    "fresh_install_has_no_exam_state": true,
+    "welcome": "passed"
+  }
+}

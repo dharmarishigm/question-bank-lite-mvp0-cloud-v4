@@ -1,0 +1,8 @@
+{
+  "provider": "Vertex AI Gemini",
+  "turns": 2,
+  "same_private_session": true,
+  "structured_bullets": true,
+  "follow_up": true,
+  "suggested_replies": true
+}

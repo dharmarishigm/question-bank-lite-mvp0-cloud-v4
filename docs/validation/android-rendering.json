@@ -1,0 +1,13 @@
+{
+  "360": true,
+  "412": true,
+  "480": true,
+  "800": true,
+  "rendering": {
+    "math": 3,
+    "errors": 0,
+    "table": 1,
+    "svgImages": 4
+  },
+  "protected_window_flag": true
+}

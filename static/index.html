@@ -12,8 +12,10 @@
 <script defer src="/static/vendor/contrib/mhchem.min.js"></script>
 <script defer src="/static/vendor/contrib/auto-render.min.js"></script>
 <link rel="stylesheet" href="/static/app.css" />
-<link rel="stylesheet" href="/static/enterprise.css?v=20260908-density-mentor-v1" />
-<link rel="stylesheet" href="/static/workspace-density.css?v=20260908-mentor" />
+<link rel="stylesheet" href="/static/enterprise.css?v=20260909-web-fixes" />
+<link rel="stylesheet" href="/static/workspace-density.css?v=20260909-conversations" />
+<link rel="manifest" href="/static/manifest.webmanifest">
+<meta name="theme-color" content="#163b60">
 </head>
 <body>
 <div id="public-registration" class="login-screen" hidden><section class="login-card registration-card"><img class="brand-logo-full" src="/static/meritiqra-logo.png?v=20260907-updated" alt="MeritIQra — Think Sharper. Reach Higher. Amplified by AI." /><span class="portal-label">Exam registration</span><h2 id="public-exam-name">Exam registration</h2><p id="public-exam-summary"></p><div id="public-google-block" hidden><p class="registration-hint">Sign in with Google to register</p><div id="public-google-signin"></div><button id="public-fallback-toggle" type="button" class="registration-fallback-toggle">or continue without Google</button></div><div id="public-fallback"><div class="registration-choice"><button id="public-new-registration" class="primary">New registration</button><button id="public-continue-login">Already registered? Login</button></div><form id="public-registration-form" class="bootstrap-form"><label>Full name<input name="full_name" autocomplete="name" required maxlength="120" /></label><label>Email address<input name="email" type="email" autocomplete="email" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Phone number<input name="phone_number" type="tel" autocomplete="tel" pattern="[+0-9 ()-]{7,20}" required /></label><label>School name<input name="school_name" required maxlength="160" /></label><button class="primary" type="submit">Register for exam</button></form><form id="public-student-login-form" class="bootstrap-form" hidden><h2>Student login</h2><label>Registered email<input name="email" type="email" autocomplete="username" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Registered phone number<input name="phone_number" type="tel" autocomplete="tel" required /></label><button class="primary" type="submit">Open student portal</button></form></div><p id="public-registration-message" role="status"></p></section></div>
@@ -72,7 +74,7 @@
   <nav id="admin-nav" aria-label="Administrator navigation" hidden>
     <p>Workspace</p><button data-view="dashboard">Dashboard</button>
     <p>Content Studio</p><button data-view="questions">Question Bank</button><button data-view="ai-generate">Generate Questions by AI</button><button data-view="upload-crop">Upload &amp; Digitise</button>
-    <p>Exams</p><button data-view="exam">Generate Exam</button><button data-view="admin-exams">Manage Exams &amp; Registrations</button><button data-view="admin-results">Results</button><button data-view="student-analytics">Performance Lab</button>
+    <p>Exams</p><button data-view="exam">Generate Exam</button><button data-view="admin-exams" title="Manage Exams &amp; Registrations">Exam Admin</button><button data-view="admin-results">Results</button><button data-view="student-analytics">Performance Lab</button>
   </nav>
   <nav id="student-nav" aria-label="Student navigation" hidden>
     <p>Learning</p><button data-view="dashboard">Home</button><button data-view="available-exams">Available Exams</button><button data-view="my-exams">My Exams</button><button data-view="my-results">My Results</button><button data-view="student-analytics">Performance Lab</button><button data-view="my-profile">My Profile</button>
@@ -84,12 +86,12 @@
   <div class="main-tabs legacy-tabs" aria-label="Main UI tabs">
     <button type="button" class="main-tab active" data-main-tab="questions">Questions</button>
     <button type="button" class="main-tab" data-main-tab="edit">Edit</button>
-    <button type="button" class="main-tab" data-main-tab="exam-registration">Exam registration</button>
+    <button type="button" class="main-tab" data-main-tab="exam-registration">Registration</button>
     <button type="button" class="main-tab" data-main-tab="exam">Exam</button>
     <button type="button" class="main-tab" data-main-tab="upload-crop">Import &amp; digitise</button>
   </div>
 
-  <section id="dashboard-panel" class="tab-panel" hidden><div class="page-header"><div><h2 id="dashboard-title">Dashboard</h2><p>Current platform activity at a glance.</p></div></div><div id="dashboard-metrics" class="metric-strip"></div></section>
+  <section id="dashboard-panel" class="tab-panel" hidden><div class="page-header"><div><p class="eyebrow">PLATFORM OVERVIEW</p><h2 id="dashboard-title">Dashboard</h2><p>Current platform activity at a glance.</p></div></div><div id="dashboard-metrics" class="metric-strip admin-dashboard-metrics"></div><div id="dashboard-detail" class="admin-dashboard-detail" hidden></div></section>
   <section id="available-exams-panel" class="tab-panel" hidden><div class="page-header"><div><h2>Available Exams</h2><p>Browse examinations that are open now and enroll.</p></div></div><div id="available-exams-list" class="data-grid"></div></section>
   <section id="my-exams-panel" class="tab-panel" hidden><div class="page-header"><div><h2>My Exams</h2><p>Your enrollments and active attempts.</p></div></div><div id="my-exams-list" class="data-grid"></div></section>
   <section id="my-results-panel" class="tab-panel" hidden><div class="page-header"><div><h2>My Results</h2><p>Your completed attempts.</p></div></div><div id="my-results-list" class="table-wrap"></div></section>
@@ -487,10 +489,12 @@
 
 <input id="upload-file" type="file" accept="image/*" hidden />
 <div id="notification" class="notification" role="status" aria-live="polite" hidden></div>
-<script src="/static/app.js?v=20260908-density-mentor-v1"></script>
-<script src="/static/pdf-viewer.js"></script>
-<script src="/static/platform-ui.js?v=20260908-density-mentor-v1"></script>
+<script src="/static/app.js?v=20260909-mobile"></script>
+<script src="/static/pdf-viewer.js?v=20260909-web-fixes"></script>
+<script src="/static/registration-flow.js?v=20260909-conversations"></script>
+<script src="/static/platform-ui.js?v=20260909-conversations"></script>
 <script src="/static/performance-workspace.js?v=20260908-mentor"></script>
-<script src="/static/mentor.js?v=20260908-mentor"></script>
+<script src="/static/mentor.js?v=20260909-conversations"></script>
+<script src="/static/mobile-client.js?v=20260909-conversations"></script>
 </body>
 </html>

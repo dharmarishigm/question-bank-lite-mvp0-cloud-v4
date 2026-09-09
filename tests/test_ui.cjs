@@ -50,3 +50,8 @@ assert.ok(evidenceCard.includes('/uploads/first.png'));
 assert.ok(evidenceCard.includes('/uploads/second.png'));
 assert.equal(run("cardHtml({id:1, statement:'Q', hide_source:true, source_segments:[{page:1,image:'/uploads/first.png'}]}, false)").includes('Complete original source evidence'), false);
 console.log('All source segments render, and side-by-side review avoids duplicate evidence.');
+
+const tableHtml=run("toHtml('| Name | Value |\\n|---|---|\\n| Fraction | $\\\\frac{1}{2}$ |')");
+assert.ok(tableHtml.includes("<table>"));
+assert.ok(tableHtml.includes("<td>Fraction</td>"));
+assert.ok(tableHtml.includes("$\\frac{1}{2}$"));

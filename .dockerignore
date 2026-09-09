@@ -26,3 +26,5 @@ tests
 *.pptx
 *.xlsx
 !static/meritiqra-logo.png
+
+mobile

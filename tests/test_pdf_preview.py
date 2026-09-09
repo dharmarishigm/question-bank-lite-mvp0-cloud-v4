@@ -55,3 +55,12 @@ class PdfPreviewTests(unittest.TestCase):
         second = app._prepare_pdf_preview(self.content, 'renamed.pdf')
         self.assertEqual(first['id'], second['id'])
         self.assertEqual(second['filename'], 'renamed.pdf')
+
+    def test_reupload_restores_missing_source_file(self):
+        result=app._prepare_pdf_preview(self.content,'paper.pdf')
+        with app.connect() as conn:
+            path=conn.execute('SELECT local_path FROM source_documents WHERE id=?',(result['id'],)).fetchone()[0]
+        Path(path).unlink()
+        recovered=app._prepare_pdf_preview(self.content,'paper.pdf')
+        self.assertEqual(recovered['id'],result['id'])
+        self.assertEqual(app.preview_pdf_page(result['id'],1).media_type,'image/png')
