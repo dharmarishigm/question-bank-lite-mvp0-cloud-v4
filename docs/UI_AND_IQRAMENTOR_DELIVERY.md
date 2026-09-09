@@ -133,3 +133,12 @@ Google Identity Services remains the identity check for shared enrollment. A lea
 SMS OTP and email OTP are intentionally out of scope for this release, per product direction. The mobile field is recorded and duplicate-protected, but it is not presented as independently verified. Brevo and Fast2SMS secrets were not added or changed.
 
 Validation for this delivery includes 103 backend tests, both existing Node UI suites, JavaScript syntax and diff checks, synthetic Google shared-link enrollment with retry/capacity coverage, duplicate email/mobile and legacy-conflict coverage, private conversation-history checks, Chromium phone/desktop interaction checks, and a live two-turn Vertex response with continuity. Machine-readable evidence is in `docs/validation/mentor-registration-ui.json` and `docs/validation/mentor-live-model.json`. Deployment details are appended after the Cloud Run promotion.
+
+### Deployment record — 9 September 2026
+
+- Branch: `codex/feature-mentor-verified-enrollment`; source commit: `0b14837`.
+- Cloud Build: `d9d1850e-caeb-4a8e-b625-e214c71630f3`, SUCCESS.
+- Image digest: `sha256:833e890a417a89cdd2c283fd1d962f542abe8e02ea718ac974afec439f622722`.
+- Cloud Run: `question-bank-cloud-v4-00048-gin`, tag `codex-mentor`, 100% traffic in `asia-south1`.
+- Live checks: `https://meritiqra.com/`, `/app`, mentor and registration assets return 200; anonymous `/api/auth/me` returns 401; the `20260909-conversations` cache-buster is present.
+- Final local validation: 105 backend tests passed, both Node UI suites passed, JavaScript syntax checks passed, and `git diff --check` passed. The local `.DS_Store` remains untracked and was not deployed.
