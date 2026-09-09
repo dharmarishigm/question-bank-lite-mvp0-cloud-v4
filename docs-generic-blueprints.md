@@ -109,6 +109,20 @@ Run `PYTHONPATH=. .venv/bin/python -m pytest -q tests/test_program_setup.py` and
 starts its own isolated localhost server, mocks Gemini, creates synthetic data, and
 checks generation, review, apply and all program tabs at desktop/tablet/mobile widths.
 
+For an explicitly authorized live smoke check, run
+`scripts/validate_program_setup_live.py` with `--project`, `--service`, `--region`
+and `--base-url`. It reads the configured admin credential in memory, creates one
+inactive QA program, performs a real model call and draft application, validates
+the resulting records, and archives that QA program even when a check fails.
+The base URL must match the service or one of its configured revision tags.
+
+Release validation (2026-09-09): 131 Python tests passed; existing UI and PDF
+regression scripts passed; the new browser workflow passed at 1440/820/390px.
+A live call using `gemini-2.5-flash` on the tagged Cloud Run revision produced
+five difficulty profiles and successfully applied 39 draft blueprints, curriculum,
+ten prompts and a paper preview in PostgreSQL. The inactive QA program was archived.
+Production setup uses `BLUEPRINT_PROGRAM_SETUP_MODEL=gemini-2.5-flash`.
+
 Open **Admin → Programs**. Add a program, search by code/name, edit metadata, archive or restore. Open its workspace:
 
 - **Patterns:** create an edition and authority, languages, timing and exact scoring; add sections and blocks. Sample patterns must remain sample-only.
@@ -130,7 +144,7 @@ Profiles include counts, recency-weighted counts, sample/source-diversity warnin
 
 ## Gemini configuration and review
 
-The existing `llm_extract._client()` supplies Vertex AI, ADC, project and region. Set `BLUEPRINT_GEMINI_MODEL` explicitly to an approved model ID. Optional purpose overrides are `BLUEPRINT_BLUEPRINT_REFINEMENT_MODEL`, `BLUEPRINT_QUESTION_AUTHORING_MODEL`, and `BLUEPRINT_INDEPENDENT_SOLVING_MODEL`. Existing project/region configuration remains authoritative. No consumer Gemini key is used.
+The existing `llm_extract._client()` supplies Vertex AI, ADC, project and region. `BLUEPRINT_GEMINI_MODEL` can select an approved model for blueprint operations; otherwise the existing application Vertex model is used. Optional purpose overrides include `BLUEPRINT_PROGRAM_SETUP_MODEL`, `BLUEPRINT_BLUEPRINT_REFINEMENT_MODEL`, `BLUEPRINT_QUESTION_AUTHORING_MODEL`, and `BLUEPRINT_INDEPENDENT_SOLVING_MODEL`. Existing project/region configuration remains authoritative. No consumer Gemini key is used.
 
 Calls use structured Pydantic output, disabled function calling, an 8,192-token output limit and the existing 180-second client timeout. Transport timeout/connection failures have at most two attempts. Independent solving uses temperature zero; authoring/refinement uses 0.2. Successful calls retain model, parameters, usage, latency, attempts, prompt version and outcome. Failure records expose safe error categories, not provider stack traces or credentials. Normal tests mock Gemini; no live calls are needed.
 
@@ -140,7 +154,7 @@ Question authoring receives a compiled missing slot and effective difficulty pro
 
 To opt into a live smoke test, configure ADC and the model only in your test environment, create a small sample program and prompt, then request one refinement from the UI. Inspect its state, telemetry and proposal; explicitly accept a soft field and verify the original version hash is unchanged. No live smoke test has been run as part of the offline validation.
 
-The registry supports ten named prompt purposes from extraction through originality validation. Currently the executable Gemini workflows are refinement, question authoring and independent solving. Prompt editing is not model-weight fine-tuning. The admin-only `training-export` endpoint includes only accepted, explicitly training-eligible configuration pairs, with email/phone redaction and without student records or source documents. Review exports for other identifiers before using them externally; no tuning job is launched.
+The registry supports ten named prompt purposes from extraction through originality validation. Executable Gemini workflows include program setup, refinement, question authoring and independent solving. Prompt editing is not model-weight fine-tuning. The admin-only `training-export` endpoint includes only accepted, explicitly training-eligible configuration pairs, with email/phone redaction and without student records or source documents. Review exports for other identifiers before using them externally; no tuning job is launched.
 
 ## API map
 
@@ -166,7 +180,7 @@ This is a substantial working implementation, **not completion of every item in 
 - Evidence is linked and manually classified; automated document extraction/classification and source uploads within Programs are not implemented. Existing ingestion still operates separately.
 - Automated passage-group and logically exact visual authoring are blocked. Such slots can use reviewed manual/imported groups. There is no new SVG logic validator.
 - Mathematical symbolic checks, chemistry balancing, semantic embedding similarity and historical-text leakage detection are not implemented; human review and reported verifier gates must not be described as substitutes for those deterministic checks.
-- The ten-purpose prompt registry exceeds the three executable model workflows. Blueprint derivation and automated historical classification are not wired to model jobs.
+- The ten-purpose prompt registry exceeds the executable model workflows. Program setup derives practice blueprint drafts; automated official-pattern extraction and historical classification are not yet wired to model jobs.
 - There is no automatic legacy taxonomy backfill or ambiguity-report UI; existing records enter through explicit reviewed version mapping.
 - Standalone Programs paper snapshots do not automatically become legacy student exams. Publication into the existing exam flow needs a separately validated adapter.
 - Version compare/clone are APIs; richer visual comparison and reference pickers are still needed. Effective inheritance currently renders structured values, not a source-by-source matrix.
