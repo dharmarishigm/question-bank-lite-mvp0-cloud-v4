@@ -328,6 +328,9 @@ if not os.getenv("DATABASE_URL"):
 app.include_router(platform_router)
 from tutor_agent import router as tutor_router
 app.include_router(tutor_router)
+from mobile_api import router as mobile_router, init_mobile
+if not os.getenv("DATABASE_URL"): init_mobile()
+app.include_router(mobile_router)
 from exam_conduct import init_exam_conduct, router as exam_conduct_router
 if not os.getenv("DATABASE_URL"):
     init_exam_conduct()
@@ -1989,6 +1992,10 @@ app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 app.mount("/static", StaticFiles(directory=os.path.join(BASE_DIR, "static")), name="static")
 
 
+@app.get("/sw.js", include_in_schema=False)
+def mobile_service_worker():
+    return FileResponse("static/sw.js", media_type="application/javascript", headers={"Cache-Control":"no-cache","Service-Worker-Allowed":"/"})
+
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
@@ -2026,6 +2033,8 @@ def public_page(public_path: str):
     if public_path in public_routes:
         # Previously indexed marketing URLs keep resolving to the home document.
         return FileResponse(os.path.join(BASE_DIR, "static", "home.html"), headers={"Cache-Control":"no-cache"})
+    if public_path == "mobile/callback":
+        return FileResponse(os.path.join(BASE_DIR,"static","mobile-callback.html"),headers={"Cache-Control":"no-store"})
     if public_path.startswith("register/exam/"):
         return FileResponse(os.path.join(BASE_DIR, "static", "index.html"), headers={"Cache-Control":"no-store"})
     raise HTTPException(404, "Page not found")

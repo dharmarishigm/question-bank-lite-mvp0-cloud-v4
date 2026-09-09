@@ -6,7 +6,7 @@ from contextlib import closing
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Cookie, Header, HTTPException, Request, Response
+from fastapi import BackgroundTasks, APIRouter, Cookie, Header, HTTPException, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field, ValidationError
 
@@ -80,6 +80,8 @@ def init_platform():
     init_exam_conduct()
     from tutor_agent import init_tutor
     init_tutor()
+    from mobile_api import init_mobile
+    init_mobile()
 
 def _hash(value: str) -> str: return hashlib.sha256(value.encode()).hexdigest()
 def _admins(): return {x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
@@ -502,7 +504,7 @@ def start_exam(exam_id:int,request:Request):
 def get_session(sid:int,request:Request):
     user=_auth(request)
     with closing(db()) as conn:
-        s=_session(conn,sid,user['id']); exam=conn.execute('SELECT name,instructions FROM exams WHERE id=?',(s['exam_id'],)).fetchone()
+        s=_session(conn,sid,user['id']); exam=conn.execute('SELECT name,instructions,proctor_required FROM exams WHERE id=?',(s['exam_id'],)).fetchone()
         snapshot=json.loads(s['question_set_json'] or '[]') if 'question_set_json' in s.keys() else []
         if snapshot:
             answers={r['question_id']:r for r in conn.execute('SELECT question_id,selected_answer,answer_payload_json,status FROM exam_answers WHERE session_id=?',(sid,)).fetchall()};questions=[{'id':q['id'],'number':q['display_order'],'statement':q['statement'],'options':q['options'],'marks':q['marks'],'section':q.get('section_name',''),'selected_answer':answers[q['id']]['selected_answer'] if q['id'] in answers else '','state':answers[q['id']]['status'] if q['id'] in answers else 'NOT_VISITED'} for q in snapshot]
@@ -523,7 +525,7 @@ async def save_answer(sid:int,qid:int,request:Request):
         audit(conn,'ANSWER_SAVED',exam_id=s['exam_id'],user_id=user['id'],session_id=sid,metadata={'question_id':qid});conn.commit()
     return {'saved':True}
 @router.post('/sessions/{sid}/submit')
-def submit(sid:int,request:Request):
+def submit(sid:int,request:Request,background_tasks:BackgroundTasks):
     user=_auth(request,True)
     with closing(db()) as conn:
         s=_session(conn,sid,user['id'])
@@ -531,6 +533,8 @@ def submit(sid:int,request:Request):
         _submit(conn,s)
         from exam_conduct import audit
         audit(conn,'EXAM_SUBMITTED',exam_id=s['exam_id'],user_id=user['id'],session_id=sid);conn.commit()
+    from mobile_notifications import notify_result
+    background_tasks.add_task(notify_result,user['id'])
     return {'submitted':True}
 @router.get('/my/results')
 def results(request:Request):

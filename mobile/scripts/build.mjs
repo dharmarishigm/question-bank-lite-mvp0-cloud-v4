@@ -1,0 +1,11 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { build } from 'esbuild';
+const root=path.resolve(import.meta.dirname,'../..'),mobile=path.join(root,'mobile');
+const base=process.env.API_BASE_URL||'https://meritiqra.com';
+const url=new URL(base);if(url.protocol!=='https:' && !(process.env.ENVIRONMENT==='local' && ['10.0.2.2','localhost','127.0.0.1'].includes(url.hostname)))throw Error('HTTPS required for mobile API');
+await fs.mkdir(path.join(mobile,'dist'),{recursive:true});await fs.cp(path.join(root,'static'),path.join(mobile,'dist/static'),{recursive:true});
+let html=await fs.readFile(path.join(root,'static/index.html'),'utf8');html=html.replace('<head>','<head>\n<script src="/native.js"></script>').replace('</head>','<link rel="stylesheet" href="/static/mobile-client.css"></head>');
+await fs.writeFile(path.join(mobile,'dist/index.html'),html);
+await build({entryPoints:[path.join(mobile,'src/native.js')],bundle:true,outfile:path.join(mobile,'dist/native.js'),format:'iife',define:{MOBILE_API_BASE:JSON.stringify(base),MOBILE_VERSION:JSON.stringify('1.0.0')}});
+console.log('Bundled existing workspace for Android; API:',base);

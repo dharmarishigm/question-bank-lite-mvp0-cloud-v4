@@ -1,0 +1,21 @@
+{
+  "appId": "com.meritiqra.app",
+  "appName": "MeritIQra",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#073d78"
+    },
+    "Keyboard": {
+      "resize": "body"
+    }
+  },
+  "loggingBehavior": "none"
+}

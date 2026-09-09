@@ -6,6 +6,7 @@ pillow
 pytesseract
 python-dotenv
 google-auth
+requests>=2.32,<3
 sqlalchemy>=2.0,<3
 psycopg[binary]>=3.2,<4
 alembic>=1.14,<2

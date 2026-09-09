@@ -81,6 +81,12 @@ function renderMarkdownBlocks(text) {
       i += 1;
       continue;
     }
+    if (/^\s*\|.*\|\s*$/.test(line) && /^[\s|:-]+$/.test(lines[i+1] || '') && (lines[i+1] || '').includes('|')) {
+      const table = [lines[i++], lines[i++]];
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) table.push(lines[i++]);
+      blocks.push(renderTables(table).join(''));
+      continue;
+    }
     if (/^#{1,6}\s+/.test(line)) {
       const match = line.match(/^(#{1,6})\s+(.*)$/);
       if (match) {
@@ -1620,7 +1626,7 @@ function clearCurrentAnswer() {
   const questionKey = getExamQuestionKey(examState.currentIndex);
   delete examState.answers[questionKey];
   const sessionId=$('exam-current-question')?.dataset.session;
-  if(sessionId){const question=examState.questions[examState.currentIndex];fetch(`/api/sessions/${sessionId}/answers/${question.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({selected_answer:''})}).catch(()=>notify('Could not clear saved answer.'));}
+  if(sessionId&&window.MeritIQraNative){window.saveMobileAnswer?.(sessionId,examState.questions[examState.currentIndex].id,'');}else if(sessionId){const question=examState.questions[examState.currentIndex];fetch(`/api/sessions/${sessionId}/answers/${question.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({selected_answer:''})}).catch(()=>notify('Could not clear saved answer.'));}
   renderExamNav();
   renderExamCurrentQuestion();
 }
@@ -1629,6 +1635,7 @@ function moveExamQuestion(nextIndex) {
   if (!examState.questions.length) return;
   examState.currentIndex = Math.max(0, Math.min(examState.questions.length - 1, nextIndex));
   renderExamSession();
+  if(window.MeritIQraNative){const session=Number($('exam-current-question').dataset.session);if(session)window.MeritIQraNative.Native.examPosition({session,index:examState.currentIndex});}
 }
 
 function stopExamTimer() {

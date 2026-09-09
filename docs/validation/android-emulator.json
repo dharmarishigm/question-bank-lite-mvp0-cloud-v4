@@ -1,0 +1,14 @@
+{
+  "device": "Android 16 API 36 arm64 emulator",
+  "questions": 12,
+  "offline_seconds": 30,
+  "offline_persist_ms": 17,
+  "process_restart_restores_question": 12,
+  "same_expiry": true,
+  "same_order": true,
+  "answers_restored": 12,
+  "duplicate_submission_idempotent": true,
+  "math_rendering": true,
+  "mobile_overflow": false,
+  "elapsed_seconds": 44.0
+}

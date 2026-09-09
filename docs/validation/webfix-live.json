@@ -1,0 +1,13 @@
+{
+  "/healthz": 200,
+  "/": 200,
+  "/app": 200,
+  "/practice-exams": 200,
+  "/robots.txt": 200,
+  "/sitemap.xml": 200,
+  "static/public-account.js": "matches 8f46db5",
+  "static/workspace-density.css": "matches 8f46db5",
+  "static/platform-ui.js": "matches 8f46db5",
+  "revision": "question-bank-cloud-v4-00043-vap",
+  "traffic_percent": 100
+}

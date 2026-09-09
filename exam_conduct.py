@@ -113,12 +113,15 @@ async def start(exam_id:int,request:Request):
 async def security_event(session_id:int,request:Request):
     from platform_api import _auth,_submit
     user=_auth(request,True);body=await request.json();kind=str(body.get('event_type','')).upper()
-    allowed={'COPY_ATTEMPT','CUT_ATTEMPT','PASTE_ATTEMPT','CONTEXT_MENU','PRINT_ATTEMPT','DEVTOOLS_SHORTCUT','TAB_SWITCH','WINDOW_BLUR','FULLSCREEN_EXIT','NAVIGATION_ATTEMPT'}
+    allowed={'APP_BACKGROUND','APP_FOREGROUND','COPY_ATTEMPT','CUT_ATTEMPT','PASTE_ATTEMPT','CONTEXT_MENU','PRINT_ATTEMPT','DEVTOOLS_SHORTCUT','TAB_SWITCH','WINDOW_BLUR','FULLSCREEN_EXIT','NAVIGATION_ATTEMPT'}
     if kind not in allowed:raise HTTPException(422,'Invalid security event')
     with closing(db()) as conn:
         session=conn.execute("SELECT * FROM exam_sessions WHERE id=? AND user_id=?",(session_id,user['id'])).fetchone()
         if not session:raise HTTPException(404,'Active exam session not found')
         if session['status']!='IN_PROGRESS':return {'recorded':False,'status':session['status']}
+        if kind in {'APP_BACKGROUND','APP_FOREGROUND'}:
+            audit(conn,kind,exam_id=session['exam_id'],user_id=user['id'],session_id=session_id);conn.commit()
+            return {'recorded':True,'signal_only':True}
         audit(conn,'SECURITY_VIOLATION',exam_id=session['exam_id'],user_id=user['id'],session_id=session_id,metadata={'type':kind})
         count=conn.execute("SELECT COUNT(*) n FROM exam_audit_log WHERE session_id=? AND event_type='SECURITY_VIOLATION'",(session_id,)).fetchone()['n']
         maximum=max(1,int(os.getenv('EXAM_SECURITY_MAX_VIOLATIONS','3')))
