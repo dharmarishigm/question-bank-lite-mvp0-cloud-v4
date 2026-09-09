@@ -45,8 +45,8 @@ def init_tutor():
 
 def learner(request, csrf=False):
     user = _auth(request, csrf)
-    if user['role'] != 'STUDENT':
-        raise HTTPException(403, 'IQraMentor is a private learner workspace. Administrator access does not grant access to conversations.')
+    if user['role'] not in {'STUDENT','ADMIN'}:
+        raise HTTPException(403, 'Assistant access is available to students and administrators.')
     return user
 
 

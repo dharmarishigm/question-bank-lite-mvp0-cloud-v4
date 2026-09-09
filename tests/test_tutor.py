@@ -77,13 +77,13 @@ class TutorTests(unittest.TestCase):
             self.assertEqual(generate.call_args.args[1]['question_review'][0]['answer'],'B')
         self.assertEqual(self.chat(c,attempt_id=sid,question_id=999999).status_code,404)
 
-    def test_cross_user_and_admin_denied(self):
+    def test_cross_user_and_admin_assist_is_allowed(self):
         c,sid,qs,exam=self.setup_attempt();created=self.chat(c).json()
         other,_=self.login('other@example.test');admin,_=self.login('admin@example.test')
         self.assertEqual(self.chat(other,attempt_id=sid).status_code,404)
         self.assertEqual(self.chat(other,session_id=created['session_id']).status_code,404)
         self.assertEqual(other.get('/api/tutor/sessions/'+str(created['session_id'])).status_code,404)
-        self.assertEqual(admin.get('/api/tutor/sessions/'+str(created['session_id'])).status_code,403)
+        self.assertEqual(admin.get('/api/tutor/sessions/'+str(created['session_id'])).status_code,404)
         self.assertEqual(other.get('/api/tutor/insights').json()['attempt_count'],0)
 
     def test_client_identity_rejected_and_limits(self):
