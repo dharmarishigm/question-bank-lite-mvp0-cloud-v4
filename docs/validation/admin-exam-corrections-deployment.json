@@ -1,0 +1,35 @@
+{
+  "base_url": "https://meritiqra.com",
+  "checks": {
+    "/healthz": 200,
+    "/app": 200,
+    "/static/admin-workspace.js": 200,
+    "/static/admin-workspace.css": 200,
+    "/static/admin-exam-corrections.js": 200,
+    "/static/question-correction.js": 200,
+    "/static/app.js": 200,
+    "/static/platform-ui.js": 200,
+    "/static/program-exam.js": 200,
+    "anonymous /api/ai/runs": 401,
+    "anonymous /api/programs/papers/review-queue": 401,
+    "history_total": 392,
+    "publication_queue_total": 5,
+    "live_browser": "Admin take-exam navigation, saved run hydration, filters, paper correction reviewer, confirmation checkbox and mobile layout passed"
+  },
+  "published_during_validation": 0,
+  "llm_calls_during_validation": 0,
+  "revision": "question-bank-cloud-v4-adminsync-20260910",
+  "traffic_percent": 100,
+  "build_id": "7e18e34e-daa3-4ca0-b009-4f5953ecc5d9",
+  "image_digest": "sha256:f9b2cc231e15cdf7c23f2bdd08b85f85312f34255647006d62e078cd0d8b04b8",
+  "backend_tests_passed": 181,
+  "browser_validation": [
+    "Admin enroll, start, answer, correct options, submit and review result",
+    "Main editor preview-confirmed correction updates future published version",
+    "AI correction/regeneration explicit review and student control absence",
+    "Saved-batch review and Exam Admin publication queue",
+    "Desktop/mobile layout"
+  ],
+  "attempt_policy": "Existing attempt snapshots, selections and scores are preserved; approved current corrections are shown separately. Active notices omit correct answers and solutions.",
+  "admin_rank_policy": "Admin attempts are excluded from student leaderboards."
+}

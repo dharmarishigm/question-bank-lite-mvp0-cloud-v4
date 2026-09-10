@@ -1,0 +1,190 @@
+{
+  "program": {
+    "code": "GATE_ECE",
+    "name": "GATE - Electronics and Communication Engineering (MCQ practice)",
+    "authority": "IIT Madras / GATE",
+    "region": "India",
+    "category": "Competitive examination",
+    "levels": [
+      "Undergraduate Electronics and Communication Engineering"
+    ],
+    "languages": [
+      "English"
+    ],
+    "tags": [
+      "Full Exam",
+      "Subject-wise",
+      "Editable curriculum",
+      "Question bank reuse"
+    ],
+    "description": "## Official reference: GATE 2027 EC\n\n65 questions, 100 marks, 180 minutes. General Aptitude: 10 questions and 15 marks. The remaining 55 questions carry 85 marks, including Engineering Mathematics (13 marks) and EC core (72 marks).\n\nOfficial questions include MCQ, MSQ and NAT. Questions carry 1 or 2 marks. Wrong MCQs lose one-third of their marks; MSQ and NAT have no negative marking.\n\n## Editable MCQ practice allocation\n\nThis application generates single-correct MCQs. The 18 subject/mark bands below preserve the official overall counts and marks, but their chapter counts are practice allocations, not official chapter weightages. Select any subject/mark band for focused practice. This does not reproduce MSQ or NAT delivery.\n\nReference checked 10 September 2026. Review the source before using a later cycle.\n\n- [Official reference 1](https://gate2027.iitm.ac.in/question_paper_pattern)\n- [Official reference 2](https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/EC_GATE2027_Syllabus.pdf)\n- [Official reference 3](https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/GA_GATE2027_Syllabus.pdf)",
+    "status": "ACTIVE"
+  },
+  "settings": {
+    "name": "GATE - Electronics and Communication Engineering (MCQ practice) - Full practice",
+    "mode": "FULL",
+    "level": "Undergraduate Electronics and Communication Engineering",
+    "language": "English",
+    "duration_minutes": 180,
+    "difficulty": "medium",
+    "curriculum": "## GATE EC curriculum\n\n### General Aptitude\n\nVerbal, quantitative, analytical and spatial aptitude; original GATE-level problems.\n\n### Engineering Mathematics\n\nLinear algebra, calculus, differential equations, vector and complex analysis, probability and statistics.\n\n### Networks, Signals and Systems\n\nCircuit analysis, phasors, transients, two-port networks, LTI systems, transforms, sampling, FIR and IIR filters.\n\n### Electronic Devices\n\nSemiconductor bands and carriers, transport, junctions, BJT, MOSFET, optoelectronic devices.\n\n### Analog Circuits\n\nDiodes, transistor amplifiers, current mirrors, differential amplifiers, operational amplifiers, filters and compensation.\n\n### Digital Circuits\n\nNumber systems, logic design, sequential circuits, converters, memory, datapath and pipelining.\n\n### Control Systems\n\nFeedback models, transient and frequency response, stability, compensators and state-space analysis.\n\n### Communications\n\nRandom processes, analog and digital modulation, information theory, detection, noise, coding and error control.\n\n### Electromagnetics\n\nFields and waves, boundary conditions, transmission lines, matching, waveguides, optical propagation and antennas.",
+    "pattern": "## Official reference: GATE 2027 EC\n\n65 questions, 100 marks, 180 minutes. General Aptitude: 10 questions and 15 marks. The remaining 55 questions carry 85 marks, including Engineering Mathematics (13 marks) and EC core (72 marks).\n\nOfficial questions include MCQ, MSQ and NAT. Questions carry 1 or 2 marks. Wrong MCQs lose one-third of their marks; MSQ and NAT have no negative marking.\n\n## Editable MCQ practice allocation\n\nThis application generates single-correct MCQs. The 18 subject/mark bands below preserve the official overall counts and marks, but their chapter counts are practice allocations, not official chapter weightages. Select any subject/mark band for focused practice. This does not reproduce MSQ or NAT delivery.\n\nReference checked 10 September 2026. Review the source before using a later cycle.\n\n- [Official reference 1](https://gate2027.iitm.ac.in/question_paper_pattern)\n- [Official reference 2](https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/EC_GATE2027_Syllabus.pdf)\n- [Official reference 3](https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/GA_GATE2027_Syllabus.pdf)",
+    "instructions": "Choose one correct option for each original practice MCQ. All questions use the displayed 1- or 2-mark band; wrong answers lose one-third of the marks. This practice paper does not include MSQ or NAT. Review calculations, units and circuit diagrams before publication.",
+    "generation_prompt": "## Authoring task\n\nGenerate original undergraduate GATE EC practice MCQs using the selected subjects, counts, difficulty and mark bands.\n\n## Coverage\n\nFollow the supplied curriculum. In Full Exam mode cover every configured section. In Subject-wise mode use only the selected section. Never invent official chapter weights.\n\n## Quality\n\nUse four distinct options and one unambiguous correct answer. Include worked solutions, variable definitions, units and clear diagrams when needed. Independently verify numerical calculations and distractors. Respect the selected difficulty without changing the examination level. This is an MCQ adaptation; do not output MSQ or NAT items.",
+    "sections": [
+      {
+        "subject": "General Aptitude - 1 mark",
+        "count": 5,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Verbal, quantitative, analytical and spatial aptitude; original GATE-level problems.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "General Aptitude - 2 marks",
+        "count": 5,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Verbal, quantitative, analytical and spatial aptitude; original GATE-level problems.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Engineering Mathematics - 1 mark",
+        "count": 3,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Linear algebra, calculus, differential equations, vector and complex analysis, probability and statistics.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Engineering Mathematics - 2 marks",
+        "count": 5,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Linear algebra, calculus, differential equations, vector and complex analysis, probability and statistics.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Networks, Signals and Systems - 1 mark",
+        "count": 4,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Circuit analysis, phasors, transients, two-port networks, LTI systems, transforms, sampling, FIR and IIR filters.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Networks, Signals and Systems - 2 marks",
+        "count": 4,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Circuit analysis, phasors, transients, two-port networks, LTI systems, transforms, sampling, FIR and IIR filters.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Electronic Devices - 1 mark",
+        "count": 3,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Semiconductor bands and carriers, transport, junctions, BJT, MOSFET, optoelectronic devices.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Electronic Devices - 2 marks",
+        "count": 3,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Semiconductor bands and carriers, transport, junctions, BJT, MOSFET, optoelectronic devices.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Analog Circuits - 1 mark",
+        "count": 3,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Diodes, transistor amplifiers, current mirrors, differential amplifiers, operational amplifiers, filters and compensation.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Analog Circuits - 2 marks",
+        "count": 4,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Diodes, transistor amplifiers, current mirrors, differential amplifiers, operational amplifiers, filters and compensation.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Digital Circuits - 1 mark",
+        "count": 3,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Number systems, logic design, sequential circuits, converters, memory, datapath and pipelining.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Digital Circuits - 2 marks",
+        "count": 4,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Number systems, logic design, sequential circuits, converters, memory, datapath and pipelining.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Control Systems - 1 mark",
+        "count": 3,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Feedback models, transient and frequency response, stability, compensators and state-space analysis.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Control Systems - 2 marks",
+        "count": 3,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Feedback models, transient and frequency response, stability, compensators and state-space analysis.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Communications - 1 mark",
+        "count": 3,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Random processes, analog and digital modulation, information theory, detection, noise, coding and error control.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Communications - 2 marks",
+        "count": 4,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Random processes, analog and digital modulation, information theory, detection, noise, coding and error control.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Electromagnetics - 1 mark",
+        "count": 3,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Fields and waves, boundary conditions, transmission lines, matching, waveguides, optical propagation and antennas.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Electromagnetics - 2 marks",
+        "count": 3,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Fields and waves, boundary conditions, transmission lines, matching, waveguides, optical propagation and antennas.",
+        "duration_minutes": null
+      }
+    ],
+    "reuse_questions": true,
+    "official_lookup_id": null
+  },
+  "sources": [
+    "https://gate2027.iitm.ac.in/question_paper_pattern",
+    "https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/EC_GATE2027_Syllabus.pdf",
+    "https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/GA_GATE2027_Syllabus.pdf"
+  ],
+  "checked_at": "2026-09-10T00:00:00+00:00",
+  "guidance": "AI-generated, reviewed editable authoring guidance"
+}

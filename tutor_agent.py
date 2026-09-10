@@ -68,6 +68,8 @@ class ChatInput(BaseModel):
     subject: str = Field(default='', max_length=100)
     difficulty: str = Field(default='', max_length=100)
     qtype: str = Field(default='', max_length=100)
+    page_title: str = Field(default='', max_length=160)
+    page_content: str = Field(default='', max_length=4000)
 
 
 def review(conn, uid, attempt_id, question_id):
@@ -124,7 +126,7 @@ def generate(message,context,history):
     from google.genai import types
     client = genai.Client(vertexai=True,project=gcp_project_id(),location=gcp_region(),http_options=types.HttpOptions(api_version='v1',timeout=30000))
     try:
-        response = client.models.generate_content(model=os.getenv('VERTEX_MODEL_TUTOR',os.getenv('VERTEX_MODEL_PRIMARY','gemini-3.5-flash')), contents=json.dumps({'trusted_metrics':context,'conversation':history,'learner_question':message}), config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT,temperature=0.2,max_output_tokens=1500,response_mime_type='application/json',response_schema={'type':'OBJECT','properties':{'message':{'type':'STRING'},'bullets':{'type':'ARRAY','items':{'type':'STRING'}},'follow_up':{'type':'STRING'},'suggested_replies':{'type':'ARRAY','items':{'type':'STRING'}}},'required':['message','bullets','follow_up','suggested_replies']}))
+        response = client.models.generate_content(model=os.getenv('VERTEX_MODEL_TUTOR',os.getenv('VERTEX_MODEL_PRIMARY','gemini-2.5-flash')), contents=json.dumps({'trusted_metrics':context,'conversation':history,'learner_question':message}), config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT,temperature=0.2,max_output_tokens=int(os.getenv('TUTOR_MAX_OUTPUT_TOKENS','900')),response_mime_type='application/json',response_schema={'type':'OBJECT','properties':{'message':{'type':'STRING'},'bullets':{'type':'ARRAY','items':{'type':'STRING'}},'follow_up':{'type':'STRING'},'suggested_replies':{'type':'ARRAY','items':{'type':'STRING'}}},'required':['message','bullets','follow_up','suggested_replies']}))
         result=json.loads(response.text or '{}')
         return result if isinstance(result.get('message'),str) and result['message'].strip() else None
     finally:
@@ -150,7 +152,9 @@ def chat(data:ChatInput,request:Request):
         now=time.time(); sid=data.session_id
         if not sid: sid=conn.execute('INSERT INTO tutor_sessions(user_id,created_at,updated_at) VALUES(?,?,?)',(user['id'],now,now)).lastrowid
         conn.execute("INSERT INTO tutor_messages(session_id,role,content,created_at) VALUES(?,'user',?,?)",(sid,data.message,now));conn.commit()
-    compact={**context,'dimensions':{k:v[:12] for k,v in context['dimensions'].items()}}
+    from explanation_quota import reserve_explanation_call
+    reserve_explanation_call(user['id'])
+    compact={**context,'dimensions':{k:v[:12] for k,v in context['dimensions'].items()},'untrusted_page':{'title':data.page_title,'content':data.page_content}}
     try: message=generate(data.message,compact,list(reversed([conversation_turn(r) for r in history_rows])))
     except Exception: message=None  # Never expose credentials/provider details in errors.
     turn=message if isinstance(message,dict) else {}

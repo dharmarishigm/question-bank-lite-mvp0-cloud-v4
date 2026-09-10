@@ -1,0 +1,76 @@
+{
+  "program": {
+    "code": "SSC_CGL_TIER_I",
+    "name": "SSC CGL - Tier I",
+    "authority": "Staff Selection Commission (SSC)",
+    "region": "India",
+    "category": "Competitive examination",
+    "levels": [
+      "Graduate recruitment / Tier I"
+    ],
+    "languages": [
+      "English"
+    ],
+    "tags": [
+      "Full Exam",
+      "Subject-wise",
+      "Editable curriculum",
+      "Question bank reuse"
+    ],
+    "description": "## Official reference: SSC CGL 2026\n\n100 questions, 200 marks, 60 minutes. Four subjects have 25 questions and 50 marks each. Correct +2, incorrect -0.50, unanswered 0. The 2026 notice specifies 15 minutes per subject. This English practice setup covers the full Tier I syllabus.\n\n## Practice delivery\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n## Sources\n\nChecked 10 September 2026. Published reference cycles are identified above; refresh before adopting later changes.\n\n- [Reference 1](https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf)",
+    "status": "ACTIVE"
+  },
+  "settings": {
+    "name": "SSC CGL - Tier I - Full practice",
+    "mode": "FULL",
+    "level": "Graduate recruitment / Tier I",
+    "language": "English",
+    "duration_minutes": 60,
+    "difficulty": "medium",
+    "curriculum": "## Preparation scope\n\nUse only the selected section for subject-wise papers. In Full Exam mode, cover all listed sections. Counts and mark bands are editable; do not invent official chapter weights.\n\n### General Intelligence and Reasoning\n\nAnalogies, classification, series, coding-decoding, syllogisms, Venn diagrams, spatial reasoning, embedded figures, folding, relationships, inference, problem solving and critical thinking. Include self-contained diagrams where needed.\n\n### General Awareness\n\nIndian history, culture, geography, economics, general policy, scientific research, everyday science and India’s neighbours. Date-label current affairs and use only supplied verified facts; do not invent recent events.\n\n### Quantitative Aptitude\n\nNumber systems, decimals and fractions, percentages, ratios, roots, averages, interest, profit/loss, discount, partnership, mixture/alligation, time/work/distance, algebra, geometry, mensuration, trigonometry and statistical charts.\n\n### English Comprehension\n\nReading comprehension, vocabulary, grammar, sentence structure, synonyms/antonyms, error spotting, spelling, idioms, one-word substitutions, sentence improvement, active/passive voice, direct/indirect speech, sentence ordering and cloze passages.",
+    "pattern": "## Official reference: SSC CGL 2026\n\n100 questions, 200 marks, 60 minutes. Four subjects have 25 questions and 50 marks each. Correct +2, incorrect -0.50, unanswered 0. The 2026 notice specifies 15 minutes per subject. This English practice setup covers the full Tier I syllabus.\n\n## Practice delivery\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n## Sources\n\nChecked 10 September 2026. Published reference cycles are identified above; refresh before adopting later changes.\n\n- [Reference 1](https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf)",
+    "instructions": "## Selected practice paper\n\nThe exam title, selected subjects, question counts, duration and marks shown for this paper are the settings to follow. Full-exam figures below describe the reference setup and do not override a subject-wise or edited paper.\n\n## Official reference: SSC CGL 2026\n\n100 questions, 200 marks, 60 minutes. Four subjects have 25 questions and 50 marks each. Correct +2, incorrect -0.50, unanswered 0. The 2026 notice specifies 15 minutes per subject. This English practice setup covers the full Tier I syllabus.\n\n## Practice delivery\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n## SSC CGL Tier I Practice Instructions\n\nThis practice test simulates the SSC CGL Tier I examination. Please read the following instructions carefully:\n\n*   **Total Questions:** You will attempt 100 questions.\n*   **Total Time:** You have 60 minutes to complete the entire test.\n*   **Marking Scheme:**\n    *   Each correct answer will fetch +2 marks.\n    *   Each incorrect answer will result in a deduction of 0.50 marks.\n    *   Unanswered questions will receive 0 marks.\n*   **Navigation:** You can navigate between sections and questions freely within the overall time limit.\n*   **Review:** Ensure you review all your answers before submitting the test.\n\nGood luck!",
+    "generation_prompt": "## Scope and selected inputs\n\nFollow the structured paper mode, selected subjects, counts, marks, timing and difficulty. Subject-wise generates only the selected subject, even when the reference describes a full exam. Use the chosen Very Easy, Easy, Medium, Hard or Very Hard setting.\n\n## SSC CGL Tier I - Question Authoring Guidance\n\nThis practice program covers the full SSC CGL Tier I syllabus. Authors must create original, self-contained questions adhering to the following structure and guidelines:\n\n**Exam Structure:**\n*   **Total Questions:** 100\n*   **Total Marks:** 200\n*   **Duration:** 60 minutes\n*   **Marking Scheme:** +2 for each correct answer, -0.50 for each incorrect answer, 0 for unanswered questions.\n\n**Subject Breakdown (25 questions, 50 marks per subject):**\n\n1.  **General Intelligence and Reasoning:** Analogies, classification, series, coding-decoding, syllogisms, Venn diagrams, spatial reasoning, embedded figures, folding, relationships, inference, problem solving and critical thinking. Include self-contained diagrams where needed.\n2.  **General Awareness:** Indian history, culture, geography, economics, general policy, scientific research, everyday science and India’s neighbours. Date-label current affairs and use only supplied verified facts; do not invent recent events.\n3.  **Quantitative Aptitude:** Number systems, decimals and fractions, percentages, ratios, roots, averages, interest, profit/loss, discount, partnership, mixture/alligation, time/work/distance, algebra, geometry, mensuration, trigonometry and statistical charts.\n4.  **English Comprehension:** Reading comprehension, vocabulary, grammar, sentence structure, synonyms/antonyms, error spotting, spelling, idioms, one-word substitutions, sentence improvement, active/passive voice, direct/indirect speech, sentence ordering and cloze passages.\n\n**Question Requirements:**\n*   **Originality:** All questions must be original and self-contained.\n*   **Options:** Exactly four distinct options must be provided for each question.\n*   **Correct Answer:** Exactly one option must be the unequivocally correct answer.\n*   **Distractors:** All incorrect options (distractors) must be plausible and well-formulated to test understanding.\n*   **Worked Solutions:** Each question requires a thoroughly checked, step-by-step worked solution.\n*   **Math Formatting:** Ensure all mathematical expressions and equations are clearly and correctly formatted.\n*   **Difficulty:** Use the selected difficulty, including Very Easy when requested; keep topics within the program syllabus.\n\n**Note on Section Timings:** Official section timers are reference information; this practice uses the editable overall duration selected in the form.\n\n## Reference and delivery limits\n\n## Official reference: SSC CGL 2026\n\n100 questions, 200 marks, 60 minutes. Four subjects have 25 questions and 50 marks each. Correct +2, incorrect -0.50, unanswered 0. The 2026 notice specifies 15 minutes per subject. This English practice setup covers the full Tier I syllabus.\n\n## Practice delivery\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n## Batch and reuse requirements\n\nGenerate only the requested batch quota; full-paper counts above are reference context, not an instruction to repeat the entire paper in each batch. Every question must include its complete passage, transcript, diagram data or constraints. Do not depend on another question or absent audio. Honor the current structured inputs when edited; question-bank reuse and missing-question generation are handled by the application.",
+    "sections": [
+      {
+        "subject": "General Intelligence and Reasoning",
+        "count": 25,
+        "marks": 2.0,
+        "negative_marks": 0.5,
+        "topics": "Analogies, classification, series, coding-decoding, syllogisms, Venn diagrams, spatial reasoning, embedded figures, folding, relationships, inference, problem solving and critical thinking. Include self-contained diagrams where needed.",
+        "duration_minutes": 15
+      },
+      {
+        "subject": "General Awareness",
+        "count": 25,
+        "marks": 2.0,
+        "negative_marks": 0.5,
+        "topics": "Indian history, culture, geography, economics, general policy, scientific research, everyday science and India’s neighbours. Date-label current affairs and use only supplied verified facts; do not invent recent events.",
+        "duration_minutes": 15
+      },
+      {
+        "subject": "Quantitative Aptitude",
+        "count": 25,
+        "marks": 2.0,
+        "negative_marks": 0.5,
+        "topics": "Number systems, decimals and fractions, percentages, ratios, roots, averages, interest, profit/loss, discount, partnership, mixture/alligation, time/work/distance, algebra, geometry, mensuration, trigonometry and statistical charts.",
+        "duration_minutes": 15
+      },
+      {
+        "subject": "English Comprehension",
+        "count": 25,
+        "marks": 2.0,
+        "negative_marks": 0.5,
+        "topics": "Reading comprehension, vocabulary, grammar, sentence structure, synonyms/antonyms, error spotting, spelling, idioms, one-word substitutions, sentence improvement, active/passive voice, direct/indirect speech, sentence ordering and cloze passages.",
+        "duration_minutes": 15
+      }
+    ],
+    "reuse_questions": true,
+    "official_lookup_id": null
+  },
+  "sources": [
+    "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf"
+  ],
+  "checked_at": "2026-09-10",
+  "guidance": "AI-generated, reviewed editable authoring guidance"
+}

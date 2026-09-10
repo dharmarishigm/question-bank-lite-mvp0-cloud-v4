@@ -21,3 +21,44 @@
 .program-setup-card .data-grid p {padding:8px;background:#edf7f5;border-radius:8px;margin:4px 0;font-weight:600}
 .program-setup-card ul {padding-left:20px}
 .program-setup-card .actions button {white-space:normal;max-width:100%}
+.guided-exam-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:14px}
+.guided-exam-form>.wide{grid-column:1/-1}
+.guided-exam-form label{display:grid;gap:6px;font-weight:600;min-width:0}
+.guided-exam-form input,.guided-exam-form select,.guided-exam-form textarea{width:100%;box-sizing:border-box;min-width:0;padding:9px;border:1px solid #b9cfd0;border-radius:7px}
+.guided-exam-form input[type=checkbox],.program-setup-card input[type=checkbox]{width:auto;justify-self:start}
+.guided-exam-form>button{align-self:end;justify-self:start}
+.guided-review-question{border-top:1px solid #d5e1e5;padding:16px 0;overflow-wrap:anywhere}
+.guided-review-question img{max-width:100%;height:auto}
+#programs-panel .guided-section textarea{font-family:inherit}
+#programs-panel [data-program-editor] details label{display:grid;margin:10px 0}
+.official-pattern-panel{padding:14px;border:1px solid #b9d8ce;border-radius:10px;background:#f0faf6;margin:12px 0;overflow-wrap:anywhere}
+.official-pattern-panel:empty{display:none}
+.official-pattern-panel a{display:block;margin:8px 0;color:#155e75}
+.official-search-suggestions{width:100%;height:150px;border:0;background:white;margin-top:10px}
+.guided-totals{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:12px 0}
+.guided-totals input{background:#edf7f5;font-weight:700}
+.guided-prompt-markdown{padding:18px;background:white;border:1px solid #d5e1e5;border-radius:10px;line-height:1.7;overflow-wrap:anywhere}
+.guided-prompt-markdown h1{font-size:1.5rem}.guided-prompt-markdown h2{font-size:1.2rem;margin-top:20px}.guided-prompt-markdown h3{font-size:1.05rem}
+.guided-prompt-markdown th,.guided-prompt-markdown td{padding:9px;text-align:left}.guided-prompt-markdown th{background:#edf7f5}
+#programs-panel textarea[aria-label="Final prompt Markdown source"]{width:100%;box-sizing:border-box;padding:12px}
+
+.result-tools-dialog{width:min(900px,94vw);max-height:90vh;overflow:auto;border:1px solid #ccd6e2;border-radius:16px;padding:24px}.result-tools-dialog::backdrop{background:#10233c88}.result-tools-dialog label{display:grid;gap:6px;margin:12px 0}.result-tools-dialog textarea,.result-tools-dialog input,.result-tools-dialog select{width:100%;box-sizing:border-box}.result-tools{margin-top:16px;flex-wrap:wrap}.leaderboard-you{background:#e8f5ef}.concern-card{margin:14px 0}.result-tools-dialog table{min-width:520px}
+
+/* Keep multi-batch review actions within narrow screens. */
+.ai-result-summary .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ai-result-summary .actions button { flex: 0 1 auto; max-width: 100%; }
+
+/* Exam and preview diagrams share proportional, viewport-aware bounds. */
+:is(#exam-current-question,.exam-paper-item,.guided-review-question,.attempt-review-card,.ai-question-card,#preview) { min-width:0; }
+:is(#exam-current-question,.exam-paper-item,.guided-review-question,.attempt-review-card,.ai-question-card,#preview) img:not(.inline-formula) {
+  display:block; width:auto; height:auto; max-width:100%; max-height:min(420px,55vh);
+  object-fit:contain; margin:12px auto;
+}
+:is(.exam-option-item,.exam-option-list li,.ai-question-options li,.option-content) { min-width:0; }
+:is(.exam-option-item,.exam-option-list li,.ai-question-options li,.option-content) .rendered { min-width:0; max-width:100%; }
+:is(#exam-current-question,.exam-paper-item,.ai-question-card,#preview) :is(.exam-option-item,.exam-option-list li,.ai-question-options li,.option-content) img:not(.inline-formula) {
+  max-height:min(180px,30vh); margin:6px auto;
+}
+@media print {
+  :is(.exam-paper-item,.guided-review-question,.attempt-review-card,.ai-question-card,#preview) img:not(.inline-formula) { max-height:100mm; }
+}

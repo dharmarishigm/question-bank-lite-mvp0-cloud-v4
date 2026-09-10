@@ -1,0 +1,21 @@
+{
+  "deployed_at_utc": "2026-09-09T20:43:46.741052+00:00",
+  "revision": "question-bank-cloud-v4-archivefix-20260909-203952",
+  "previous_revision": "question-bank-cloud-v4-official-20260909-202953",
+  "project": "gen-lang-client-0491787004",
+  "region": "asia-south1",
+  "traffic_percent": 100,
+  "build_id": "018f6169-f926-42c6-8f93-63dbda6665f3",
+  "image_digest": "sha256:a703330d9752546450d50059ffe108494d86a4ed4601e68d35c0ea47cbb32640",
+  "checks": {
+    "targeted_backend_tests": 15,
+    "javascript_suites": 2,
+    "browser_archive_restore_regression": true,
+    "startup_complete": true,
+    "selected_program_restored": true,
+    "selected_program_prompt": 200,
+    "live_health": 200,
+    "frontend_source_matches": true,
+    "authenticated_prompt": 200
+  }
+}

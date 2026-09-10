@@ -4,17 +4,19 @@
   if (!nav) return;
   const button = document.createElement('button');
   button.dataset.view = 'programs'; button.textContent = 'Programs';
-  nav.append(button);
+  nav.insertBefore(button,nav.querySelector('[data-view=exam]'));
   const panel = document.createElement('section');
   panel.id = 'programs-panel'; panel.className = 'tab-panel'; panel.hidden = true;
-  panel.innerHTML = `<div class="page-header"><div><p class="eyebrow">BLUEPRINT WORKSPACE</p><h2>Programs</h2><p>Reusable exam patterns and versioned question blueprints.</p></div><button class="primary" data-program-add>Add program</button></div>
-    <form data-program-search class="actions"><label>Search programs<input name="q" maxlength="200" placeholder="Name or code"></label><label>Status<select name="status"><option value="">All statuses</option><option>ACTIVE</option><option>INACTIVE</option><option>ARCHIVED</option></select></label><label>Sort<select name="sort"><option value="name">Name</option><option value="code">Code</option><option value="updated_at">Updated</option></select></label><label>Order<select name="direction"><option value="asc">Ascending</option><option value="desc">Descending</option></select></label><button>Search</button></form>
+  panel.innerHTML = `<div class="page-header"><div><p class="eyebrow">PROGRAMS &amp; EXAMS</p><h2>Programs</h2><p>Add a program, generate questions, review and publish an exam.</p></div><button class="primary" data-program-add>Add program</button></div>
+    <form data-program-search class="actions"><label>Search programs<input name="q" maxlength="200" placeholder="Name or code"></label><label>Status<select name="status"><option value="ACTIVE">Active programs</option><option value="INACTIVE">Inactive programs</option><option value="ARCHIVED">Archived programs</option><option value="">All statuses</option></select></label><label>Sort<select name="sort"><option value="name">Name</option><option value="code">Code</option><option value="updated_at">Updated</option></select></label><label>Order<select name="direction"><option value="asc">Ascending</option><option value="desc">Descending</option></select></label><button>Search</button></form>
     <p data-program-status role="status"></p><div data-program-list class="data-grid"></div><div class="actions"><button data-program-prev>Previous</button><span data-program-page></span><button data-program-next>Next</button></div>
     <section data-program-workspace hidden class="panel"><div class="section-heading"><h3 data-program-title></h3><button data-program-close>Close program</button></div><nav class="actions" aria-label="Program sections"><button data-program-tab="overview">Overview</button><button data-program-tab="EXAM_PATTERN">Patterns</button><button data-program-tab="EXAM_GENERATOR">Exam Blueprints</button><button data-program-tab="QUESTION_GENERATOR">Question Blueprints</button><button data-program-tab="curriculum">Curriculum</button><button data-program-tab="evidence">Historical evidence</button><button data-program-tab="papers">Paper generation</button><button data-program-tab="gemini">Gemini & prompts</button><button data-program-tab="audit">Audit</button></nav><div data-program-content></div></section>
     <dialog data-program-editor><form method="dialog"><button aria-label="Close editor">×</button></form><h3 data-editor-title></h3><form data-program-form class="compact-form"><label>Stable code<input name="code" pattern="[A-Z][A-Z0-9_]{1,63}" required></label><label>Name<input name="name" maxlength="200" required></label><label class="wide">Description<textarea name="description" maxlength="4000"></textarea></label><label>Conducting authority<input name="authority"></label><label>Region<input name="region"></label><label>Category<input name="category"></label><label>Levels (comma separated)<input name="levels"></label><label>Languages (comma separated)<input name="languages"></label><label>Tags (comma separated)<input name="tags"></label><label>Status<select name="status"><option>ACTIVE</option><option>INACTIVE</option></select></label><button class="primary">Save program</button><p data-editor-status role="status"></p></form></dialog>`;
   const main=document.getElementById('main-content'); main.insertBefore(panel,main.querySelector('footer'));
   matchMedia('(max-width:800px)').addEventListener('change', event => {if(event.matches && !panel.hidden){document.getElementById('app-shell').classList.remove('nav-open');document.getElementById('sidebar-toggle').setAttribute('aria-expanded','false');}});
   const find = selector => panel.querySelector(selector);
+  const createExamButton=document.createElement('button');createExamButton.dataset.programTab='create-exam';createExamButton.textContent='Create exam';createExamButton.className='primary';
+  const advanced=document.createElement('details');const advancedTitle=document.createElement('summary');advancedTitle.textContent='Advanced program workspace';advanced.append(advancedTitle);const programNav=find('[aria-label="Program sections"]');programNav.before(createExamButton,advanced);advanced.append(programNav);
   const setupButton=document.createElement('button');setupButton.dataset.programTab='setup';setupButton.textContent='Generate setup with Gemini';setupButton.className='primary';
   find('[aria-label="Program sections"]').prepend(setupButton);
   const escape = value => { const node = document.createElement('span'); node.textContent = String(value ?? ''); return node.innerHTML.replaceAll('"', '&quot;').replaceAll("'", '&#39;'); };
@@ -27,9 +29,10 @@
     try {
       const query = new URLSearchParams(new FormData(find('[data-program-search]'))); query.set('offset', offset);
       const data = await request('?' + query); items = data.items;
-      find('[data-program-list]').innerHTML = items.map(p => `<article class="exam-tile"><span class="badge">${escape(p.status)}</span><h3>${escape(p.name)}</h3><strong>${escape(p.code)}</strong><p>${escape(p.payload.description)}</p><p>${Object.values(p.blueprint_counts).reduce((a,b) => a+b,0)} blueprints · ${p.published_count} published versions</p><div class="actions"><button class="primary" data-program-open="${p.id}">Open</button><button data-program-edit="${p.id}">Edit</button><button data-program-state="${p.id}">${p.status === 'ARCHIVED' ? 'Restore' : 'Archive'}</button></div></article>`).join('') || '<p>No programs match this search.</p>';
+      find('[data-program-list]').innerHTML = items.map(p => `<article class="exam-tile"><span class="badge">${escape(p.status)}</span><h3>${escape(p.name)}</h3><div class="rich-description rendered">${toHtml(p.payload.description || 'No description provided.')}</div>${ProgramParticipation.html(p,{fallback:true})}<p>Full exam or subject-wise · Five difficulty levels</p><div class="actions"><button class="primary" data-program-open="${p.id}">${p.status === 'ARCHIVED' ? 'View archived program' : 'Create exam'}</button>${p.status === 'ARCHIVED' ? '' : `<button data-program-edit="${p.id}">Edit</button>`}<button data-program-state="${p.id}">${p.status === 'ARCHIVED' ? 'Restore' : 'Archive'}</button></div></article>`).join('') || '<p class="empty-state">No programs match this search. Try another name or status.</p>';
       find('[data-program-page]').textContent = `${data.total ? offset + 1 : 0}–${offset + items.length} of ${data.total}`;
       find('[data-program-prev]').disabled = offset === 0; find('[data-program-next]').disabled = offset + items.length >= data.total;
+      find('[data-program-list]').querySelectorAll('.rich-description').forEach(typeset);
       status.textContent = '';
     } catch (error) { status.textContent = error.message; }
   }
@@ -43,13 +46,14 @@
     form.elements.code.readOnly = !!program;
     find('[data-editor-status]').textContent = ''; find('[data-program-editor]').showModal();
   }
-  async function workspace(tab = 'overview') {
+  async function workspace(tab = 'create-exam') {
     const content = find('[data-program-content]'); content.textContent = 'Loading…';
     try {
       panel.querySelectorAll('[data-program-tab]').forEach(b=>b.setAttribute('aria-current',String(b.dataset.programTab===tab)));
       current = await request('/' + current.id); find('[data-program-title]').textContent = current.name;
       find('[data-program-workspace]').hidden = false;
-      if (tab === 'overview') { content.innerHTML = `<p>${escape(current.payload.description)}</p><dl><dt>Authority</dt><dd>${escape(current.payload.authority || 'Not specified')}</dd><dt>Revision</dt><dd>${current.revision}</dd><dt>Status</dt><dd>${escape(current.status)}</dd></dl><button class="primary" data-program-tab="setup">Generate setup with Gemini</button><p>Prepare program details, curriculum, blueprints, prompts and a practice preview from the program name.</p>`; return; }
+      if (tab === 'create-exam') {await ProgramExam.render(content,current,request);return;}
+      if (tab === 'overview') { content.innerHTML = `<div class="rich-description rendered">${toHtml(current.payload.description || 'No description provided.')}</div>${ProgramParticipation.html(current,{fallback:true})}<dl><dt>Authority</dt><dd>${escape(current.payload.authority || 'Not specified')}</dd><dt>Revision</dt><dd>${current.revision}</dd><dt>Status</dt><dd>${escape(current.status)}</dd></dl><button class="primary" data-program-tab="setup">Generate setup with Gemini</button><p>Prepare program details, curriculum, blueprints, prompts and a practice preview from the program name.</p>`; return; }
       if (tab === 'setup') {await ProgramSetup.render(content,current,request);return;}
       if (tab === 'audit') {
         const rows = await request('/' + current.id + '/audit');
@@ -87,9 +91,11 @@
       } catch(error) {target.querySelector('[data-blueprint-status]').textContent=error.message;} });
     } catch(error) {target.textContent=error.message;}
   }
+  const programForm=find('[data-program-form]');const extra=document.createElement('details');extra.className='wide';const extraTitle=document.createElement('summary');extraTitle.textContent='Optional program details';extra.append(extraTitle);const nameLabel=programForm.elements.name.parentElement;programForm.prepend(nameLabel);for(const input of [...programForm.querySelectorAll('label')])if(input!==nameLabel)extra.append(input);nameLabel.after(extra);programForm.elements.code.required=false;programForm.elements.name.required=true;programForm.elements.name.placeholder='For example: Navodaya';
   find('[data-program-form]').onsubmit = async event => { event.preventDefault(); const payload = Object.fromEntries(new FormData(event.target));
+    if(!payload.code)payload.code='PROGRAM_'+crypto.randomUUID().replaceAll('-','').slice(0,12).toUpperCase();
     for (const field of ['levels','languages','tags']) payload[field] = payload[field].split(',').map(s=>s.trim()).filter(Boolean);
-    try { await request(editing ? `/${editing.id}?revision=${editing.revision}` : '', editing ? 'PUT':'POST', payload); find('[data-program-editor]').close(); await load(); }
+    try { const saved=await request(editing ? `/${editing.id}?revision=${editing.revision}` : '', editing ? 'PUT':'POST', payload); find('[data-program-editor]').close(); await load(); if(!editing){current=saved;await workspace('create-exam');} }
     catch(error) { find('[data-editor-status]').textContent=error.message; }
   };
   find('[data-program-search]').onsubmit = event => { event.preventDefault(); offset=0; load(); };
@@ -102,7 +108,8 @@
     if(b.hasAttribute('data-program-close')) find('[data-program-workspace]').hidden=true;
     if(b.dataset.programTab) workspace(b.dataset.programTab);
     if(b.dataset.programState) {const p=items.find(p=>p.id===Number(b.dataset.programState));if(!confirm(`${p.status==='ARCHIVED'?'Restore':'Archive'} ${p.name}? Blueprint history is retained.`))return;
-      try {await request(`/${p.id}${p.status==='ARCHIVED'?'/restore':''}?revision=${p.revision}`,p.status==='ARCHIVED'?'POST':'DELETE');await load();} catch(error){find('[data-program-status]').textContent=error.message;}}
+      try {await request(`/${p.id}${p.status==='ARCHIVED'?'/restore':''}?revision=${p.revision}`,p.status==='ARCHIVED'?'POST':'DELETE');await load();if(current?.id===p.id)await workspace();} catch(error){find('[data-program-status]').textContent=error.message;}}
   });
+  panel.addEventListener('program-restored',load);
   button.addEventListener('click', load);
 })();

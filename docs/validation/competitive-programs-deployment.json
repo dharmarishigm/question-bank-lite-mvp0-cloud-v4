@@ -1,0 +1,175 @@
+{
+  "base_url": "https://meritiqra.com",
+  "programs": [
+    {
+      "id": 14,
+      "code": "CAT_MBA",
+      "name": "CAT - MBA Entrance (MCQ practice)",
+      "status": "ACTIVE",
+      "questions": 68,
+      "marks": 204.0,
+      "duration_minutes": 120,
+      "sections": [
+        "Verbal Ability and Reading Comprehension",
+        "Data Interpretation and Logical Reasoning",
+        "Quantitative Ability"
+      ],
+      "full_and_all_subject_prompts_verified": true,
+      "saved_setup_verified": true,
+      "sources": [
+        "https://cdn.digialm.com/per/g06/pub/32842/EForms/image/CAT2025/Media_Release.pdf",
+        "https://iimcat.ac.in"
+      ]
+    },
+    {
+      "id": 15,
+      "code": "GATE_CS_IT",
+      "name": "GATE - Computer Science and IT (MCQ practice)",
+      "status": "ACTIVE",
+      "questions": 65,
+      "marks": 100.0,
+      "duration_minutes": 180,
+      "sections": [
+        "General Aptitude - 1 mark",
+        "General Aptitude - 2 marks",
+        "Engineering Mathematics - 1 mark",
+        "Engineering Mathematics - 2 marks",
+        "Digital Logic",
+        "Computer Organization and Architecture",
+        "Programming and Data Structures",
+        "Algorithms",
+        "Theory of Computation",
+        "Compiler Design",
+        "Operating Systems",
+        "Databases",
+        "Computer Networks"
+      ],
+      "full_and_all_subject_prompts_verified": true,
+      "saved_setup_verified": true,
+      "sources": [
+        "https://gate2027.iitm.ac.in/question_paper_pattern",
+        "https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf",
+        "https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/GA_GATE2027_Syllabus.pdf"
+      ]
+    },
+    {
+      "id": 16,
+      "code": "IELTS_ACADEMIC",
+      "name": "IELTS - Academic (skills practice)",
+      "status": "ACTIVE",
+      "questions": 100,
+      "marks": 100.0,
+      "duration_minutes": 165,
+      "sections": [
+        "Listening Skills (transcript-based)",
+        "Reading",
+        "Writing Skills (MCQ adaptation)",
+        "Speaking Skills (MCQ adaptation)"
+      ],
+      "full_and_all_subject_prompts_verified": true,
+      "saved_setup_verified": true,
+      "sources": [
+        "https://ielts.org/take-a-test/test-types/ielts-academic-test",
+        "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-listening",
+        "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-reading",
+        "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-writing",
+        "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-speaking"
+      ]
+    },
+    {
+      "id": 17,
+      "code": "IELTS_GENERAL_TRAINING",
+      "name": "IELTS - General Training (skills practice)",
+      "status": "ACTIVE",
+      "questions": 100,
+      "marks": 100.0,
+      "duration_minutes": 165,
+      "sections": [
+        "Listening Skills (transcript-based)",
+        "Reading",
+        "Writing Skills (MCQ adaptation)",
+        "Speaking Skills (MCQ adaptation)"
+      ],
+      "full_and_all_subject_prompts_verified": true,
+      "saved_setup_verified": true,
+      "sources": [
+        "https://ielts.org/organisations/ielts-for-organisations/test-types/ielts-general-training-test",
+        "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-listening",
+        "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-reading",
+        "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-writing",
+        "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-speaking"
+      ]
+    },
+    {
+      "id": 18,
+      "code": "SSC_CGL_TIER_I",
+      "name": "SSC CGL - Tier I",
+      "status": "ACTIVE",
+      "questions": 100,
+      "marks": 200.0,
+      "duration_minutes": 60,
+      "sections": [
+        "General Intelligence and Reasoning",
+        "General Awareness",
+        "Quantitative Aptitude",
+        "English Comprehension"
+      ],
+      "full_and_all_subject_prompts_verified": true,
+      "saved_setup_verified": true,
+      "sources": [
+        "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf"
+      ]
+    },
+    {
+      "id": 19,
+      "code": "SSC_CGL_TIER_II_PAPER_I",
+      "name": "SSC CGL - Tier II (Paper I)",
+      "status": "ACTIVE",
+      "questions": 150,
+      "marks": 450.0,
+      "duration_minutes": 135,
+      "sections": [
+        "Mathematical Abilities",
+        "Reasoning and General Intelligence",
+        "English Language and Comprehension",
+        "General Awareness",
+        "Computer Knowledge (qualifying)"
+      ],
+      "full_and_all_subject_prompts_verified": true,
+      "saved_setup_verified": true,
+      "sources": [
+        "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf"
+      ]
+    }
+  ],
+  "questions_generated": 0,
+  "exams_published": 0,
+  "browser_validation": {
+    "program_count": 6,
+    "saved_inputs": "passed",
+    "full_subject_switch_and_duration": "passed",
+    "markdown_prompt_tables": "passed",
+    "desktop_and_mobile_layout": "passed",
+    "questions_generated": 0,
+    "exams_published": 0
+  },
+  "revision": "question-bank-cloud-v4-programs-20260910",
+  "traffic_percent": 100,
+  "build_id": "97fa22e9-d406-40ee-9ae8-e0ae53a0ea40",
+  "image_digest": "sha256:c3b55c660a0c5f9040ff324fe53f73fb48ab8a1d5b509daec833c8408a74ddee",
+  "backend_tests_passed": 26,
+  "local_browser_regression": "Passed guided generation/review/publish with mock model, mobile and duration round trip",
+  "live_checks": {
+    "health": 200,
+    "app": 200,
+    "updated_javascript_matches_source": true,
+    "anonymous_admin_setup_denied": 401
+  },
+  "limitations": [
+    "GATE preset is CS & IT; other GATE papers are not combined.",
+    "GATE and CAT use MCQ practice adaptations.",
+    "IELTS uses transcript-based listening and writing/speaking skills MCQs, without IELTS band scoring.",
+    "SSC Tier II covers objective Paper I, excluding DEST and post-specific Papers II/III.",
+    "Official section locks are not enforced by the current exam timer."
+  ]
+}

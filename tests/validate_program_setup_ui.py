@@ -40,6 +40,7 @@ with patch('blueprint_setup.structured_call',return_value=(proposal(),{'model':'
                 await page.goto('http://127.0.0.1:8046/app')
                 await page.locator('#admin-nav [data-view=programs]').click()
                 await page.locator('[data-program-open]').click()
+                await page.get_by_text('Advanced program workspace',exact=True).click()
                 await page.locator('nav [data-program-tab=setup]').click()
                 await page.get_by_role('button',name='Generate setup',exact=True).click()
                 await page.get_by_role('button',name='Apply setup as drafts').wait_for()

@@ -1,0 +1,160 @@
+{
+  "deployed_at_utc": "2026-09-09T22:31:59.516783+00:00",
+  "revision": "question-bank-cloud-v4-entrancefix-20260909-222717",
+  "project": "gen-lang-client-0491787004",
+  "region": "asia-south1",
+  "traffic_percent": 100,
+  "build_id": "14836d97-4565-4c6e-8dde-72e12ad01165",
+  "image_digest": "sha256:913f3d88429a2659a203d48b23ed10e25ced3d3d0d14b247a5254a65c35b97e6",
+  "checks": {
+    "full_backend_suite": 156,
+    "focused_final_guided_tests": 18,
+    "javascript_suites": 2,
+    "browser_acceptance": true,
+    "/healthz": 200,
+    "/": 200,
+    "/app": 200,
+    "/static/program-exam.js": 200,
+    "/static/programs.js": 200,
+    "/static/programs.css": 200,
+    "anonymous /api/programs": 401,
+    "anonymous /api/programs/1/exam-papers": 401
+  },
+  "programs": [
+    {
+      "id": 9,
+      "name": "IIT JEE Main - B.E./B.Tech.",
+      "status": "ACTIVE",
+      "questions": 75,
+      "marks": 300.0,
+      "duration_minutes": 180,
+      "subjects": [
+        "Mathematics",
+        "Physics",
+        "Chemistry"
+      ],
+      "saved_setup_verified": true,
+      "full_and_all_subject_prompts_verified": true,
+      "sources": [
+        {
+          "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2025/11/202511021649722475.pdf",
+          "sha256": "b18d5d608dda0a274eaa1bcaa4127e0ab7e49d2fd0e78840bd9c96707400960e"
+        },
+        {
+          "url": "https://cdnbbsr.s3waas.gov.in/s3f8e59f4b2fe7c5705bf878bbd494ccdf/uploads/2025/10/202510311323551056.pdf",
+          "sha256": "7cad9da2a12065444828f744bd9f1a93a2dd0d9bd54c32a6d92d94a769e4f905"
+        }
+      ],
+      "practice_adaptation": true
+    },
+    {
+      "id": 10,
+      "name": "IIT JEE Advanced",
+      "status": "ACTIVE",
+      "questions": 102,
+      "marks": 306.0,
+      "duration_minutes": 360,
+      "subjects": [
+        "Mathematics",
+        "Physics",
+        "Chemistry"
+      ],
+      "saved_setup_verified": true,
+      "full_and_all_subject_prompts_verified": true,
+      "sources": [
+        {
+          "url": "https://jeeadv.ac.in/documents/IBEnglish_2026.pdf",
+          "sha256": "406b727c95b76be65c7191e96b5da69099039db89cf4000313fc5a45f773961c"
+        },
+        {
+          "url": "https://jeeadv.ac.in/documents/p1_english.pdf",
+          "sha256": "5864d8e10378892af0f833434bb8ba11b1839eabd75528937e7b10cc81daa95e"
+        },
+        {
+          "url": "https://jeeadv.ac.in/documents/p2_english.pdf",
+          "sha256": "5abc021da435c2f6357b376ab55a466ff25655d51bc4beccc5ed438b7b07c58e"
+        }
+      ],
+      "practice_adaptation": true
+    },
+    {
+      "id": 11,
+      "name": "NEET UG",
+      "status": "ACTIVE",
+      "questions": 180,
+      "marks": 720.0,
+      "duration_minutes": 180,
+      "subjects": [
+        "Physics",
+        "Chemistry",
+        "Biology (Botany and Zoology)"
+      ],
+      "saved_setup_verified": true,
+      "full_and_all_subject_prompts_verified": true,
+      "sources": [
+        {
+          "url": "https://cdnbbsr.s3waas.gov.in/s37bc1ec1d9c3426357e69acd5bf320061/uploads/2026/02/202602231394640855.pdf",
+          "sha256": "2b688f32bc58e5d5acdc4d61c8e6795a81419c40887a7e5c40b7d163174b4925"
+        },
+        {
+          "url": "https://cdnbbsr.s3waas.gov.in/s37bc1ec1d9c3426357e69acd5bf320061/uploads/2026/01/202601081066816297.pdf",
+          "sha256": "8b16375b6143a29743d3392915bbed0f886d3764f2f2d17932faa0b852a3a089"
+        }
+      ],
+      "practice_adaptation": false
+    },
+    {
+      "id": 12,
+      "name": "TG EAPCET - Engineering",
+      "status": "ACTIVE",
+      "questions": 160,
+      "marks": 160.0,
+      "duration_minutes": 180,
+      "subjects": [
+        "Mathematics",
+        "Physics",
+        "Chemistry"
+      ],
+      "saved_setup_verified": true,
+      "full_and_all_subject_prompts_verified": true,
+      "sources": [
+        {
+          "url": "https://eapcet.tgche.ac.in/TGEAPCET/Doc2026/05%20I%20Booklet%20-%20E%20-%202026.pdf",
+          "sha256": "52b56cecf19afa64a6c40a35f8d4c1f8501d43c44661c9fbcadb43ed274bb296"
+        },
+        {
+          "url": "https://eapcet.tgche.ac.in/TGEAPCET/Doc2026/Syllabus-E.pdf",
+          "sha256": "c2878dd1373ded7de97f5c771ca1cb9483d9f896bd80b8d035037b4531c373a8"
+        }
+      ],
+      "practice_adaptation": false
+    },
+    {
+      "id": 13,
+      "name": "TG EAPCET - Agriculture and Pharmacy",
+      "status": "ACTIVE",
+      "questions": 160,
+      "marks": 160.0,
+      "duration_minutes": 180,
+      "subjects": [
+        "Botany",
+        "Zoology",
+        "Physics",
+        "Chemistry"
+      ],
+      "saved_setup_verified": true,
+      "full_and_all_subject_prompts_verified": true,
+      "sources": [
+        {
+          "url": "https://eapcet.tgche.ac.in/TGEAPCET/Doc2026/06%20I%20Booklet%20-%20AP%20-%202026.pdf",
+          "sha256": "579d969bc90ea2d99ce33b2f52da572f7c799bb56f291cab8fe76d6f86a48e12"
+        },
+        {
+          "url": "https://eapcet.tgche.ac.in/TGEAPCET/Doc2026/Syllabus-AP.pdf",
+          "sha256": "fcd0ff089e23d7de5f6af8f20286561b8f023b92388ad0b7d76f9bfbfd3a09c6"
+        }
+      ],
+      "practice_adaptation": false
+    }
+  ]
+}

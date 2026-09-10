@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib,json,os,re,secrets,sqlite3,string,time
 from contextlib import closing
 from fastapi import APIRouter,HTTPException,Request
+from multimodal import statement_with_question_figures
 
 router=APIRouter(prefix="/api")
 
@@ -43,9 +44,16 @@ def staff(user):
     if user["role"] not in {"ADMIN","PROCTOR"}:raise HTTPException(403,"Staff access required")
     return user
 def _code_hash(exam_id,code):return hashlib.sha256(f"{exam_id}:{''.join(str(code).upper().split())}".encode()).hexdigest()
+def _paper_row(row):
+    value=dict(row)
+    assets=json.loads(value.pop('visual_assets','[]') or '[]')
+    value['statement']=statement_with_question_figures(value['statement'],assets)
+    value['options']=json.loads(value['options'] or '[]')
+    return value
+
 def _snapshot(conn,exam_id):
-    rows=conn.execute("SELECT q.id,q.statement,q.options,q.answer,q.solution,q.qtype,q.subject,q.chapter,q.topic,q.subtopic,q.difficulty,eq.display_order,eq.section_name,eq.marks,eq.negative_marks FROM exam_questions eq JOIN questions q ON q.id=eq.question_id WHERE eq.exam_id=? ORDER BY eq.display_order",(exam_id,)).fetchall()
-    return [dict(r)|{"options":json.loads(r["options"] or "[]")} for r in rows]
+    rows=conn.execute("SELECT q.id,q.statement,q.visual_assets,q.options,q.answer,q.solution,q.qtype,q.subject,q.chapter,q.topic,q.subtopic,q.difficulty,eq.display_order,eq.section_name,eq.marks,eq.negative_marks FROM exam_questions eq JOIN questions q ON q.id=eq.question_id WHERE eq.exam_id=? ORDER BY eq.display_order",(exam_id,)).fetchall()
+    return [_paper_row(r) for r in rows]
 def publish_version(conn,exam_id,user_id):
     exam=conn.execute("SELECT * FROM exams WHERE id=?",(exam_id,)).fetchone(); snapshot=_snapshot(conn,exam_id)
     if not exam or not snapshot:raise HTTPException(409,"Exam needs at least one valid question before publishing")
@@ -101,7 +109,7 @@ async def start(exam_id:int,request:Request):
             if not version:raise HTTPException(409,"Exam has no published version")
             snapshot=json.loads(version["question_snapshot_json"])
             if not snapshot:raise HTTPException(409,"Exam has no questions")
-            cur=conn.execute("INSERT INTO exam_sessions(exam_id,user_id,registration_id,attempt_number,status,started_at,expires_at,duration_minutes,question_set_json,proctor_code_id,exam_version_id,created_at,updated_at) VALUES(?,?,?,?,'IN_PROGRESS',?,?,?,?,?,?,?,?)",(exam_id,user["id"],reg["id"],result["attempt"],now,now+exam["duration_minutes"]*60,exam["duration_minutes"],json.dumps(snapshot),result["code"]["id"] if result["code"] else None,version["id"],now,now));sid=cur.lastrowid
+            cur=conn.execute("INSERT INTO exam_sessions(exam_id,user_id,registration_id,attempt_number,status,started_at,expires_at,duration_minutes,question_set_json,proctor_code_id,exam_version_id,created_at,updated_at) VALUES(?,?,?,?,'IN_PROGRESS',?,?,?,?,?,?,?,?)",(exam_id,user["id"],reg["id"],result["attempt"],now,(min(now+exam["duration_minutes"]*60,exam["exam_end_at"]) if exam["exam_type"]=="GRAND_TEST" and exam["exam_end_at"] else now+exam["duration_minutes"]*60),exam["duration_minutes"],json.dumps(snapshot),result["code"]["id"] if result["code"] else None,version["id"],now,now));sid=cur.lastrowid
             if result["code"]:conn.execute("UPDATE exam_proctor_codes SET usage_count=usage_count+1 WHERE id=?",(result["code"]["id"],))
             audit(conn,"START_ATTEMPT",exam_id=exam_id,user_id=user["id"],session_id=sid);conn.commit();return {"session_id":sid,"resumed":False}
         except HTTPException:conn.rollback();raise
@@ -217,8 +225,8 @@ def durable_exam_paper(exam_id:int,request:Request):
     with closing(db()) as conn:
         exam=conn.execute("SELECT id,name,subject,status,duration_minutes,total_marks FROM exams WHERE id=?",(exam_id,)).fetchone()
         if not exam:raise HTTPException(404,"Exam not found")
-        rows=conn.execute("SELECT q.id,q.subject,q.chapter,q.topic,q.statement,q.options,q.answer,q.solution,q.difficulty,q.qtype,eq.display_order,eq.section_name,eq.marks,eq.negative_marks FROM exam_questions eq JOIN questions q ON q.id=eq.question_id WHERE eq.exam_id=? ORDER BY eq.display_order",(exam_id,)).fetchall()
-    return {"exam":dict(exam),"questions":[dict(row)|{"options":json.loads(row["options"] or "[]")} for row in rows]}
+        rows=conn.execute("SELECT q.id,q.subject,q.chapter,q.topic,q.statement,q.visual_assets,q.options,q.answer,q.solution,q.difficulty,q.qtype,eq.display_order,eq.section_name,eq.marks,eq.negative_marks FROM exam_questions eq JOIN questions q ON q.id=eq.question_id WHERE eq.exam_id=? ORDER BY eq.display_order",(exam_id,)).fetchall()
+    return {"exam":dict(exam),"questions":[_paper_row(row) for row in rows]}
 
 @router.post("/admin/exams/{exam_id}/registrations")
 async def preregister(exam_id:int,request:Request):
@@ -404,7 +412,7 @@ async def enroll_shared_link(token:str,request:Request):
     user=_auth(request,True)
     if user['role']!='STUDENT' or not user['email_verified']:raise HTTPException(403,'Sign in with Google to enroll using this link.')
     body=await request.json();phone=str(body.get('phone_number','')).strip()
-    if not re.fullmatch(r'\+?[0-9 ()-]{10,20}',phone) or not 10<=len(re.sub(r'\D','',phone))<=15:raise HTTPException(422,'Enter a valid mobile number including the country code.')
+    if phone and (not re.fullmatch(r'\+?[0-9 ()-]{10,20}',phone) or not 10<=len(re.sub(r'\D','',phone))<=15):raise HTTPException(422,'Enter a valid mobile number including the country code.')
     now=time.time()
     with closing(db()) as conn:
         try:

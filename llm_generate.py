@@ -16,7 +16,7 @@ SYSTEM_PROMPT_VERSION = "question-generation-v1"
 
 def configured_vertex_model():
     """Shared default for application-native Gemini authoring and program setup."""
-    return os.getenv('VERTEX_MODEL_PRIMARY') or 'gemini-3.5-flash'
+    return os.getenv('VERTEX_MODEL_PRIMARY') or 'gemini-2.5-flash'
 
 SYSTEM_INSTRUCTION = """You are an AI question-generation engine integrated into a digital question bank.
 Generate questions according to the detailed generation prompt supplied by the administrator.
@@ -160,7 +160,7 @@ def generate_prompt_guidance(request: PromptGuidanceRequest, client=None) -> tup
         from google import genai
         client=genai.Client(vertexai=True,project=gcp_project_id(),location=gcp_region(),http_options=types.HttpOptions(api_version="v1",timeout=180000))
     context=json.dumps(request.model_dump(),ensure_ascii=False,indent=2)
-    response=client.models.generate_content(model=model,contents=f"""Create expert guidance for an administrator generating assessment questions. Use this minimal metadata:\n{context}\n\nReturn two fields. `syllabus` must be a focused curriculum scope with learning objectives, included concepts, exclusions where useful, and expected prerequisite knowledge. `generation_prompt` must be a ready-to-use instruction specifying age-appropriate difficulty, reasoning style, question construction, option quality, answer validity, concise worked solutions, and correct LaTeX/chemical notation when relevant. Generate exactly the requested number later; do not generate questions now. Keep both fields practical and editable.""",config=types.GenerateContentConfig(temperature=0.3,response_mime_type="application/json",response_schema=PromptGuidance,max_output_tokens=8192))
+    response=client.models.generate_content(model=model,contents=f"""Create expert guidance for an administrator generating assessment questions. Use this minimal metadata:\n{context}\n\nReturn two fields. `syllabus` must be a focused curriculum scope with learning objectives, included concepts, exclusions where useful, and expected prerequisite knowledge. `generation_prompt` must be a ready-to-use instruction specifying age-appropriate difficulty, reasoning style, question construction, option quality, answer validity, concise worked solutions, and correct LaTeX/chemical notation when relevant. Generate exactly the requested number later; do not generate questions now. Keep both fields practical and editable.""",config=types.GenerateContentConfig(temperature=0.3,response_mime_type="application/json",response_schema=PromptGuidance,max_output_tokens=int(os.getenv('AI_GUIDANCE_MAX_OUTPUT_TOKENS','4096'))))
     payload=_json_payload(response)
     try:return PromptGuidance.model_validate(payload),model
     except Exception as exc:raise ValueError(f"Gemini guidance did not match the required schema: {exc}") from exc
@@ -220,11 +220,11 @@ def generate_questions(request: GenerationRequest, client=None) -> tuple[Generat
 
     def generate_batch(batch_request: GenerationRequest, retries: int = 2) -> list[GeneratedQuestion]:
         last_error=None
-        for attempt in range(retries+1):
+        for attempt in range(min(retries, int(os.getenv('AI_MAX_RETRIES','1')))+1):
             prompt=public_prompt_preview(batch_request)
             if attempt:
                 prompt += "\n\nRETRY REQUIREMENT\nThe prior response was invalid or truncated. Return complete valid JSON. Keep statements, options, and solutions concise. Escape LaTeX backslashes and chemical notation correctly; do not put raw line breaks inside JSON strings."
-            response=client.models.generate_content(model=model,contents=prompt,config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION,temperature=0.25 if attempt else 0.4,automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),response_mime_type="application/json",response_schema=GeneratedQuestionBatch,max_output_tokens=32768))
+            response=client.models.generate_content(model=model,contents=prompt,config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION,temperature=0.25 if attempt else 0.4,automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),response_mime_type="application/json",response_schema=GeneratedQuestionBatch,max_output_tokens=int(os.getenv('AI_GENERATION_MAX_OUTPUT_TOKENS','12000'))))
             account(response)
             try:
                 batch=parse_generated_batch(response)

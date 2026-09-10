@@ -1,0 +1,80 @@
+{
+  "program": {
+    "code": "IELTS_ACADEMIC",
+    "name": "IELTS - Academic (skills practice)",
+    "authority": "IELTS partners: British Council, IDP and Cambridge",
+    "region": "International",
+    "category": "Language proficiency practice",
+    "levels": [
+      "Adult English language proficiency / Academic"
+    ],
+    "languages": [
+      "English"
+    ],
+    "tags": [
+      "Full Exam",
+      "Subject-wise",
+      "Editable curriculum",
+      "Question bank reuse"
+    ],
+    "description": "## Official IELTS Academic reference\n\nListening: 40 questions, approximately 30 minutes; Reading: 40 questions, 60 minutes; Writing: two tasks, 60 minutes; Speaking: three parts, 11–14 minutes. Delivery-mode rules can affect transfer/check time. Academic Writing Task 1 describes visual information; Task 2 is an essay.\n\n## Full skills practice adaptation\n\nThis app prepares 100 single-correct MCQs: 40 transcript-based Listening skills, 40 Reading, 10 Writing skills and 10 Speaking skills. The 10/10 skills counts are practice allocations, not official task counts. The editable overall practice time is 165 minutes. Listening uses written transcripts, not recorded audio; Writing and Speaking assess skills through MCQs, not submitted essays or spoken performance. Raw score: +1 correct, 0 wrong/unanswered; 100 maximum. This is not a complete official-format IELTS mock and does not produce an IELTS band score.\n\n## Sources\n\nChecked 10 September 2026. Published reference cycles are identified above; refresh before adopting later changes.\n\n- [Reference 1](https://ielts.org/take-a-test/test-types/ielts-academic-test)\n- [Reference 2](https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-listening)\n- [Reference 3](https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-reading)\n- [Reference 4](https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-writing)\n- [Reference 5](https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-speaking)",
+    "status": "ACTIVE"
+  },
+  "settings": {
+    "name": "IELTS - Academic (skills practice) - Full practice",
+    "mode": "FULL",
+    "level": "Adult English language proficiency / Academic",
+    "language": "English",
+    "duration_minutes": 165,
+    "difficulty": "medium",
+    "curriculum": "## Preparation scope\n\nUse only the selected section for subject-wise papers. In Full Exam mode, cover all listed sections. Counts and mark bands are editable; do not invent official chapter weights.\n\n### Listening Skills (transcript-based)\n\nOriginal written transcripts representing everyday social and educational/training contexts, dialogues and monologues; identify main ideas, details, purpose, opinion, numbers and locations. Clearly label written transcript practice; never require absent audio.\n\n### Reading\n\nThree extended academic-style texts for non-specialists; factual, analytical and discursive reading. Assess gist, details, inference, writer views, headings, information location and vocabulary in context using original complete passages.\n\n### Writing Skills (MCQ adaptation)\n\nInterpreting charts, tables, diagrams and processes for Task 1; argumentative/discussion essays for Task 2. Assess task response, planning, coherence/cohesion, register, vocabulary and grammar using best-revision/best-organisation MCQs. Reference task lengths are at least 150 words for Task 1 and 250 for Task 2; Task 2 has greater official weight. Do not claim to grade an essay.\n\n### Speaking Skills (MCQ adaptation)\n\nFamiliar-topic responses, individual long-turn planning and abstract follow-up discussions; assess relevance, development, coherence, vocabulary and grammar through text choices. Pronunciation and real fluency cannot be evaluated without audio. Do not infer speaking bands.",
+    "pattern": "## Official IELTS Academic reference\n\nListening: 40 questions, approximately 30 minutes; Reading: 40 questions, 60 minutes; Writing: two tasks, 60 minutes; Speaking: three parts, 11–14 minutes. Delivery-mode rules can affect transfer/check time. Academic Writing Task 1 describes visual information; Task 2 is an essay.\n\n## Full skills practice adaptation\n\nThis app prepares 100 single-correct MCQs: 40 transcript-based Listening skills, 40 Reading, 10 Writing skills and 10 Speaking skills. The 10/10 skills counts are practice allocations, not official task counts. The editable overall practice time is 165 minutes. Listening uses written transcripts, not recorded audio; Writing and Speaking assess skills through MCQs, not submitted essays or spoken performance. Raw score: +1 correct, 0 wrong/unanswered; 100 maximum. This is not a complete official-format IELTS mock and does not produce an IELTS band score.\n\n## Sources\n\nChecked 10 September 2026. Published reference cycles are identified above; refresh before adopting later changes.\n\n- [Reference 1](https://ielts.org/take-a-test/test-types/ielts-academic-test)\n- [Reference 2](https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-listening)\n- [Reference 3](https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-reading)\n- [Reference 4](https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-writing)\n- [Reference 5](https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-speaking)",
+    "instructions": "## Selected practice paper\n\nThe exam title, selected subjects, question counts, duration and marks shown for this paper are the settings to follow. Full-exam figures below describe the reference setup and do not override a subject-wise or edited paper.\n\n## Official IELTS Academic reference\n\nListening: 40 questions, approximately 30 minutes; Reading: 40 questions, 60 minutes; Writing: two tasks, 60 minutes; Speaking: three parts, 11–14 minutes. Delivery-mode rules can affect transfer/check time. Academic Writing Task 1 describes visual information; Task 2 is an essay.\n\n## Full skills practice adaptation\n\nThis app prepares 100 single-correct MCQs: 40 transcript-based Listening skills, 40 Reading, 10 Writing skills and 10 Speaking skills. The 10/10 skills counts are practice allocations, not official task counts. The editable overall practice time is 165 minutes. Listening uses written transcripts, not recorded audio; Writing and Speaking assess skills through MCQs, not submitted essays or spoken performance. Raw score: +1 correct, 0 wrong/unanswered; 100 maximum. This is not a complete official-format IELTS mock and does not produce an IELTS band score.\n\nThis practice program helps you develop key skills for the IELTS Academic test. It consists of 100 multiple-choice questions across four sections, with a total time allocation of 165 minutes. Each question has four options (A, B, C, D); select the single best answer. Your score is based on correct answers (+1 point per correct answer, 0 for incorrect or unanswered).\n\n*   **Listening Skills (40 questions, 30 minutes)**: Based on written transcripts. Focus on understanding main ideas, details, and opinions.\n*   **Reading (40 questions, 60 minutes)**: Based on academic texts. Focus on comprehension, inference, and vocabulary.\n*   **Writing Skills (10 questions, 60 minutes)**: Multiple-choice questions assessing your ability to plan, organise, and revise written responses for Task 1 (visuals) and Task 2 (essays).\n*   **Speaking Skills (10 questions, 15 minutes)**: Multiple-choice questions assessing your ability to choose appropriate language and develop ideas for spoken responses.\n\nThis program is a skills practice tool and does not provide an official IELTS band score.",
+    "generation_prompt": "## Scope and selected inputs\n\nFollow the structured paper mode, selected subjects, counts, marks, timing and difficulty. Subject-wise generates only the selected subject, even when the reference describes a full exam. Use the chosen Very Easy, Easy, Medium, Hard or Very Hard setting.\n\n## IELTS Academic Skills Practice: Question Authoring Guidance\n\nThis guidance outlines the requirements for authoring multiple-choice questions (MCQs) for the IELTS Academic Skills Practice program. All questions must be original, self-contained, and not rely on external resources.\n\n**General Requirements for All Questions:**\n*   Each question must have exactly four distinct options (A, B, C, D), with only one unequivocally correct answer.\n*   Distractors must be plausible and reflect common misconceptions or errors, but clearly incorrect.\n*   Provide a detailed, checked worked solution for every question, explaining why the correct option is right and why distractors are wrong.\n*   Ensure all mathematical expressions and symbols are formatted clearly and correctly.\n\n**Section-Specific Guidance:**\n\n### Listening Skills (40 Questions)\n*   Author the selected number of multiple-choice questions based *only* on provided written transcripts. Do not imply or require audio.\n*   Transcripts should represent everyday social, educational, or training contexts, including dialogues and monologues.\n*   Focus on assessing skills such as identifying main ideas, specific details, purpose, speaker opinion, numbers, and locations.\n\n### Reading (40 Questions)\n*   Author the selected number of multiple-choice questions based on original, complete academic-style texts suitable for non-specialists.\n*   Texts should be factual, analytical, or discursive.\n*   Assess skills including understanding gist, specific details, inference, writer's views, matching headings, locating information, and vocabulary in context.\n\n### Writing Skills (MCQ Adaptation) (10 Questions)\n*   Author the selected number of multiple-choice questions that assess writing skills through 'best-revision' or 'best-organisation' scenarios.\n*   Questions should relate to interpreting visual information (charts, tables, diagrams, processes) for Task 1, and argumentative/discussion essays for Task 2.\n*   Focus on task response, planning, coherence, cohesion, register, vocabulary, and grammar. Do not attempt to grade an essay; focus on evaluating choices for improvement.\n\n### Speaking Skills (MCQ Adaptation) (10 Questions)\n*   Author the selected number of multiple-choice questions that assess speaking skills through text-based choices.\n*   Questions should cover familiar topics, individual long-turn planning, and abstract follow-up discussions.\n*   Focus on relevance, development, coherence, vocabulary, and grammar. Do not include any elements that require or imply audio, pronunciation, or real-time fluency assessment.\n\n## Reference and delivery limits\n\n## Official IELTS Academic reference\n\nListening: 40 questions, approximately 30 minutes; Reading: 40 questions, 60 minutes; Writing: two tasks, 60 minutes; Speaking: three parts, 11–14 minutes. Delivery-mode rules can affect transfer/check time. Academic Writing Task 1 describes visual information; Task 2 is an essay.\n\n## Full skills practice adaptation\n\nThis app prepares 100 single-correct MCQs: 40 transcript-based Listening skills, 40 Reading, 10 Writing skills and 10 Speaking skills. The 10/10 skills counts are practice allocations, not official task counts. The editable overall practice time is 165 minutes. Listening uses written transcripts, not recorded audio; Writing and Speaking assess skills through MCQs, not submitted essays or spoken performance. Raw score: +1 correct, 0 wrong/unanswered; 100 maximum. This is not a complete official-format IELTS mock and does not produce an IELTS band score.\n\n## Batch and reuse requirements\n\nGenerate only the requested batch quota; full-paper counts above are reference context, not an instruction to repeat the entire paper in each batch. Every question must include its complete passage, transcript, diagram data or constraints. Do not depend on another question or absent audio. Honor the current structured inputs when edited; question-bank reuse and missing-question generation are handled by the application.",
+    "sections": [
+      {
+        "subject": "Listening Skills (transcript-based)",
+        "count": 40,
+        "marks": 1.0,
+        "negative_marks": 0.0,
+        "topics": "Original written transcripts representing everyday social and educational/training contexts, dialogues and monologues; identify main ideas, details, purpose, opinion, numbers and locations. Clearly label written transcript practice; never require absent audio.",
+        "duration_minutes": 30
+      },
+      {
+        "subject": "Reading",
+        "count": 40,
+        "marks": 1.0,
+        "negative_marks": 0.0,
+        "topics": "Three extended academic-style texts for non-specialists; factual, analytical and discursive reading. Assess gist, details, inference, writer views, headings, information location and vocabulary in context using original complete passages.",
+        "duration_minutes": 60
+      },
+      {
+        "subject": "Writing Skills (MCQ adaptation)",
+        "count": 10,
+        "marks": 1.0,
+        "negative_marks": 0.0,
+        "topics": "Interpreting charts, tables, diagrams and processes for Task 1; argumentative/discussion essays for Task 2. Assess task response, planning, coherence/cohesion, register, vocabulary and grammar using best-revision/best-organisation MCQs. Reference task lengths are at least 150 words for Task 1 and 250 for Task 2; Task 2 has greater official weight. Do not claim to grade an essay.",
+        "duration_minutes": 60
+      },
+      {
+        "subject": "Speaking Skills (MCQ adaptation)",
+        "count": 10,
+        "marks": 1.0,
+        "negative_marks": 0.0,
+        "topics": "Familiar-topic responses, individual long-turn planning and abstract follow-up discussions; assess relevance, development, coherence, vocabulary and grammar through text choices. Pronunciation and real fluency cannot be evaluated without audio. Do not infer speaking bands.",
+        "duration_minutes": 15
+      }
+    ],
+    "reuse_questions": true,
+    "official_lookup_id": null
+  },
+  "sources": [
+    "https://ielts.org/take-a-test/test-types/ielts-academic-test",
+    "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-listening",
+    "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-reading",
+    "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-writing",
+    "https://ielts.org/take-a-test/test-types/ielts-academic-test/ielts-academic-format-speaking"
+  ],
+  "checked_at": "2026-09-10",
+  "guidance": "AI-generated, reviewed editable authoring guidance"
+}

@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-10",
+  "service": "question-bank-cloud-v4",
+  "revision": "question-bank-cloud-v4-engagement-fix-20260910",
+  "traffic_percent": 100,
+  "image_digest": "sha256:45bbd1e1c2b9803326ff536c87a15132dcb6c31c5e1d8a98cd607058665c44e4",
+  "build_id": "9aff7130-e473-4603-8e27-cb10c37889f3",
+  "checks": {
+    "healthz": 200,
+    "enquiry_page": 200,
+    "enquiry_challenge": 200,
+    "release_suite_passed": 188,
+    "postgres_regression_passed": 1
+  },
+  "audio": "English browser voice selection and sentence chunking; subjective audio realism depends on installed voices."
+}

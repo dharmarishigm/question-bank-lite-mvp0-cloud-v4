@@ -89,7 +89,11 @@ def init_blueprints():
     from contextlib import closing
     from platform_api import db
     from program_setup_schema import SCHEMA as SETUP_SCHEMA
+    from program_exam_schema import SCHEMA as EXAM_SCHEMA
+    from official_exam_schema import SCHEMA as OFFICIAL_SCHEMA
     with closing(db()) as conn:
         conn.executescript(SCHEMA)
         conn.executescript(SETUP_SCHEMA)
+        conn.executescript(EXAM_SCHEMA)
+        conn.executescript(OFFICIAL_SCHEMA)
         conn.commit()

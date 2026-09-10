@@ -1,0 +1,150 @@
+{
+  "program": {
+    "code": "GATE_CS_IT",
+    "name": "GATE - Computer Science and IT (MCQ practice)",
+    "authority": "IIT Madras / GATE",
+    "region": "India",
+    "category": "Competitive examination",
+    "levels": [
+      "Undergraduate Computer Science and IT"
+    ],
+    "languages": [
+      "English"
+    ],
+    "tags": [
+      "Full Exam",
+      "Subject-wise",
+      "Editable curriculum",
+      "Question bank reuse"
+    ],
+    "description": "## Official reference: GATE 2027 CS\n\n65 questions, 100 marks, 180 minutes. General Aptitude contributes 15 marks, Engineering Mathematics 13 and CS core 72. The official paper uses MCQ, MSQ and numerical-answer formats. Wrong MCQs lose one-third of their marks; MSQ/NAT have no negative marking.\n\n## Editable full-syllabus MCQ practice\n\nThis setup uses single-correct MCQs only, retaining 65 questions and the 15/13/72 marks split. The chapter counts and assignment of 1- or 2-mark questions below are editable practice allocations, not official chapter weightages. Aptitude and Mathematics are split into mark bands because each app section uses one mark value. Choose any listed subject/mark band for focused practice. MSQ/NAT formats and their marking are not reproduced. This is the CS paper, not a combined paper covering other GATE branches.\n\n## Sources\n\nChecked 10 September 2026. Published reference cycles are identified above; refresh before adopting later changes.\n\n- [Reference 1](https://gate2027.iitm.ac.in/question_paper_pattern)\n- [Reference 2](https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf)\n- [Reference 3](https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/GA_GATE2027_Syllabus.pdf)",
+    "status": "ACTIVE"
+  },
+  "settings": {
+    "name": "GATE - Computer Science and IT (MCQ practice) - Full practice",
+    "mode": "FULL",
+    "level": "Undergraduate Computer Science and IT",
+    "language": "English",
+    "duration_minutes": 180,
+    "difficulty": "medium",
+    "curriculum": "## Preparation scope\n\nUse only the selected section for subject-wise papers. In Full Exam mode, cover all listed sections. Counts and mark bands are editable; do not invent official chapter weights.\n\n### General Aptitude - 1 mark\n\nEnglish usage and comprehension; data interpretation; arithmetic, geometry, statistics; logical and spatial reasoning.\n\n### General Aptitude - 2 marks\n\nEnglish usage and comprehension; data interpretation; arithmetic, geometry, statistics; logical and spatial reasoning.\n\n### Engineering Mathematics - 1 mark\n\nLogic, sets, relations, algebraic structures, graphs, counting; matrices and eigenvalues; limits, derivatives, integration; probability distributions and statistics.\n\n### Engineering Mathematics - 2 marks\n\nLogic, sets, relations, algebraic structures, graphs, counting; matrices and eigenvalues; limits, derivatives, integration; probability distributions and statistics.\n\n### Digital Logic\n\nBoolean minimisation, combinational/sequential circuits, number representation and arithmetic.\n\n### Computer Organization and Architecture\n\nInstructions, addressing, ALU/control design, memory hierarchy/interfacing, cache, I/O, pipelining and hazards.\n\n### Programming and Data Structures\n\nC programming, recursion, arrays, stacks, queues, lists, trees, heaps and graphs.\n\n### Algorithms\n\nSearching/sorting/hashing, complexity, greedy/dynamic/divide-and-conquer methods, graph algorithms.\n\n### Theory of Computation\n\nAutomata, regular/context-free languages, grammars, pumping lemmas, Turing machines, undecidability.\n\n### Compiler Design\n\nLexing/parsing, translation, runtime, intermediate code, local optimisation, data-flow analysis.\n\n### Operating Systems\n\nProcesses/threads, IPC, synchronisation, deadlocks, scheduling, memory and file systems.\n\n### Databases\n\nER/relational models, SQL, relational algebra/calculus, constraints, normalisation, indexing, transactions and concurrency.\n\n### Computer Networks\n\nLayering, switching, performance, error detection, MAC/Ethernet, routing, IPv4, TCP, sockets, DNS/HTTP.",
+    "pattern": "## Official reference: GATE 2027 CS\n\n65 questions, 100 marks, 180 minutes. General Aptitude contributes 15 marks, Engineering Mathematics 13 and CS core 72. The official paper uses MCQ, MSQ and numerical-answer formats. Wrong MCQs lose one-third of their marks; MSQ/NAT have no negative marking.\n\n## Editable full-syllabus MCQ practice\n\nThis setup uses single-correct MCQs only, retaining 65 questions and the 15/13/72 marks split. The chapter counts and assignment of 1- or 2-mark questions below are editable practice allocations, not official chapter weightages. Aptitude and Mathematics are split into mark bands because each app section uses one mark value. Choose any listed subject/mark band for focused practice. MSQ/NAT formats and their marking are not reproduced. This is the CS paper, not a combined paper covering other GATE branches.\n\n## Sources\n\nChecked 10 September 2026. Published reference cycles are identified above; refresh before adopting later changes.\n\n- [Reference 1](https://gate2027.iitm.ac.in/question_paper_pattern)\n- [Reference 2](https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf)\n- [Reference 3](https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/GA_GATE2027_Syllabus.pdf)",
+    "instructions": "## Selected practice paper\n\nThe exam title, selected subjects, question counts, duration and marks shown for this paper are the settings to follow. Full-exam figures below describe the reference setup and do not override a subject-wise or edited paper.\n\n## Official reference: GATE 2027 CS\n\n65 questions, 100 marks, 180 minutes. General Aptitude contributes 15 marks, Engineering Mathematics 13 and CS core 72. The official paper uses MCQ, MSQ and numerical-answer formats. Wrong MCQs lose one-third of their marks; MSQ/NAT have no negative marking.\n\n## Editable full-syllabus MCQ practice\n\nThis setup uses single-correct MCQs only, retaining 65 questions and the 15/13/72 marks split. The chapter counts and assignment of 1- or 2-mark questions below are editable practice allocations, not official chapter weightages. Aptitude and Mathematics are split into mark bands because each app section uses one mark value. Choose any listed subject/mark band for focused practice. MSQ/NAT formats and their marking are not reproduced. This is the CS paper, not a combined paper covering other GATE branches.\n\nThis practice program consists of Single-Correct Multiple Choice Questions (MCQs) designed for GATE Computer Science and Information Technology.\n\n**Instructions:**\n1.  Each question has four options (A, B, C, D), and only one is correct.\n2.  Select the option you believe is correct.\n3.  For each correct answer, you will receive the assigned marks for that question.\n4.  For each incorrect answer, one-third of the marks assigned to that question will be deducted.\n5.  There is no negative marking for unattempted questions.\n6.  Focus on the specific subject and mark band selected for this practice session.",
+    "generation_prompt": "## Scope and selected inputs\n\nFollow the structured paper mode, selected subjects, counts, marks, timing and difficulty. Subject-wise generates only the selected subject, even when the reference describes a full exam. Use the chosen Very Easy, Easy, Medium, Hard or Very Hard setting.\n\n### GATE CS & IT Practice Question Authoring Guidance\n\nThis guidance outlines the requirements for authoring single-correct Multiple Choice Questions (MCQs) for GATE Computer Science and Information Technology practice, focusing on a specific subject and mark band.\n\n**1. Question Type and Structure:**\n*   **Single-Correct MCQ:** Each question must have exactly one correct answer among four options.\n*   **Question Stem:**\n    *   Be clear, concise, and unambiguous.\n    *   Present a well-defined problem or scenario.\n    *   Avoid extraneous information.\n*   **Options:**\n    *   Provide exactly four options, labeled A, B, C, D.\n    *   Ensure the correct option is unequivocally the best answer.\n    *   **Distractors:** Must be plausible and attractive to test-takers who have common misconceptions, make typical calculation errors, or misunderstand concepts. Avoid obviously incorrect or nonsensical options.\n*   **Self-Contained & Original:** All questions must be original and self-contained, requiring no external references beyond general knowledge expected for the GATE CS & IT syllabus.\n\n**2. Content and Difficulty:**\n*   **Syllabus Alignment:** Questions must strictly adhere to the topics within the selected GATE CS & IT subject and mark band.\n*   **Difficulty:** Use the selected difficulty, from Very Easy to Very Hard, while retaining the selected GATE subject scope.\n\n**3. Solution Requirements:**\n*   **Worked Solution:** Provide a complete, step-by-step worked solution for each question.\n*   **Clarity:** The solution should clearly explain the reasoning, formulas, and calculations leading to the correct answer.\n*   **Correct Option:** Explicitly state which option (A, B, C, or D) is correct.\n*   **Verification:** Solutions must be thoroughly checked for accuracy and logical consistency.\n\n**4. Formatting:**\n*   **Markdown:** Use standard Markdown for question stems, options, and solutions.\n*   **Mathematical Expressions:** Format all mathematical equations, symbols, and formulas using standard LaTeX syntax (e.g., `$E=mc^2$`, `$$\\int_a^b f(x) dx$$`).\n*   **Code Snippets:** Use appropriate code blocks for programming examples.\n\n## Reference and delivery limits\n\n## Official reference: GATE 2027 CS\n\n65 questions, 100 marks, 180 minutes. General Aptitude contributes 15 marks, Engineering Mathematics 13 and CS core 72. The official paper uses MCQ, MSQ and numerical-answer formats. Wrong MCQs lose one-third of their marks; MSQ/NAT have no negative marking.\n\n## Editable full-syllabus MCQ practice\n\nThis setup uses single-correct MCQs only, retaining 65 questions and the 15/13/72 marks split. The chapter counts and assignment of 1- or 2-mark questions below are editable practice allocations, not official chapter weightages. Aptitude and Mathematics are split into mark bands because each app section uses one mark value. Choose any listed subject/mark band for focused practice. MSQ/NAT formats and their marking are not reproduced. This is the CS paper, not a combined paper covering other GATE branches.\n\n## Batch and reuse requirements\n\nGenerate only the requested batch quota; full-paper counts above are reference context, not an instruction to repeat the entire paper in each batch. Every question must include its complete passage, transcript, diagram data or constraints. Do not depend on another question or absent audio. Honor the current structured inputs when edited; question-bank reuse and missing-question generation are handled by the application.",
+    "sections": [
+      {
+        "subject": "General Aptitude - 1 mark",
+        "count": 5,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "English usage and comprehension; data interpretation; arithmetic, geometry, statistics; logical and spatial reasoning.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "General Aptitude - 2 marks",
+        "count": 5,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "English usage and comprehension; data interpretation; arithmetic, geometry, statistics; logical and spatial reasoning.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Engineering Mathematics - 1 mark",
+        "count": 3,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Logic, sets, relations, algebraic structures, graphs, counting; matrices and eigenvalues; limits, derivatives, integration; probability distributions and statistics.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Engineering Mathematics - 2 marks",
+        "count": 5,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Logic, sets, relations, algebraic structures, graphs, counting; matrices and eigenvalues; limits, derivatives, integration; probability distributions and statistics.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Digital Logic",
+        "count": 5,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Boolean minimisation, combinational/sequential circuits, number representation and arithmetic.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Computer Organization and Architecture",
+        "count": 5,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Instructions, addressing, ALU/control design, memory hierarchy/interfacing, cache, I/O, pipelining and hazards.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Programming and Data Structures",
+        "count": 6,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "C programming, recursion, arrays, stacks, queues, lists, trees, heaps and graphs.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Algorithms",
+        "count": 6,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Searching/sorting/hashing, complexity, greedy/dynamic/divide-and-conquer methods, graph algorithms.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Theory of Computation",
+        "count": 5,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "Automata, regular/context-free languages, grammars, pumping lemmas, Turing machines, undecidability.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Compiler Design",
+        "count": 4,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Lexing/parsing, translation, runtime, intermediate code, local optimisation, data-flow analysis.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Operating Systems",
+        "count": 5,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Processes/threads, IPC, synchronisation, deadlocks, scheduling, memory and file systems.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Databases",
+        "count": 6,
+        "marks": 1.0,
+        "negative_marks": 0.3333333333333333,
+        "topics": "ER/relational models, SQL, relational algebra/calculus, constraints, normalisation, indexing, transactions and concurrency.",
+        "duration_minutes": null
+      },
+      {
+        "subject": "Computer Networks",
+        "count": 5,
+        "marks": 2.0,
+        "negative_marks": 0.6666666666666666,
+        "topics": "Layering, switching, performance, error detection, MAC/Ethernet, routing, IPv4, TCP, sockets, DNS/HTTP.",
+        "duration_minutes": null
+      }
+    ],
+    "reuse_questions": true,
+    "official_lookup_id": null
+  },
+  "sources": [
+    "https://gate2027.iitm.ac.in/question_paper_pattern",
+    "https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/CS_GATE2027_Syllabus.pdf",
+    "https://gate2027.iitm.ac.in/static/doc/GATE2027_Syllabus/GA_GATE2027_Syllabus.pdf"
+  ],
+  "checked_at": "2026-09-10",
+  "guidance": "AI-generated, reviewed editable authoring guidance"
+}

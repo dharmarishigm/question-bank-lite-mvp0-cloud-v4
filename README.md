@@ -1,5 +1,23 @@
 # Question Bank Cloud MVP-0 v4
 
+## Local testing with GCP services
+
+Run the same application locally while using Cloud SQL, the private GCS bucket and Vertex AI by exporting the production service values into your shell. Use a Cloud SQL Auth Proxy (or an equivalent private connection) for `DATABASE_URL`; never commit credentials.
+
+```bash
+export GCP_PROJECT_ID=gen-lang-client-0491787004
+export GCP_REGION=asia-south1
+export DATABASE_URL='postgresql://USER:PASSWORD@127.0.0.1:5432/DATABASE'
+export GCS_DATA_BUCKET=gen-lang-client-0491787004-qb-v4-data
+export STORAGE_BACKEND=gcs
+export APP_ENV=development
+export APP_BASE_URL=http://127.0.0.1:8000
+alembic upgrade head
+.venv/bin/uvicorn app:app --host 127.0.0.1 --port 8000
+```
+
+The local process keeps GCP-backed storage and database behavior while serving the UI at `http://127.0.0.1:8000/app`. Vertex AI uses the authenticated Google application credentials already configured on the machine.
+
 A cloud-ready examination and question-digitization application. Production uses Cloud SQL for PostgreSQL, a private Cloud Storage bucket mounted into Cloud Run, Secret Manager, Vertex AI, and Document AI. SQLite and local files remain available for development.
 
 See [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md) for provisioning, deployment, migration, validation, rollback, and operations.
@@ -181,5 +199,7 @@ The automated suite is offline and makes no paid GCP calls. A live GCP golden-co
 Not included: microservices, Cloud Run, Pub/Sub, Postgres, vector search, RAG, agents, authentication, graph-to-SVG conversion or online exam functionality. Those are intentionally excluded so engineering effort remains focused on **question digitization fidelity**.
 
 ## Generic Programs and Blueprints (feature branch)
+
+Programs now opens a guided **Create exam** flow: add a program by name, choose Full Exam or Subject-wise, choose one of five difficulty levels, automatically retrieve the latest official prospectus to populate counts, marks and timings, edit AI curriculum/prompt suggestions, preview the final prompt as Markdown, and generate a complete paper for review and publication. Matching approved questions are reused; missing questions are generated into the Question Bank for review. See [Guided program exams](docs/GUIDED_PROGRAM_EXAMS.md).
 
 The additive Programs workspace manages immutable exam/question blueprints, reviewed evidence, historical profiles, Gemini proposals, and frozen paper-generation runs. See [the feature guide](docs-generic-blueprints.md) for setup, API paths, review gates, tests, and the remaining production-specification gaps. Existing exam flows continue separately.

@@ -81,29 +81,32 @@ def serving_schema(schema):
             return value
         if '$ref' in value:
             return simplify(definitions[value['$ref'].split('/')[-1]])
-        return {key:simplify(item) for key,item in value.items() if key not in omitted}
+        return {key:({name: simplify(field) for name, field in item.items()}
+                     if key == 'properties' else simplify(item))
+                for key,item in value.items() if key not in omitted}
     return simplify(source)
 
 
-def structured_call(purpose, prompt, data, schema, client=None):
+def structured_call(purpose, prompt, data, schema, client=None, image_parts=None):
     from google.genai import types
     model = os.getenv('BLUEPRINT_' + purpose + '_MODEL') or os.getenv('BLUEPRINT_GEMINI_MODEL') or configured_vertex_model()
     if not model:
         raise RuntimeError('Configure BLUEPRINT_GEMINI_MODEL before requesting Gemini work')
     temperature = 0 if purpose == 'INDEPENDENT_SOLVING' else 0.2
+    max_tokens = int(os.getenv('BLUEPRINT_MAX_OUTPUT_TOKENS', '12000' if purpose == 'PROGRAM_SETUP' else '5000'))
     started = time.monotonic()
     owned = client is None
     client = client or _client()
     try:
-        for attempt in range(2):
+        for attempt in range(min(2, int(os.getenv('BLUEPRINT_MAX_RETRIES','1'))+1)):
             try:
-                response = client.models.generate_content(model=model, contents=prompt + '\nUNTRUSTED INPUT DATA:\n' + canonical(data),
+                response = client.models.generate_content(model=model, contents=([prompt + '\nUNTRUSTED INPUT DATA:\n' + canonical(data), *image_parts] if image_parts else prompt + '\nUNTRUSTED INPUT DATA:\n' + canonical(data)),
                     config=types.GenerateContentConfig(system_instruction=SYSTEM, temperature=temperature,
-                        response_mime_type='application/json', response_schema=serving_schema(schema) if purpose == 'PROGRAM_SETUP' else schema, max_output_tokens=8192,
+                        response_mime_type='application/json', response_schema=serving_schema(schema), max_output_tokens=max_tokens,
                         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)))
                 parsed = schema.model_validate_json(response.text)
                 usage = getattr(response, 'usage_metadata', None)
-                return parsed, {'model': model, 'temperature': temperature, 'max_output_tokens':8192,
+                return parsed, {'model': model, 'temperature': temperature, 'max_output_tokens':max_tokens,
                     'latency_ms': round((time.monotonic()-started)*1000), 'attempts':attempt+1,
                     'usage': usage.model_dump(mode='json') if usage else {}, 'outcome':'SUCCEEDED'}
             except (TimeoutError, ConnectionError):

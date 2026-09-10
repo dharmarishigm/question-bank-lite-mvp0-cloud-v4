@@ -1,0 +1,38 @@
+{
+  "base_url": "https://meritiqra.com",
+  "checks": {
+    "/healthz": 200,
+    "/": 200,
+    "/app": 200,
+    "/static/program-exam.js": 200,
+    "/static/programs.js": 200,
+    "/static/programs.css": 200,
+    "anonymous /api/programs": 401,
+    "anonymous /api/programs/1/exam-papers": 401,
+    "/static/result-tools.js": 200,
+    "/static/ai-batch-review.js": 200,
+    "/static/app.js": 200,
+    "/static/platform-ui.js": 200,
+    "concerns": 200,
+    "batch_history": 200,
+    "batch_validation": 422,
+    "/api/exams/22/leaderboard": 200,
+    "/api/results/25/report": 200,
+    "/api/results/25/report.pdf": 200,
+    "invalid_share": 404,
+    "anonymous /api/question-concerns": 401,
+    "anonymous /api/results/1/report": 401,
+    "anonymous /api/exams/1/leaderboard": 401
+  },
+  "revision": "question-bank-cloud-v4-results-20260909-224623",
+  "traffic_percent": 100,
+  "build_id": "fde6dbd1-521f-4262-aea4-e9645d8a880e",
+  "image_digest": "sha256:2177367cf10c97b04872b47b967d0a037b2cd2fb24d69638898e04cdff0662ca",
+  "validation": {
+    "backend_tests": 163,
+    "node_tests": 2,
+    "browser": "desktop/mobile result and multi-batch workflows passed",
+    "pdf": "rendered and visually inspected",
+    "final_retry_regression": "passed"
+  }
+}

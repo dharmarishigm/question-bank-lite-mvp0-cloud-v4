@@ -20,14 +20,14 @@
 <script defer="" src="/static/vendor/contrib/auto-render.min.js"></script>
 <link href="/static/app.css" rel="stylesheet"/>
 <link href="/static/enterprise.css?v=20260909-web-fixes" rel="stylesheet"/>
-<link href="/static/public-site.css?v=20260909-web-fixes" rel="stylesheet"/><link rel="stylesheet" href="/static/workspace-density.css?v=20260909-conversations" />
+<link href="/static/public-site.css?v=20260910-markdown" rel="stylesheet"/><link rel="stylesheet" href="/static/workspace-density.css?v=20260909-conversations" />
 </head>
 <body>
 <div class="public-site" id="public-site">
 <header class="public-header">
 <a aria-label="MeritIQra home" class="public-brand" href="/"><img alt="MeritIQra" src="/static/meritiqra-logo.png?v=20260907-updated"/><span>MeritIQra</span></a>
 <button aria-controls="public-nav" aria-expanded="false" class="public-menu-toggle" id="public-menu-toggle">Menu</button>
-<nav aria-label="Public navigation" class="public-nav" id="public-nav">
+<nav aria-label="Public navigation" class="public-nav" id="public-nav"><a href="/enquiry">Enquire</a>
 <a href="/">Home</a><a href="/practice-exams">Explore Exams</a><a href="#exam-lifecycle">Exam Lifecycle</a><a href="#practice">Practice</a><a href="#solutions">Solutions</a><a href="/for-schools">For Schools</a><a href="/for-organizations">For Organizations</a><a href="#insights">Insights</a><a href="/about">About</a>
 </nav>
 <div class="public-actions"><button class="public-login" data-student-login="">Student Login</button><button class="public-admin-login" data-admin-login="">Admin Login</button><button class="public-cta" data-open-registration="">Register or Login</button></div>
@@ -59,7 +59,7 @@
 <section class="public-section explanation-section"><div><p class="public-eyebrow">LEARN FROM EVERY ANSWER</p><h2>Move beyond right or wrong</h2><p>MeritIQra connects each attempt with explanations and concepts, helping learners understand mistakes and build targeted practice.</p></div><div class="explanation-flow"><span>Question</span><b>→</b><span>Your answer</span><b>→</b><span>Explanation</span><b>→</b><span>Practice again</span></div></section>
 <section class="public-final"><p class="public-eyebrow">YOUR GOAL. YOUR POSITION. YOUR NEXT STEP.</p><h2>Know Where You Stand. Know How to Move Ahead.</h2><p>Question intelligence, examination delivery and performance intelligence in one platform.</p><div class="hero-actions"><button class="public-cta" data-open-registration="">Get Started</button><a class="public-secondary light" href="#assessments">Explore Exams</a></div></section>
 </main>
-<footer class="public-footer"><div><a class="public-brand" href="/"><img alt="MeritIQra" src="/static/meritiqra-logo.png?v=20260907-updated"/><span>MeritIQra</span></a><p>AI-Powered Assessment Intelligence &amp; Examination Platform</p><small>Think Sharper. Reach Higher. Amplified by AI.</small></div><div><h3>Product</h3><a href="/practice-exams">Explore Exams</a><a href="/features">Features</a><a href="/how-it-works">How It Works</a></div><div><h3>Solutions</h3><a href="/for-students">Students</a><a href="/for-schools">Schools</a><a href="/for-organizations">Organizations</a></div><div><h3>Company</h3><a href="/about">About</a><a href="/app">Secure workspace</a><a href="mailto:support@meritiqra.com">Contact</a></div><p class="copyright">© 2026 MeritIQra</p></footer>
+<footer class="public-footer"><div><a class="public-brand" href="/"><img alt="MeritIQra" src="/static/meritiqra-logo.png?v=20260907-updated"/><span>MeritIQra</span></a><p>AI-Powered Assessment Intelligence &amp; Examination Platform</p><small>Think Sharper. Reach Higher. Amplified by AI.</small></div><div><h3>Product</h3><a href="/practice-exams">Explore Exams</a><a href="/features">Features</a><a href="/how-it-works">How It Works</a></div><div><h3>Solutions</h3><a href="/for-students">Students</a><a href="/for-schools">Schools</a><a href="/for-organizations">Organizations</a></div><div><h3>Company</h3><a href="/about">About</a><a href="/app">Secure workspace</a><a href="/enquiry">Enquire / Contact</a></div><p class="copyright">© 2026 MeritIQra</p></footer>
 </div>
 <div id="student-registration-modal" class="login-screen" hidden>
 <section class="login-card registration-card" aria-labelledby="student-registration-title">
@@ -81,7 +81,7 @@
 <p>AI-Powered Intelligence Platform</p>
 <div id="student-google-prompt" class="google-login-prompt"><strong>Register or login with Gmail</strong><span>Continue securely with your Google account.</span></div>
 <div id="google-signin"><span class="google-loading">Loading Google sign-in…</span></div>
-<button class="primary" hidden="" id="mock-signin">Development sign in</button>
+<label id="mock-signin-email-wrap" hidden="">Development email<input id="mock-signin-email" type="email" value="student@example.test" autocomplete="email" /></label><button class="primary" hidden="" id="mock-signin">Development sign in</button>
 <button class="primary" hidden="" id="bootstrap-admin-toggle">Register first administrator</button>
 <button class="primary" id="admin-login-toggle">Administrator login</button>
 <form class="bootstrap-form" hidden="" id="admin-login-form"><label>Administrator email<input autocomplete="username" id="admin-login-email" required="" type="email"/></label><label>Password<input autocomplete="current-password" id="admin-login-password" required="" type="password"/></label><button class="primary" type="submit">Sign in as administrator</button><button id="admin-login-cancel" type="button">Cancel</button></form>
@@ -95,8 +95,11 @@
 <p class="muted" id="login-message" role="status"></p>
 </section>
 </div>
-<script src="/static/public-site.js?v=20260908-workspace-oidc"></script>
-<script src="/static/public-auth.js?v=20260909-web-fixes"></script>
-<script src="/static/mentor.js?v=20260909-conversations"></script>
+<link rel="stylesheet" href="/static/participation.css?v=20260910" />
+<script src="/static/program-participation.js?v=20260910"></script>
+<script src="/static/public-markdown.js?v=20260910"></script>
+<script src="/static/public-site.js?v=20260910-markdown"></script>
+<script src="/static/public-auth.js?v=20260910-access-v3"></script>
+<script src="/static/mentor.js?v=20260910-access-v3"></script>
 <script src="/static/public-account.js?v=20260909-web-fixes"></script>
 </body></html>

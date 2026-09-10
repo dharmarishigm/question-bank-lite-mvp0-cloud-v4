@@ -1,0 +1,39 @@
+{
+  "deployed_at_utc": "2026-09-09T20:34:34.918821+00:00",
+  "project": "gen-lang-client-0491787004",
+  "region": "asia-south1",
+  "service": "question-bank-cloud-v4",
+  "revision": "question-bank-cloud-v4-official-20260909-202953",
+  "previous_revision": "question-bank-cloud-v4-guided-20260909-200629",
+  "traffic_percent": 100,
+  "build_id": "e602e1f9-3475-46eb-926d-32eb25a163cc",
+  "image_digest": "sha256:86e21c38e46691384ef8ed3890f87a84fad3cf2a99b0bb1dd0d1c1e65a783a9f",
+  "url": "https://meritiqra.com",
+  "migration": "0010_program_exams -> 0011_official_exam_lookups",
+  "checks": {
+    "health": 200,
+    "homepage": 200,
+    "workspace": 200,
+    "frontend_source_matches": true,
+    "anonymous_admin_access": 401,
+    "authenticated_lookup_database": 200,
+    "markdown_prompt": true,
+    "python_tests": 148,
+    "javascript_suites": 2,
+    "browser_acceptance": true,
+    "local_live_official_lookup": true,
+    "production_official_lookup": "READY",
+    "automatic_inputs_and_markdown": true,
+    "inactive_validation_program_archived": true
+  },
+  "production_exam_created": false,
+  "background_cpu": "always allocated",
+  "minimum_instances": 1,
+  "official_source": {
+    "url": "https://cbseitms.rcil.gov.in/nvs/assets/pdf/Final_Prospectus_2027.pdf",
+    "sha256": "5a0b0d177aafafe06e01ba73b1d84293bb0b51a54ae158e3d8caa4d363dd8cac",
+    "total_questions": 80,
+    "total_marks": 100,
+    "duration_minutes": 120
+  }
+}

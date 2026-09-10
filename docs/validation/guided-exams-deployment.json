@@ -1,0 +1,27 @@
+{
+  "deployed_at_utc": "2026-09-09T20:11:20.570787+00:00",
+  "project": "gen-lang-client-0491787004",
+  "region": "asia-south1",
+  "service": "question-bank-cloud-v4",
+  "revision": "question-bank-cloud-v4-guided-20260909-200629",
+  "previous_revision": "question-bank-cloud-v4-setup-192b51e",
+  "traffic_percent": 100,
+  "build_id": "78e42b36-9626-4513-9b5c-f69d1950ea66",
+  "image_digest": "sha256:db4018bdc0c619e207f901f9ed7f69c709dc12fde7db5855a8d2ef13dd22ae2c",
+  "url": "https://meritiqra.com",
+  "migration": "0009_program_setup -> 0010_program_exams",
+  "checks": {
+    "health": 200,
+    "homepage": 200,
+    "workspace": 200,
+    "frontend_source_matches": true,
+    "anonymous_admin_access": 401,
+    "authenticated_paper_jobs_postgresql": 200,
+    "authenticated_prompt_difficulty": 200
+  },
+  "live_generation_exercised": false,
+  "production_exam_created": false,
+  "revision_url_routing": "Direct run.app tag returned 404; verified the custom domain after promotion.",
+  "background_cpu": "always allocated",
+  "minimum_instances": 1
+}

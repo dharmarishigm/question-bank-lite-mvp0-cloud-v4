@@ -1,0 +1,125 @@
+{
+  "verified_at_utc": "2026-09-09T22:27:51.477116+00:00",
+  "revision": "question-bank-cloud-v4-entrance-20260909-222108",
+  "initial_grade9_revision": "question-bank-cloud-v4-sof9-20260909-221143",
+  "project": "gen-lang-client-0491787004",
+  "region": "asia-south1",
+  "programs": [
+    {
+      "id": 7,
+      "name": "Olympiad Grade 9 - Science (SOF ISO)",
+      "status": "ACTIVE",
+      "lookup_status": "READY",
+      "questions": 50,
+      "marks": 60,
+      "duration_minutes": 60,
+      "sections": [
+        {
+          "count": 5,
+          "duration_minutes": null,
+          "marks": 3.0,
+          "negative_marks": 0,
+          "subject": "M3- Achievers Section",
+          "topics": "Official section breakdown: M3- Achievers Section\n5\n3\n15\nHigher Order Thinking Questions based on Class 9 Science syllabus: Motion, Force and Laws of Motion, Gravitation, Work and Energy, Sound, Matter in Our Surroundings, Is Matter Around us Pure?, Atoms and Molecules, Structure of the Atom, Cell\u2011The Fundamental Unit of Life, Tissues, Diversity in Living Organisms, Human Health and Diseases, Improvement in Food Resources."
+        },
+        {
+          "count": 35,
+          "duration_minutes": null,
+          "marks": 1.0,
+          "negative_marks": 0,
+          "subject": "M2- Science",
+          "topics": "Official section breakdown: M2- Science\n35\n1\n35\n60% from Class 9 Science syllabus: Motion, Force and Laws of Motion, Gravitation, Work and Energy, Sound, Matter in Our Surroundings, Is Matter Around us Pure?, Atoms and Molecules, Structure of the Atom, Cell\u2011The Fundamental Unit of Life, Tissues, Diversity in Living Organisms, Human Health and Diseases, Improvement in Food Resources. 40% from Class 8 Science syllabus: Exploring the Investigative World of Science, The Invisible Living World : Beyond Our Naked Eyes, Health : The Ultimate Treasure, Particulate Nature of Matter, Elements, Compounds and Mixtures, How Nature Works in Harmony, Exploring Forces, Solute, Solvent and Solutions, Electricity : Magnetic and Heating Effects, Light : Mirrors and Lenses, Our Home : Earth, a Unique Life Sustaining Planet, Pressure, Winds, Storms and Cyclones, Keeping Time with the Skies."
+        },
+        {
+          "count": 10,
+          "duration_minutes": null,
+          "marks": 1.0,
+          "negative_marks": 0,
+          "subject": "M1- Logical Reasoning",
+          "topics": "Official section breakdown: M1- Logical Reasoning\n10\n1\n10\nVerbal and Non-Verbal Reasoning."
+        }
+      ],
+      "sources": [
+        {
+          "sha256": "063fb3ff7cdcdfec32b35154dd99c7924a20e9c6bedb122832ee89faafb4d292",
+          "title": "SOF International Science Olympiad (ISO)",
+          "url": "https://sofworld.org/nso/class-9/nso-syllabus/nso-syllabus-class-9"
+        },
+        {
+          "sha256": "ecc3dbc3b19f08a2e4b7c0018c2a353fd34951d4c210cdeb7b75762d606203e5",
+          "title": "Class 8 syllabus reference for previous-class coverage",
+          "url": "https://sofworld.org/nso/class-8/nso-syllabus/nso-syllabus-class-8"
+        }
+      ],
+      "prompt_verified": true
+    },
+    {
+      "id": 8,
+      "name": "Olympiad Grade 9 - Mathematics (SOF IMO)",
+      "status": "ACTIVE",
+      "lookup_status": "READY",
+      "questions": 50,
+      "marks": 60,
+      "duration_minutes": 60,
+      "sections": [
+        {
+          "count": 5,
+          "duration_minutes": null,
+          "marks": 3.0,
+          "negative_marks": 0,
+          "subject": "M4- Achievers Section",
+          "topics": "Official section breakdown: M4- Achievers Section\n5\n3\n15\nHigher Order Thinking questions on Class 9 topics: Number Systems, Polynomials, Algebraic Identities, Coordinate Geometry, Linear Equations, Euclid\u2019s Geometry, Lines and Angles, Sequences and Progressions, Triangles, Quadrilaterals, Areas of Parallelograms and Triangles, Circles, Area and Perimeter, Constructions, Surface Areas and Volumes, Statistics, Probability."
+        },
+        {
+          "count": 20,
+          "duration_minutes": null,
+          "marks": 1.0,
+          "negative_marks": 0,
+          "subject": "M2- Mathematical Reasoning",
+          "topics": "Official section breakdown: M2- Mathematical Reasoning\n20\n1\n20\n60% Class 9: Number Systems, Polynomials, Algebraic Identities, Coordinate Geometry, Linear Equations, Euclid\u2019s Geometry, Lines and Angles, Sequences and Progressions, Triangles, Quadrilaterals, Areas, Circles, Constructions, Surface Areas and Volumes, Statistics, Probability. 40% Class 8: Rational Numbers, Squares/Cubes, Exponents, Algebraic Expressions, Factorisation, Linear Equations, Quadrilaterals, Geometry, Mensuration, Data Handling, Playing with Numbers, Direct/Inverse Proportions."
+        },
+        {
+          "count": 10,
+          "duration_minutes": null,
+          "marks": 1.0,
+          "negative_marks": 0,
+          "subject": "M3- Everyday Mathematics",
+          "topics": "Official section breakdown: M3- Everyday Mathematics\n10\n1\n10\nPractical applications. 60% Class 9: Number Systems, Polynomials, Algebraic Identities, Coordinate Geometry, Linear Equations, Geometry (Lines, Angles, Triangles, Quadrilaterals, Circles), Area, Perimeter, Surface Areas, Volumes, Statistics, Probability. 40% Class 8: Exponents, Number Systems, Quadrilaterals, Ratio and Proportion, Data Handling, Algebraic Expressions, Area, Percentage, Profit/Loss, Simple/Compound Interest."
+        },
+        {
+          "count": 15,
+          "duration_minutes": null,
+          "marks": 1.0,
+          "negative_marks": 0,
+          "subject": "M1- Logical Reasoning",
+          "topics": "Official section breakdown: M1- Logical Reasoning\n15\n1\n15\nVerbal and Non-Verbal Reasoning: Series, Analogy, Classification, Coding-Decoding, Blood Relations, Direction Sense, Logical Venn Diagrams, Analytical Reasoning, Mirror Images, Water Images, Embedded Figures, Figure Matrix, Paper Folding/Cutting, Puzzles. Questions draw from both Class 9 and Class 8 reasoning concepts."
+        }
+      ],
+      "sources": [
+        {
+          "sha256": "4a567e82ed01be5344c673a97d35400fa1480b91af4577f813699856258f52fd",
+          "title": "SOF International Mathematics Olympiad (IMO)",
+          "url": "https://sofworld.org/imo/class-9/imo-syllabus/imo-syllabus-class-9"
+        },
+        {
+          "sha256": "b50d5f4731c9243d1d9e41e3518959ffb874feb32188a5aaa997f2280e4eaa8d",
+          "title": "Class 8 syllabus reference for previous-class coverage",
+          "url": "https://sofworld.org/imo/class-8/imo-syllabus/imo-syllabus-class-8"
+        }
+      ],
+      "prompt_verified": true
+    }
+  ],
+  "checks": {
+    "/healthz": 200,
+    "/": 200,
+    "/app": 200,
+    "/static/program-exam.js": 200,
+    "/static/programs.js": 200,
+    "/static/programs.css": 200,
+    "anonymous /api/programs": 401,
+    "anonymous /api/programs/1/exam-papers": 401
+  },
+  "grade9_and_prior_grade8_sources": true,
+  "both_prompts_verified": true
+}

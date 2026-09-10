@@ -1,0 +1,26 @@
+{
+  "base_url": "https://meritiqra.com",
+  "revision": "question-bank-cloud-v4-flag-20260910",
+  "build_id": "aa1ad4ff-c416-4c55-a084-b9a19f360db0",
+  "image_digest": "sha256:d04efd5d9e896215634f948b85a22fe908b01be3eff40a3288c8773924c1a502",
+  "backend_tests": 185,
+  "visible_worksheets_checked": 123,
+  "checks": {
+    "/healthz": 200,
+    "/app": 200,
+    "/static/flag.js": 200,
+    "/static/flag.css": 200,
+    "/static/program-exam.js": 200,
+    "private_materials": 23,
+    "pdf_pages": 149,
+    "workbooks": 22,
+    "anonymous_access": "denied",
+    "real_ai_explanation": "passed",
+    "browser": "desktop/mobile reader, workbook tiles, worksheet navigation, GATE ECE full and subject Markdown prompts passed",
+    "gcs_bucket_public_access": "No public IAM grant",
+    "migration": "0016_flag_library"
+  },
+  "real_flag_explanations": 1,
+  "questions_generated": 0,
+  "exams_published": 0
+}

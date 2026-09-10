@@ -139,14 +139,15 @@ resource "google_cloud_run_v2_service" "app" {
     service_account = google_service_account.app.email
     execution_environment = "EXECUTION_ENVIRONMENT_GEN2"
     scaling {
-      min_instance_count = 0
+      # Guided paper generation continues after its HTTP response is returned.
+      min_instance_count = 1
       max_instance_count = 10
     }
     containers {
       image = var.image
       resources {
         limits = { cpu = "2", memory = "2Gi" }
-        cpu_idle = true
+        cpu_idle = false
       }
       ports {
         container_port = 8080

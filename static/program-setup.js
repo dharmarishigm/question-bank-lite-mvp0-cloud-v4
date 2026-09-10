@@ -29,7 +29,7 @@ window.ProgramSetup = (() => {
         }
         if(['READY','APPLIED'].includes(row.status)) {
           const p=row.proposal;
-          add('p',p.description,card);
+          const description=add('div','',card);description.className='rich-description rendered';renderInto(description,p.description||'');
           add('p',`${p.variant} · ${p.level} · ${row.input.language}`,card);
           const summary=add('div','',card);summary.className='data-grid';
           add('p',`${p.subjects.length} subjects · ${p.subjects.reduce((n,s)=>n+s.chapters.length,0)} chapters`,summary);

@@ -138,3 +138,12 @@ def build_content_blocks(statement: str, visuals: list[dict] | None) -> list[dic
         blocks.append(block)
         seq += 1
     return blocks
+
+
+def statement_with_question_figures(statement: str, assets: list) -> str:
+    """Keep bank question figures visible in paper previews and exam snapshots."""
+    for asset in assets or []:
+        url=asset.get('asset','')
+        if asset.get('type')!='answer_figures' and re.fullmatch(r'/uploads/[A-Za-z0-9_./-]+',url) and url not in statement:
+            statement+='\n\n![Question figure]('+url+')'
+    return statement
