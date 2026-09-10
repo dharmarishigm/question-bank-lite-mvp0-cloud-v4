@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Optional
 from xml.etree import ElementTree as ET
 
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, field_validator
@@ -326,6 +326,14 @@ from platform_api import init_platform, router as platform_router
 if not os.getenv("DATABASE_URL"):
     init_platform()
 app.include_router(platform_router)
+from blueprint_api import router as programs_router
+app.include_router(programs_router)
+from blueprint_setup import router as program_setup_router
+app.include_router(program_setup_router)
+from program_exam import router as program_exam_router
+app.include_router(program_exam_router)
+from official_exam import router as official_exam_router
+app.include_router(official_exam_router)
 from tutor_agent import router as tutor_router
 app.include_router(tutor_router)
 from mobile_api import router as mobile_router, init_mobile
@@ -335,6 +343,23 @@ from exam_conduct import init_exam_conduct, router as exam_conduct_router
 if not os.getenv("DATABASE_URL"):
     init_exam_conduct()
 app.include_router(exam_conduct_router)
+from result_features import router as result_features_router
+app.include_router(result_features_router)
+from ai_review import router as ai_review_router
+app.include_router(ai_review_router)
+from question_correction import router as question_correction_router
+app.include_router(question_correction_router)
+from flag_api import router as flag_router
+app.include_router(flag_router)
+from engagement import router as engagement_router
+app.include_router(engagement_router)
+from marketing_pdf import router as marketing_pdf_router
+app.include_router(marketing_pdf_router)
+from epidemiology_model import router as epidemiology_router
+app.include_router(epidemiology_router)
+
+from grand_tests import router as grand_tests_router
+app.include_router(grand_tests_router)
 
 @app.middleware("http")
 async def protect_legacy_admin_api(request: Request, call_next):
@@ -362,7 +387,15 @@ async def protect_legacy_admin_api(request: Request, call_next):
             require_admin(_auth(request, request.method not in {"GET", "HEAD", "OPTIONS"}))
         except HTTPException as exc:
             return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
-    return await call_next(request)
+    response=await call_next(request)
+    if request.url.path.startswith('/api/'):
+        response.headers['Cache-Control']='no-store, private'
+        response.headers['X-Robots-Tag']='noindex, nofollow, noarchive'
+    if request.url.path.startswith('/api/flag') or request.url.path=='/app':
+        response.headers['X-Frame-Options']='DENY'
+        response.headers['Permissions-Policy']='display-capture=()'
+        response.headers['X-Content-Type-Options']='nosniff'
+    return response
 
 
 def row_to_exam_registration(row: sqlite3.Row) -> dict:
@@ -911,6 +944,10 @@ def get_question(qid: int):
 
 @app.get("/api/questions/{qid}/explain")
 def explain_question(qid: int, language: str = 'en'):
+    return _generate_question_explanation(qid, language)
+
+
+def _generate_question_explanation(qid: int, language: str = 'en', student_user_id=None):
     language = normalize_explanation_language(language)
     language_details = EXPLANATION_LANGUAGES[language]
     cached = get_cached_question_explanation(qid, language)
@@ -961,6 +998,10 @@ def explain_question(qid: int, language: str = 'en'):
         "9. Return every field in the requested structured schema.\n"
         "10. Use valid LaTeX delimiters for formulas and tie each distractor explanation to its displayed option label."
     )
+
+    if student_user_id is not None:
+        from explanation_quota import reserve_explanation_call
+        reserve_explanation_call(student_user_id)
 
     try:
         from google import genai
@@ -1135,16 +1176,35 @@ def create_question(q: Question):
 
 
 @app.put("/api/questions/{qid}")
-def update_question(qid: int, q: Question):
+def update_question(qid: int, q: Question, request: Request = None):
+    from platform_api import _auth,require_admin
+    user=_auth(request,True) if request is not None else None
+    if user:require_admin(user)
     assignments = ", ".join(f"{f} = ?" for f in FIELDS)
     with closing(connect()) as conn:
-        if conn.execute("SELECT 1 FROM questions WHERE id=?", (qid,)).fetchone() is None:
+        existing=conn.execute("SELECT * FROM questions WHERE id=?", (qid,)).fetchone()
+        if existing is None:
             raise HTTPException(404, "question not found")
+        previous=row_to_dict(existing)
+        from correction_sync import prepare,propagate
+        plans=prepare(conn,qid) if user else []
+        if "verification_status" not in q.model_fields_set:q.verification_status=previous["verification_status"]
+        if previous.get('source_type')=='AI_GENERATED':
+            for field in ('source_type','generation_run_id','generation_provider','generation_model','generation_prompt_version','generation_prompt','generation_metadata'):
+                setattr(q,field,previous[field])
+            q.generation_fingerprint=fingerprint(q.statement)
+        if q.statement!=previous['statement'] or q.visual_assets!=previous.get('visual_assets',[]):
+            q.content_blocks=build_content_blocks(q.statement,q.visual_assets)
         _snapshot(conn, qid, "before edit")
+        if any(getattr(q,key)!=previous.get(key) for key in ('statement','options','answer','solution','visual_assets')):
+            conn.execute('DELETE FROM question_explanations WHERE question_id=?',(qid,))
+            conn.execute('DELETE FROM question_explanation_translations WHERE question_id=?',(qid,))
         conn.execute(
             f"UPDATE questions SET {assignments}, updated_at = ? WHERE id = ?",
             values_of(q) + [time.time(), qid],
         )
+        updated=row_to_dict(conn.execute('SELECT * FROM questions WHERE id=?',(qid,)).fetchone())
+        if user:propagate(conn,previous,updated,user['id'],plans)
         conn.commit()
     return get_question(qid)
 
@@ -1186,11 +1246,25 @@ def guide_ai_generation(payload: PromptGuidanceRequest, request: Request):
 
 
 @app.get("/api/ai/runs")
-def list_ai_generation_runs(request: Request):
+def list_ai_generation_runs(request: Request, response: Response, q: str = Query('', max_length=200),
+                            subject: str = Query('', max_length=200), level: str = Query('', max_length=200),
+                            difficulty: str = Query('', max_length=30), status: str = Query('', max_length=40),
+                            offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=100)):
     from platform_api import _auth, require_admin
     require_admin(_auth(request))
+    clauses, params = [], []
+    if q.strip():
+        clauses.append("(LOWER(exam_name) LIKE ? OR LOWER(subject) LIKE ? OR LOWER(topic) LIKE ? OR LOWER(chapter) LIKE ?)")
+        params.extend(['%'+q.strip().lower()+'%']*4)
+    for column, value in [('subject',subject),('level',level),('difficulty',difficulty),('status',status)]:
+        if value.strip():
+            clauses.append(f'LOWER({column})=?')
+            params.append(value.strip().lower())
+    where = ' WHERE '+' AND '.join(clauses) if clauses else ''
     with closing(connect()) as conn:
-        rows=conn.execute("SELECT id,exam_name,subject,topic,requested_count,generated_count,accepted_count,rejected_count,model,status,error_message,created_at FROM ai_generation_runs ORDER BY created_at DESC LIMIT 100").fetchall()
+        total = conn.execute('SELECT COUNT(*) n FROM ai_generation_runs'+where, params).fetchone()['n']
+        rows=conn.execute("SELECT id,exam_name,subject,level,difficulty,topic,requested_count,generated_count,accepted_count,rejected_count,model,status,error_message,created_at FROM ai_generation_runs"+where+" ORDER BY created_at DESC,id DESC LIMIT ? OFFSET ?", (*params,limit,offset)).fetchall()
+    response.headers['X-Total-Count'] = str(total)
     return [dict(row) for row in rows]
 
 
@@ -1204,6 +1278,8 @@ def get_ai_generation_run(run_id: str, request: Request):
     for field in ("metadata_json","request_json","output_json","usage_json"):
         try:item[field.removesuffix("_json")]=json.loads(item.pop(field) or "{}")
         except ValueError:item[field.removesuffix("_json")]={}
+    from correction_sync import hydrate_run
+    with closing(connect()) as conn:hydrate_run(conn,item)
     return item
 
 
@@ -1211,6 +1287,11 @@ def get_ai_generation_run(run_id: str, request: Request):
 def generate_ai_questions(payload: GenerationRequest, request: Request):
     from platform_api import _auth, require_admin
     require_admin(_auth(request, True))
+    return generate_ai_questions_core(payload)
+
+
+def generate_ai_questions_core(payload: GenerationRequest):
+    """Shared authoring pipeline; callers must authorize before invoking it."""
     run_id=uuid.uuid4().hex;now=time.time();metadata={"exam_type":payload.exam_type,"level":payload.level,"subtopic":payload.subtopic,"difficulty":payload.difficulty,"question_type":payload.question_type,"marks":payload.marks,"language":payload.language,"tags":payload.tags,"extra_metadata":payload.extra_metadata}
     with closing(connect()) as conn:
         conn.execute("INSERT INTO ai_generation_runs(id,exam_name,exam_type,level,subject,chapter,topic,subtopic,difficulty,question_type,requested_count,language,system_prompt_version,generation_prompt,syllabus,metadata_json,request_json,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'RUNNING',?)",(run_id,payload.exam_name,payload.exam_type,payload.level,payload.subject,payload.chapter,payload.topic,payload.subtopic,payload.difficulty,payload.question_type,payload.count,payload.language,SYSTEM_PROMPT_VERSION,payload.generation_prompt,payload.syllabus,json.dumps(metadata,ensure_ascii=False),payload.model_dump_json(),now));conn.commit()
@@ -1251,28 +1332,14 @@ def regenerate_ai_generation_run(run_id: str, request: Request):
 def save_ai_generation_run(run_id: str, payload: dict, request: Request):
     from platform_api import _auth, require_admin
     require_admin(_auth(request, True))
-    with closing(connect()) as conn: row=conn.execute("SELECT * FROM ai_generation_runs WHERE id=?",(run_id,)).fetchone()
-    if not row: raise HTTPException(404,"Generation run not found")
-    try:
-        generation_request=GenerationRequest.model_validate_json(row["request_json"]);output=json.loads(row["output_json"] or "{}");items=output.get("questions",[])
-    except Exception as exc: raise HTTPException(409,"Stored generation output is invalid") from exc
-    requested_indices=payload.get("indices");selected=set(range(len(items))) if requested_indices is None else {int(i) for i in requested_indices}
-    if not selected: raise HTTPException(400,"Select at least one question to save")
-    metadata=json.loads(row["metadata_json"] or "{}");saved=[];rejected=0
-    for index,item in enumerate(items):
-        if index not in selected: continue
-        generated_data={k:v for k,v in item.items() if k not in {"review_index","fingerprint"}}
-        try:
-            from llm_generate import GeneratedQuestion, validate_question
-            generated=GeneratedQuestion.model_validate(generated_data);validate_question(generated)
-        except Exception: rejected+=1;continue
-        fp=item.get("fingerprint") or fingerprint(generated.statement)
-        with closing(connect()) as conn: duplicate=conn.execute("SELECT 1 FROM questions WHERE generation_fingerprint=? OR lower(trim(statement))=lower(trim(?)) LIMIT 1",(fp,generated.statement)).fetchone()
-        if duplicate: rejected+=1;continue
-        question=Question(subject=generated.subject or generation_request.subject,chapter=generated.chapter or generation_request.chapter,topic=generated.topic or generation_request.topic,subtopic=generated.subtopic or generation_request.subtopic,exam=generated.exam or generation_request.exam_name,qtype=generated.qtype or generation_request.question_type,difficulty=generated.difficulty or generation_request.difficulty,marks=generated.marks or generation_request.marks,statement=generated.statement,options=[option.text for option in generated.options],answer=generated.answer,solution=generated.solution,tags=", ".join(generated.tags or generation_request.tags),content_blocks=generated.content_blocks,visual_assets=generated.visual_assets,verification_status="APPROVED",source_type="AI_GENERATED",generation_run_id=run_id,generation_provider="vertex-ai",generation_model=row["model"],generation_prompt_version=SYSTEM_PROMPT_VERSION,generation_prompt=generation_request.generation_prompt,generation_metadata={**metadata,"generated_metadata":generated.metadata,"approved_during_admin_review":True},generation_fingerprint=fp)
-        saved.append(create_question(question))
-    with closing(connect()) as conn:conn.execute("UPDATE ai_generation_runs SET accepted_count=accepted_count+?,rejected_count=rejected_count+?,status='SAVED' WHERE id=?",(len(saved),rejected,run_id));conn.commit()
-    return {"run_id":run_id,"saved_count":len(saved),"rejected_count":rejected,"questions":saved}
+    from ai_review import SaveSelection, BatchSelection, save_batches
+    with closing(connect()) as conn: row=conn.execute('SELECT output_json FROM ai_generation_runs WHERE id=?',(run_id,)).fetchone()
+    if not row:raise HTTPException(404,'Generation run not found')
+    items=json.loads(row['output_json'] or '{}').get('questions',[])
+    try:data=SaveSelection(batches=[BatchSelection(run_id=run_id,indices=payload.get('indices',list(range(len(items)))))],reviewed=True)
+    except Exception as exc:raise HTTPException(422,'Select valid question indices') from exc
+    result=save_batches(data)
+    return {'run_id':run_id,'saved_count':result['saved_count'],'rejected_count':result['already_saved_count'],'questions':[get_question(r['question_id']) for r in result['items'] if r['status']=='SAVED'],'items':result['items']}
 
 
 @app.put("/api/ai/questions/{question_id}/status")

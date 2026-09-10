@@ -15,3 +15,14 @@
 .public-header{gap:18px}.public-nav{gap:clamp(10px,1.3vw,19px)}.public-nav a{white-space:nowrap}.public-actions{flex:0 0 auto}@media(min-width:1051px) and (max-width:1260px){.public-header{padding-left:18px;padding-right:18px;gap:12px}.public-nav{gap:10px}.public-nav a{font-size:12px}.public-actions .public-cta{padding-left:12px;padding-right:12px}}
 /* Compact public sections retain a distinct marketing hierarchy. */
 .public-hero{min-height:0;padding-top:48px;padding-bottom:48px;gap:36px;max-width:1400px}.public-hero h1{font-size:clamp(38px,4.5vw,60px)}.hero-lead{margin-top:16px}.public-section{padding-top:48px;padding-bottom:48px;max-width:1400px}.public-tint{max-width:none}.section-intro{margin-bottom:24px}.section-intro h2,.explanation-section h2{font-size:clamp(28px,3vw,38px)}.audience-grid article{min-height:0;gap:10px}.public-exam-card,.feature-grid article,.audience-grid article,.insight-grid article,.solution-band>div{padding:18px}.public-final{padding:48px 24px}.public-final h2{font-size:clamp(30px,4vw,44px)}.public-footer{padding-top:32px;padding-bottom:32px;gap:24px}.practice-preview{padding:20px}.preview-score{margin:16px 0;padding:14px}@media(max-width:700px){.public-hero{padding-top:32px;padding-bottom:32px;gap:24px}.public-section{padding-top:32px;padding-bottom:32px}}
+
+.public-exam-description { color:#63768a; line-height:1.55; overflow-wrap:anywhere; min-width:0; max-height:22rem; overflow:auto; }
+.public-exam-description :is(h1,h2,h3,h4,h5,h6) { font-size:1rem; line-height:1.4; margin:1em 0 .5em; color:var(--public-navy); }
+.public-exam-description :first-child { margin-top:0; }
+.public-exam-description :is(ul,ol) { padding-left:1.4em; }
+.public-exam-description li { margin:.35em 0; }
+.public-exam-description table { width:100%; border-collapse:collapse; font-size:.85rem; }
+.public-exam-description :is(th,td) { padding:6px; border:1px solid #dce7ef; text-align:left; }
+.public-exam-description a { color:#087a6b; text-decoration:underline; }
+
+@media(min-width:1051px){.public-header{padding-left:24px;padding-right:24px}.public-nav{flex-wrap:wrap;min-width:0}}

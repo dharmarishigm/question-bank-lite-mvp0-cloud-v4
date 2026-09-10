@@ -1,0 +1,8 @@
+.student-protected-content :is(#exam-panel,#my-results-panel,#student-analytics-panel,dialog,#explain-modal){-webkit-user-select:none;user-select:none}
+.student-protected-content :is(input,textarea,[contenteditable=true]){-webkit-user-select:text;user-select:text}
+.student-protected-content img{-webkit-user-drag:none}
+#student-content-watermark{position:fixed;inset:0;z-index:9999;pointer-events:none;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(4,1fr);overflow:hidden;opacity:.11}
+#student-content-watermark[hidden]{display:none}
+#student-content-watermark span{align-self:center;text-align:center;font-size:13px;font-weight:600;transform:rotate(-24deg);overflow-wrap:anywhere}
+@media(max-width:600px){#student-content-watermark{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(6,1fr)}}
+@media print{body.student-protected-content>*{display:none!important}body.student-protected-content::after{content:'Printing is disabled for student exam and report content.';display:block!important;font-size:16px;color:black}body.student-protected-content dialog{display:none!important}}

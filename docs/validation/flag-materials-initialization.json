@@ -1,0 +1,182 @@
+{
+  "base_url": "https://meritiqra.com",
+  "materials": [
+    {
+      "id": "1be9828b309948588e496ba10974381e",
+      "filename": "Essentials of Pharma Forecasting Material.pdf",
+      "sha256": "488360c5969f7ab971a6b63606c2ae7511cdfd9c73227aa76df2a9bdc9979cf2",
+      "pages": 149,
+      "sheets": 0
+    },
+    {
+      "id": "2985776896b040ad95f68021a6caecb4",
+      "filename": "Excel_Working_Templates.xlsx",
+      "sha256": "1e5f2b8bdc2d7d5ad5fd58d5d8e3c96402fcae22707b39e808eed3a38973a97d",
+      "pages": null,
+      "sheets": 34
+    },
+    {
+      "id": "e7a64c89afdc45b6966e64eacbfd79c8",
+      "filename": "IBM Market Scan Dataset.xlsx",
+      "sha256": "0989de389df4823ca21867cd199380a01ef23f0e0a54e99146bfd3850115bebc",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "43e5e0af06cc4fc7a60a8e3a78b0c8ec",
+      "filename": "Ipsos_Dataset.xlsx",
+      "sha256": "5db2467495468b666676de5c259e65f1be1daf0bcb5bab7770260a84efcee9a9",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "4b4a50688f964fa2a308feb213306b26",
+      "filename": "IQVIA_DDD_Dataset.xlsx",
+      "sha256": "c25950f5c295236e4b51953c6f1c09edbe9515bb80596b1fe42f228ee7fdfbd1",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "347bbf9db8b8486bb381230dae3e350d",
+      "filename": "IQVIA_MIDAS_Dataset.xlsx",
+      "sha256": "3793a62e275dd00cf8840a1e923cb9340df3fc13272557996423804738567eab",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "3e159e428c00404cb4776fce6a24a38c",
+      "filename": "IQVIA_NPA_Dataset.xlsx",
+      "sha256": "a306f8b316e61039b09eef0a216aee1c0e5ad9daff1d2c1d8484ce509e0f4e0b",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "557690d243ce47ec9b65b7c6277eda75",
+      "filename": "IQVIA_NSP_Dataset.xlsx",
+      "sha256": "e524987a1fd4a64ed41e4c77eab4903ad40ec8427576f3b06addfdc149d59313",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "fb6bf26bba5d47bf90f8baae794c17d8",
+      "filename": "Medicaid_Dataset.xlsx",
+      "sha256": "69cbd7da6f273d39c4e1fc9d8b53586cf13089056023ddd14c0bfc86cd2a175c",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "b0d37d771ce047849b43937da9323907",
+      "filename": "Medicare (CMS)_Dataset.xlsx",
+      "sha256": "c3358be064bde580d0a3c8c3a7fcb12ad42979a88fe7153169f7585632f3e93e",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "605e786feaad4b928a8530c7158e1201",
+      "filename": "MMIT_Dataset.xlsx",
+      "sha256": "b8fc871f3963d4116103e0f6512c419f18141b816500c773b7ed16ac8eaaa99d",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "c501ca8b97c8496fa7a1fc3757d582ea",
+      "filename": "Optum_Dataset.xlsx",
+      "sha256": "d0ffda4176a4cb6edfcfa087188cb2f82b382c38a21c534529aa3d31d9ae2020",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "8ab9a70ab6af434e8562badcb29264c5",
+      "filename": "Simulated Healthcare Datasets.xlsx",
+      "sha256": "22b0bc2d604c1466c7160d20a66f06dfb5ce5f65cc7d8caaa644d7a5867228ee",
+      "pages": null,
+      "sheets": 5
+    },
+    {
+      "id": "01ee6a62136947f1878d50c67ef0e555",
+      "filename": "Symphony_PHAST_Dataset.xlsx",
+      "sha256": "f3c503beb676981b654016893f58d56ca8e05d2f73b7f2ca90ad9b2ea8fa1cf1",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "dc70963b58ab45709f84dbd265bf2705",
+      "filename": "Truveta_Dataset.xlsx",
+      "sha256": "aa19656d4b396c0ee9c321c6d080442435f2cac1d566870e1f97d3383f56a73e",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "53ddd34ec2a84c62bc2dd73d4821f453",
+      "filename": "Advanced_PatientFlow_Implementation_Template.xlsx",
+      "sha256": "fedb4fb1118778510502792f8ecbe9b39844b5e63e63b38b805996459a47b4df",
+      "pages": null,
+      "sheets": 6
+    },
+    {
+      "id": "9c9697620dff424899ae6d0eda561448",
+      "filename": "DOT_Curve_Pharma_Forecasting_Template.xlsx",
+      "sha256": "a5fac776af83cc91b366382c4f75badb27b0205ad2e996513714935a0caa3b34",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "03f1101dd21340e4a06e148a12ebebb8",
+      "filename": "New_Patients+Continuing_Cohort_Method_Jan2025_Dec2027.xlsx",
+      "sha256": "04438c0cdf241b01bc46e8bacf586be478daf74da1d86571c9aa1d2aa0723364",
+      "pages": null,
+      "sheets": 2
+    },
+    {
+      "id": "62ace0be03be4460906106136408ba8f",
+      "filename": "Progression_Rate_Template_4_Methods.xlsx",
+      "sha256": "fa0bded0086e92ad00a2ac74330fc1b7cdc271f576a2f238618f39140aa5d29e",
+      "pages": null,
+      "sheets": 5
+    },
+    {
+      "id": "fa5c4e945adf4a5c8fc43c5a3561aaa9",
+      "filename": "Sensitivity Analysis.xlsx",
+      "sha256": "68d6e552e5c263be2f8e098954f57c6633925fb392a3dedac35039e0989c3ad3",
+      "pages": null,
+      "sheets": 3
+    },
+    {
+      "id": "50ae963fe872405b96a15feda115e7bd",
+      "filename": "FLAG_Timeseries_Modeling_Excel_Implementation_Learning_Workbook.xlsx",
+      "sha256": "c9b3fc56da62a712a6bd94c35d99245a7604c5467d4697a27ca6d2fc04731d85",
+      "pages": null,
+      "sheets": 9
+    },
+    {
+      "id": "851e433f747e420487636a603b60619f",
+      "filename": "Compliance_Adherence_Persistence_MPR_PDC_Therapy_Duration_FLAG_Resource.xlsx",
+      "sha256": "fb9834a898dcfe366654926b0adee5e210ff5815a93bd33507999970641ea6a6",
+      "pages": null,
+      "sheets": 10
+    },
+    {
+      "id": "4f45a811787d460e810e5636a95a565b",
+      "filename": "FLAG_DoT_Duration_Persistence_Knowledge_Resource.xlsx",
+      "sha256": "9be28de3e0a08f3dba185889f11536b6bedd17d24e3628bee311891125bb379c",
+      "pages": null,
+      "sheets": 10
+    }
+  ],
+  "questions_generated": 0,
+  "exams_published": 0,
+  "members_added": 0,
+  "official_lookup": {
+    "id": 15,
+    "live_verified": false,
+    "status_label": "Live verification was unavailable. Loaded the reviewed GATE 2027 EC reference checked on 10 September 2026. Confirm the linked official rules before publication."
+  },
+  "program": {
+    "id": 20,
+    "name": "Gate ECE",
+    "sections": 18,
+    "questions": 65,
+    "marks": 100.0,
+    "full_and_subject_prompts_verified": true
+  }
+}

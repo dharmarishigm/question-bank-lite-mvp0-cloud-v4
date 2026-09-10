@@ -1,0 +1,61 @@
+{
+  "deployed_at_utc": "2026-09-09T20:56:50.958319+00:00",
+  "revision": "question-bank-cloud-v4-sof8-20260909-205125",
+  "previous_revision": "question-bank-cloud-v4-archivefix-20260909-203952",
+  "project": "gen-lang-client-0491787004",
+  "region": "asia-south1",
+  "traffic_percent": 100,
+  "build_id": "c7e3e48e-f866-4c95-ad59-27fe01d45abd",
+  "image_digest": "sha256:e3233a4a8cf2beb0a192a5ce8c40a74c2e7e46d283544b1058f74bf1549ee697",
+  "checks": {
+    "backend_tests": 149,
+    "javascript_suites": 2,
+    "local_live_science_lookup": true,
+    "local_live_maths_lookup": true,
+    "live_health": 200,
+    "frontend_source_matches": true,
+    "science_setup": "READY",
+    "maths_setup": "READY",
+    "both_prompts_verified": true
+  },
+  "program_ids": [
+    5,
+    6
+  ],
+  "programs": [
+    {
+      "id": 5,
+      "name": "Olympiad Grade 8 - Science (SOF ISO)",
+      "status": "ACTIVE",
+      "lookup_status": "READY",
+      "questions": 50,
+      "marks": 60,
+      "duration_minutes": 60,
+      "sources": [
+        {
+          "sha256": "ecc3dbc3b19f08a2e4b7c0018c2a353fd34951d4c210cdeb7b75762d606203e5",
+          "title": "SOF International Science Olympiad (ISO)",
+          "url": "https://sofworld.org/nso/class-8/nso-syllabus/nso-syllabus-class-8"
+        }
+      ],
+      "prompt_verified": true
+    },
+    {
+      "id": 6,
+      "name": "Olympiad Grade 8 - Maths (SOF IMO)",
+      "status": "ACTIVE",
+      "lookup_status": "READY",
+      "questions": 50,
+      "marks": 60,
+      "duration_minutes": 60,
+      "sources": [
+        {
+          "sha256": "b50d5f4731c9243d1d9e41e3518959ffb874feb32188a5aaa997f2280e4eaa8d",
+          "title": "SOF International Mathematics Olympiad (IMO)",
+          "url": "https://sofworld.org/imo/class-8/imo-syllabus/imo-syllabus-class-8"
+        }
+      ],
+      "prompt_verified": true
+    }
+  ]
+}

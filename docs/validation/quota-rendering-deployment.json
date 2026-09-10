@@ -1,0 +1,41 @@
+{
+  "base_url": "https://meritiqra.com",
+  "checks": {
+    "/healthz": 200,
+    "/": 200,
+    "/app": 200,
+    "/static/program-exam.js": 200,
+    "/static/programs.js": 200,
+    "/static/programs.css": 200,
+    "anonymous /api/programs": 401,
+    "anonymous /api/programs/1/exam-papers": 401,
+    "/static/result-tools.js": 200,
+    "/static/ai-batch-review.js": 200,
+    "/static/app.js": 200,
+    "/static/platform-ui.js": 200,
+    "/static/public-markdown.js": 200,
+    "/static/public-site.js": 200,
+    "/static/public-site.css": 200,
+    "concerns": 200,
+    "batch_history": 200,
+    "batch_validation": 422,
+    "/api/exams/22/leaderboard": 200,
+    "/api/results/25/report": 200,
+    "/api/results/25/report.pdf": 200,
+    "invalid_share": 404,
+    "anonymous /api/question-concerns": 401,
+    "anonymous /api/results/1/report": 401,
+    "anonymous /api/exams/1/leaderboard": 401
+  },
+  "revision": "question-bank-cloud-v4-quota-20260909-230119",
+  "traffic_percent": 100,
+  "build_id": "b9c43bd4-b649-417c-b071-1cdb71e69d2a",
+  "image_digest": "sha256:8643732e53cf061d31e063850bc2462ec7829115923128b98c101b112b3489ad",
+  "migration": "0014_explanation_quota",
+  "validation": {
+    "backend_tests": 165,
+    "quota_concurrency": "20 simultaneous reservations: 10 accepted, 10 rejected",
+    "homepage": "desktop/mobile Markdown and escaping verified",
+    "images": "desktop/mobile wide, tall, small and option images verified"
+  }
+}

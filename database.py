@@ -95,7 +95,7 @@ class PostgresConnection:
         statement=translate_sql(sql)
         insert = re.match(r'^INSERT\s+(?:INTO\s+)?["`]?([A-Za-z_][A-Za-z0-9_]*)', statement, re.I)
         table = insert.group(1).lower() if insert else ''
-        returning = bool(insert) and table != 'oauth_states' and ' RETURNING ' not in statement.upper()
+        returning = bool(insert) and table not in {'oauth_states', 'engagement_limits', 'flag_trials'} and ' RETURNING ' not in statement.upper()
         if returning:
             statement = statement.rstrip().rstrip(';') + ' RETURNING id'
         cur=self._connection.execute(statement,params)

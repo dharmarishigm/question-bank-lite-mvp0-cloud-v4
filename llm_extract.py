@@ -417,7 +417,7 @@ def extract_source(source_bytes: bytes, mime_type: str, local: dict, upload_dir:
                 ],
                 schema=Extraction,
                 system_instruction=TRANSCRIBE_PROMPT,
-                max_tokens=int(os.getenv('QB_GEMINI_MAX_OUTPUT_TOKENS', '24000')),
+                max_tokens=int(os.getenv('QB_GEMINI_MAX_OUTPUT_TOKENS', '12000')),
             )
             chunk_result = Extraction.model_validate_json(response.text or '')
             validate_extraction(chunk_result, {}, chunk_page_count)

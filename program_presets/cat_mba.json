@@ -1,0 +1,69 @@
+{
+  "program": {
+    "code": "CAT_MBA",
+    "name": "CAT - MBA Entrance (MCQ practice)",
+    "authority": "Indian Institutes of Management (IIMs)",
+    "region": "India",
+    "category": "Competitive examination",
+    "levels": [
+      "Graduate management aptitude"
+    ],
+    "languages": [
+      "English"
+    ],
+    "tags": [
+      "Full Exam",
+      "Subject-wise",
+      "Editable curriculum",
+      "Question bank reuse"
+    ],
+    "description": "## Official reference and cycle\n\nThe readable official CAT 2025 media release specifies three sections and 120 minutes, with 40 minutes per section and no switching during a section. The exact 2026 question counts were not verified from an official document; refresh the official reference before using a later-cycle mock.\n\n## Editable practice allocation\n\n68 single-correct MCQs: VARC 24, DILR 22 and Quantitative Ability 22. These counts are practice choices, not an official fixed pattern. Practice scoring is +3/-1/0, giving 204 raw marks; no CAT percentile or scaled score is inferred. The app does not deliver the official typed-answer format. The detailed topics are preparation coverage, not a claimed official exhaustive syllabus.\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n## Sources\n\nChecked 10 September 2026. Published reference cycles are identified above; refresh before adopting later changes.\n\n- [Reference 1](https://cdn.digialm.com/per/g06/pub/32842/EForms/image/CAT2025/Media_Release.pdf)\n- [Reference 2](https://iimcat.ac.in)",
+    "status": "ACTIVE"
+  },
+  "settings": {
+    "name": "CAT - MBA Entrance (MCQ practice) - Full practice",
+    "mode": "FULL",
+    "level": "Graduate management aptitude",
+    "language": "English",
+    "duration_minutes": 120,
+    "difficulty": "medium",
+    "curriculum": "## Preparation scope\n\nUse only the selected section for subject-wise papers. In Full Exam mode, cover all listed sections. Counts and mark bands are editable; do not invent official chapter weights.\n\n### Verbal Ability and Reading Comprehension\n\nOriginal passages across humanities, society, science and business; central idea, inference, tone, evidence, argument, paragraph coherence, summaries and sentence placement. Provide the complete passage in each independently usable question.\n\n### Data Interpretation and Logical Reasoning\n\nTables/charts, percentages, comparisons, arrangements, scheduling, grouping, games, routes, sets and constraint-based deductions. Include every dataset and constraint needed in each question; do not refer to missing companion questions.\n\n### Quantitative Ability\n\nArithmetic, ratios, percentages, averages, mixtures, profit/loss, interest, time/work/distance, algebra, equations, inequalities, functions, sequences, geometry, mensuration, number systems and counting/probability. No invented chapter weightages.",
+    "pattern": "## Official reference and cycle\n\nThe readable official CAT 2025 media release specifies three sections and 120 minutes, with 40 minutes per section and no switching during a section. The exact 2026 question counts were not verified from an official document; refresh the official reference before using a later-cycle mock.\n\n## Editable practice allocation\n\n68 single-correct MCQs: VARC 24, DILR 22 and Quantitative Ability 22. These counts are practice choices, not an official fixed pattern. Practice scoring is +3/-1/0, giving 204 raw marks; no CAT percentile or scaled score is inferred. The app does not deliver the official typed-answer format. The detailed topics are preparation coverage, not a claimed official exhaustive syllabus.\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n## Sources\n\nChecked 10 September 2026. Published reference cycles are identified above; refresh before adopting later changes.\n\n- [Reference 1](https://cdn.digialm.com/per/g06/pub/32842/EForms/image/CAT2025/Media_Release.pdf)\n- [Reference 2](https://iimcat.ac.in)",
+    "instructions": "## Selected practice paper\n\nThe exam title, selected subjects, question counts, duration and marks shown for this paper are the settings to follow. Full-exam figures below describe the reference setup and do not override a subject-wise or edited paper.\n\n## Official reference and cycle\n\nThe readable official CAT 2025 media release specifies three sections and 120 minutes, with 40 minutes per section and no switching during a section. The exact 2026 question counts were not verified from an official document; refresh the official reference before using a later-cycle mock.\n\n## Editable practice allocation\n\n68 single-correct MCQs: VARC 24, DILR 22 and Quantitative Ability 22. These counts are practice choices, not an official fixed pattern. Practice scoring is +3/-1/0, giving 204 raw marks; no CAT percentile or scaled score is inferred. The app does not deliver the official typed-answer format. The detailed topics are preparation coverage, not a claimed official exhaustive syllabus.\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n## CAT - MBA Entrance Practice Program Instructions\n\nWelcome to your practice program for the CAT MBA Entrance exam. This program is designed to help you familiarize yourself with the question types and time management.\n\n**Program Overview:**\n*   **Total Questions:** 68 Multiple Choice Questions (MCQs).\n*   **Total Time:** 120 minutes.\n*   **Scoring:**\n    *   Correct Answer: +3 marks\n    *   Incorrect Answer: -1 mark\n    *   Unattempted Question: 0 marks\n\n**Sections:**\nThe practice program is divided into three sections. Each section is allocated 40 minutes for practice.\n1.  **Verbal Ability and Reading Comprehension (VARC):** 24 questions\n2.  **Data Interpretation and Logical Reasoning (DILR):** 22 questions\n3.  **Quantitative Ability (QA):** 22 questions\n\n**Important Notes:**\n*   Each question is self-contained; all necessary information will be provided within the question itself.\n*   This practice program is for preparation purposes only and does not replicate the official exam environment, scoring, or percentile calculations.\n*   Focus on understanding the concepts and improving your problem-solving speed and accuracy.",
+    "generation_prompt": "## Scope and selected inputs\n\nFollow the structured paper mode, selected subjects, counts, marks, timing and difficulty. Subject-wise generates only the selected subject, even when the reference describes a full exam. Use the chosen Very Easy, Easy, Medium, Hard or Very Hard setting.\n\n## Question Authoring Guidance: CAT - MBA Entrance Practice\n\nThis guidance outlines requirements for creating practice questions for the CAT MBA Entrance program. All questions must be original and self-contained.\n\n**General Requirements:**\n*   **Question Format:** Multiple Choice Questions (MCQ) only.\n*   **Options:** Exactly four distinct options (A, B, C, D) must be provided for each question.\n*   **Correct Answer:** Exactly one option must be correct.\n*   **Distractors:** Incorrect options must be plausible distractors, reflecting common misconceptions or calculation errors.\n*   **Solutions:** A clear, step-by-step worked solution must accompany each question, explaining the correct answer and why other options are incorrect where applicable.\n*   **Math Formatting:** Use clear and consistent mathematical notation and formatting.\n\n**Practice Program Structure:**\nThe practice program consists of 68 single-correct MCQs, with a scoring system of +3 marks for a correct answer, -1 mark for an incorrect answer, and 0 marks for an unattempted question. The program is divided into three sections:\n\n### 1. Verbal Ability and Reading Comprehension (VARC)\n*   **Count:** 24 questions\n*   **Practice Duration:** 40 minutes\n*   **Topics:** Original passages covering humanities, society, science, and business. Questions should assess central idea, inference, tone, evidence, argument, paragraph coherence, summaries, and sentence placement.\n*   **Specific Requirement:** Provide the complete passage within each independently usable question. Do not refer to external text.\n\n### 2. Data Interpretation and Logical Reasoning (DILR)\n*   **Count:** 22 questions\n*   **Practice Duration:** 40 minutes\n*   **Topics:** Tables/charts, percentages, comparisons, arrangements, scheduling, grouping, games, routes, sets, and constraint-based deductions.\n*   **Specific Requirement:** Include every dataset and constraint needed to solve the question directly within the question. Do not refer to missing companion questions or external data.\n\n### 3. Quantitative Ability (QA)\n*   **Count:** 22 questions\n*   **Practice Duration:** 40 minutes\n*   **Topics:** Arithmetic, ratios, percentages, averages, mixtures, profit/loss, interest, time/work/distance, algebra, equations, inequalities, functions, sequences, geometry, mensuration, number systems, and counting/probability.\n*   **Specific Requirement:** Ensure questions cover the breadth of topics without inventing specific chapter weightages.\n\nEnsure all content adheres to these guidelines for effective practice material.\n\n## Reference and delivery limits\n\n## Official reference and cycle\n\nThe readable official CAT 2025 media release specifies three sections and 120 minutes, with 40 minutes per section and no switching during a section. The exact 2026 question counts were not verified from an official document; refresh the official reference before using a later-cycle mock.\n\n## Editable practice allocation\n\n68 single-correct MCQs: VARC 24, DILR 22 and Quantitative Ability 22. These counts are practice choices, not an official fixed pattern. Practice scoring is +3/-1/0, giving 204 raw marks; no CAT percentile or scaled score is inferred. The app does not deliver the official typed-answer format. The detailed topics are preparation coverage, not a claimed official exhaustive syllabus.\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n## Batch and reuse requirements\n\nGenerate only the requested batch quota; full-paper counts above are reference context, not an instruction to repeat the entire paper in each batch. Every question must include its complete passage, transcript, diagram data or constraints. Do not depend on another question or absent audio. Honor the current structured inputs when edited; question-bank reuse and missing-question generation are handled by the application.",
+    "sections": [
+      {
+        "subject": "Verbal Ability and Reading Comprehension",
+        "count": 24,
+        "marks": 3.0,
+        "negative_marks": 1.0,
+        "topics": "Original passages across humanities, society, science and business; central idea, inference, tone, evidence, argument, paragraph coherence, summaries and sentence placement. Provide the complete passage in each independently usable question.",
+        "duration_minutes": 40
+      },
+      {
+        "subject": "Data Interpretation and Logical Reasoning",
+        "count": 22,
+        "marks": 3.0,
+        "negative_marks": 1.0,
+        "topics": "Tables/charts, percentages, comparisons, arrangements, scheduling, grouping, games, routes, sets and constraint-based deductions. Include every dataset and constraint needed in each question; do not refer to missing companion questions.",
+        "duration_minutes": 40
+      },
+      {
+        "subject": "Quantitative Ability",
+        "count": 22,
+        "marks": 3.0,
+        "negative_marks": 1.0,
+        "topics": "Arithmetic, ratios, percentages, averages, mixtures, profit/loss, interest, time/work/distance, algebra, equations, inequalities, functions, sequences, geometry, mensuration, number systems and counting/probability. No invented chapter weightages.",
+        "duration_minutes": 40
+      }
+    ],
+    "reuse_questions": true,
+    "official_lookup_id": null
+  },
+  "sources": [
+    "https://cdn.digialm.com/per/g06/pub/32842/EForms/image/CAT2025/Media_Release.pdf",
+    "https://iimcat.ac.in"
+  ],
+  "checked_at": "2026-09-10",
+  "guidance": "AI-generated, reviewed editable authoring guidance"
+}

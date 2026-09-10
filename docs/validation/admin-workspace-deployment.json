@@ -1,0 +1,30 @@
+{
+  "base_url": "https://meritiqra.com",
+  "checks": {
+    "/healthz": 200,
+    "/app": 200,
+    "/static/admin-workspace.js": 200,
+    "/static/admin-workspace.css": 200,
+    "/static/app.js": 200,
+    "/static/platform-ui.js": 200,
+    "/static/program-exam.js": 200,
+    "anonymous /api/ai/runs": 401,
+    "anonymous /api/programs/papers/review-queue": 401,
+    "history_total": 392,
+    "publication_queue_total": 5,
+    "live_browser": "Filters/reset, queue reviewer, confirmation checkbox and mobile layout passed"
+  },
+  "published_during_validation": 0,
+  "llm_calls_during_validation": 0,
+  "revision": "question-bank-cloud-v4-workspace-20260910",
+  "traffic_percent": 100,
+  "image_digest": "sha256:7a90e6d9c16a0932e2b4f583188f2d08fe955d1e0e4e0fa7af35fbc5616e4d5c",
+  "build_id": "3ed63b75-1ea6-460a-bcdd-a5595a0a38f7",
+  "backend_tests_passed": 32,
+  "browser_tests": [
+    "Saved history filters, empty/reset and batch review",
+    "Admin review and explicit publication confirmation",
+    "Original guided program generation/review/publication",
+    "Desktop and mobile layout"
+  ]
+}

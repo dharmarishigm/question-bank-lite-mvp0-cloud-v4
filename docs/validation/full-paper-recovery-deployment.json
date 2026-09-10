@@ -1,0 +1,33 @@
+{
+  "deployed_at_utc": "2026-09-09T21:15:03.063819+00:00",
+  "revision": "question-bank-cloud-v4-paperfix-20260909-210926",
+  "previous_revision": "question-bank-cloud-v4-sof8-20260909-205125",
+  "project": "gen-lang-client-0491787004",
+  "region": "asia-south1",
+  "traffic_percent": 100,
+  "build_id": "addc7561-0a3d-4dea-84d9-278a58a6cc7c",
+  "image_digest": "sha256:b801c59e74ccd45500284125250811eada2c1e727dee334aaf5e377e30287d54",
+  "checks": {
+    "backend_tests": 153,
+    "javascript_suites": 2,
+    "browser_acceptance": true,
+    "live_health": 200,
+    "frontend_source_matches": true
+  },
+  "recovered_paper": {
+    "id": 2,
+    "program_id": 4,
+    "status": "REVIEW_REQUIRED",
+    "question_count": 80,
+    "section_counts": {
+      "Mental ability Test and Environmental Studies (EVS)": 40,
+      "Arithmetic Test": 20,
+      "Language Test": 20
+    },
+    "reused": 80,
+    "generated": 0,
+    "figure_questions": 18,
+    "sample_figure_requests_verified": 3,
+    "published": false
+  }
+}

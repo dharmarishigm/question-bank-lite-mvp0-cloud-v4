@@ -1,0 +1,11 @@
+{
+  "status": "pending-gcp-deployment",
+  "build_id": "332dbb89-e91f-4971-b61e-3a740f39bdd9",
+  "release_overlay": "/var/folders/vb/pwhq6tpd1_v34v3b5tkj6w680000gn/T/meritiqra-engagement-irf4vq1a",
+  "local_checks": {
+    "engagement_and_flag_tests": "7 passed",
+    "javascript_syntax": "passed",
+    "pdf_export": "100 questions verified across 76 pages"
+  },
+  "blocked_reason": "GCP command authorization currently rejects status/deploy actions because the workspace is out of credits."
+}

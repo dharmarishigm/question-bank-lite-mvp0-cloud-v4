@@ -1,0 +1,84 @@
+{
+  "program": {
+    "code": "SSC_CGL_TIER_II_PAPER_I",
+    "name": "SSC CGL - Tier II (Paper I)",
+    "authority": "Staff Selection Commission (SSC)",
+    "region": "India",
+    "category": "Competitive examination",
+    "levels": [
+      "Graduate recruitment / Tier II Paper I"
+    ],
+    "languages": [
+      "English"
+    ],
+    "tags": [
+      "Full Exam",
+      "Subject-wise",
+      "Editable curriculum",
+      "Question bank reuse"
+    ],
+    "description": "## Official reference: SSC CGL 2026 Tier II Paper I\n\nSession I: 150 objective questions over 135 minutes; +3 correct, -1 incorrect, 0 unanswered. Mathematical Abilities 30 questions/90 marks/30 minutes; Reasoning 30/90/30; English 45/135/40; General Awareness 25/75/20; Computer Knowledge 20/60/15.\n\n## Qualifying components and practice score\n\nThe app reports 450 raw practice marks including the qualifying Computer Knowledge test. This is not the official merit total: the first four subjects contribute 390 marks; Computer Knowledge is qualifying. Session II DEST is a separate 15-minute typing task and is not delivered here. Post-specific Paper II Statistics and Paper III Finance/Economics are separate exams and are excluded from this compulsory Paper I setup.\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n## Sources\n\nChecked 10 September 2026. Published reference cycles are identified above; refresh before adopting later changes.\n\n- [Reference 1](https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf)",
+    "status": "ACTIVE"
+  },
+  "settings": {
+    "name": "SSC CGL - Tier II (Paper I) - Full practice",
+    "mode": "FULL",
+    "level": "Graduate recruitment / Tier II Paper I",
+    "language": "English",
+    "duration_minutes": 135,
+    "difficulty": "medium",
+    "curriculum": "## Preparation scope\n\nUse only the selected section for subject-wise papers. In Full Exam mode, cover all listed sections. Counts and mark bands are editable; do not invent official chapter weights.\n\n### Mathematical Abilities\n\nNumber systems, decimals and fractions, percentages, ratios, roots, averages, interest, profit/loss, discount, partnership, mixture/alligation, time/work/distance, algebra, geometry, mensuration, trigonometry and statistical charts. Include elementary statistics and probability.\n\n### Reasoning and General Intelligence\n\nAnalogies, classification, series, coding-decoding, syllogisms, Venn diagrams, spatial reasoning, embedded figures, folding, relationships, inference, problem solving and critical thinking. Include self-contained diagrams where needed.\n\n### English Language and Comprehension\n\nReading comprehension, vocabulary, grammar, sentence structure, synonyms/antonyms, error spotting, spelling, idioms, one-word substitutions, sentence improvement, active/passive voice, direct/indirect speech, sentence ordering and cloze passages.\n\n### General Awareness\n\nIndian history, culture, geography, economics, general policy, scientific research, everyday science and India’s neighbours. Date-label current affairs and use only supplied verified facts; do not invent recent events.\n\n### Computer Knowledge (qualifying)\n\nComputer organisation, CPU, memory, input/output devices, Windows, files, keyboard shortcuts, word processing, spreadsheets, presentations, internet, email, networking and cybersecurity basics.",
+    "pattern": "## Official reference: SSC CGL 2026 Tier II Paper I\n\nSession I: 150 objective questions over 135 minutes; +3 correct, -1 incorrect, 0 unanswered. Mathematical Abilities 30 questions/90 marks/30 minutes; Reasoning 30/90/30; English 45/135/40; General Awareness 25/75/20; Computer Knowledge 20/60/15.\n\n## Qualifying components and practice score\n\nThe app reports 450 raw practice marks including the qualifying Computer Knowledge test. This is not the official merit total: the first four subjects contribute 390 marks; Computer Knowledge is qualifying. Session II DEST is a separate 15-minute typing task and is not delivered here. Post-specific Paper II Statistics and Paper III Finance/Economics are separate exams and are excluded from this compulsory Paper I setup.\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n## Sources\n\nChecked 10 September 2026. Published reference cycles are identified above; refresh before adopting later changes.\n\n- [Reference 1](https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf)",
+    "instructions": "## Selected practice paper\n\nThe exam title, selected subjects, question counts, duration and marks shown for this paper are the settings to follow. Full-exam figures below describe the reference setup and do not override a subject-wise or edited paper.\n\n## Official reference: SSC CGL 2026 Tier II Paper I\n\nSession I: 150 objective questions over 135 minutes; +3 correct, -1 incorrect, 0 unanswered. Mathematical Abilities 30 questions/90 marks/30 minutes; Reasoning 30/90/30; English 45/135/40; General Awareness 25/75/20; Computer Knowledge 20/60/15.\n\n## Qualifying components and practice score\n\nThe app reports 450 raw practice marks including the qualifying Computer Knowledge test. This is not the official merit total: the first four subjects contribute 390 marks; Computer Knowledge is qualifying. Session II DEST is a separate 15-minute typing task and is not delivered here. Post-specific Paper II Statistics and Paper III Finance/Economics are separate exams and are excluded from this compulsory Paper I setup.\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n### SSC CGL - Tier II (Paper I) Student Instructions\n\nWelcome to the SSC CGL - Tier II (Paper I) practice program. This practice test is designed to simulate the actual examination experience.\n\n**Exam Structure and Scoring:**\nThe practice program consists of five sections, totaling 150 objective questions to be completed within 135 minutes.\n\n*   **Mathematical Abilities:** 30 questions\n*   **Reasoning and General Intelligence:** 30 questions\n*   **English Language and Comprehension:** 45 questions\n*   **General Awareness:** 25 questions\n*   **Computer Knowledge:** 20 questions\n\n**Scoring:**\n*   For every correct answer, you will be awarded +3 marks.\n*   For every incorrect answer, -1 mark will be deducted.\n*   There is no penalty for unanswered questions.\n\n**Important Considerations:**\n*   **Computer Knowledge:** Please note that the Computer Knowledge section is qualifying. While its marks contribute to your practice score, it is treated separately for official merit.\n*   **Time Management:** The overall time limit for the practice program is 135 minutes. While suggested section durations are provided for guidance, the system enforces the total exam timer, allowing you to manage your time across sections as you deem fit.\n*   **Question Format:** All questions are objective type with exactly four options. You must select the single best answer for each question.\n\nFamiliarize yourself with the topics covered in each section to optimize your preparation. Good luck!",
+    "generation_prompt": "## Scope and selected inputs\n\nFollow the structured paper mode, selected subjects, counts, marks, timing and difficulty. Subject-wise generates only the selected subject, even when the reference describes a full exam. Use the chosen Very Easy, Easy, Medium, Hard or Very Hard setting.\n\n### SSC CGL - Tier II (Paper I) Question Authoring Guidance\n\nThis guidance outlines the requirements for authoring questions for the SSC CGL - Tier II (Paper I) practice program. Adherence to these standards ensures high-quality, relevant, and fair assessment material.\n\n**General Requirements:**\n*   **Originality:** All questions must be original and self-contained. Do not copy or lightly paraphrase published questions.\n*   **Options:** Each question must have exactly four distinct options (A, B, C, D).\n*   **Correct Answer:** Exactly one of the four options must be unequivocally correct.\n*   **Distractors:** Incorrect options (distractors) must be plausible and reflect common misconceptions or errors. Avoid obviously incorrect or nonsensical options.\n*   **Worked Solutions:** Provide a clear, step-by-step worked solution for every question, demonstrating how the correct answer is derived. Solutions must be checked for accuracy.\n*   **Mathematical Formatting:** Ensure all mathematical expressions, equations, and symbols are clearly formatted using standard notation.\n\n**Subject-Specific Guidelines:**\n\nQuestions should align with the topics specified for each subject:\n\n*   **Mathematical Abilities (30 questions):** Focus on Number systems, decimals and fractions, percentages, ratios, roots, averages, interest, profit/loss, discount, partnership, mixture/alligation, time/work/distance, algebra, geometry, mensuration, trigonometry, statistical charts, elementary statistics, and probability.\n*   **Reasoning and General Intelligence (30 questions):** Cover Analogies, classification, series, coding-decoding, syllogisms, Venn diagrams, spatial reasoning, embedded figures, folding, relationships, inference, problem solving, and critical thinking. Include self-contained diagrams where necessary.\n*   **English Language and Comprehension (45 questions):** Address Reading comprehension, vocabulary, grammar, sentence structure, synonyms/antonyms, error spotting, spelling, idioms, one-word substitutions, sentence improvement, active/passive voice, direct/indirect speech, sentence ordering, and cloze passages.\n*   **General Awareness (25 questions):** Include Indian history, culture, geography, economics, general policy, scientific research, everyday science, and India’s neighbours. Current affairs questions must be date-labeled and use only supplied verified facts.\n*   **Computer Knowledge (20 questions):** Focus on Computer organisation, CPU, memory, input/output devices, Windows, files, keyboard shortcuts, word processing, spreadsheets, presentations, internet, email, networking, and cybersecurity basics.\n\n**Scoring:**\n*   Each correct answer awards +3 marks.\n*   Each incorrect answer incurs a penalty of -1 mark.\n*   Unanswered questions receive 0 marks.\n\n**Important Note:** The Computer Knowledge section is qualifying in nature.\n\n## Reference and delivery limits\n\n## Official reference: SSC CGL 2026 Tier II Paper I\n\nSession I: 150 objective questions over 135 minutes; +3 correct, -1 incorrect, 0 unanswered. Mathematical Abilities 30 questions/90 marks/30 minutes; Reasoning 30/90/30; English 45/135/40; General Awareness 25/75/20; Computer Knowledge 20/60/15.\n\n## Qualifying components and practice score\n\nThe app reports 450 raw practice marks including the qualifying Computer Knowledge test. This is not the official merit total: the first four subjects contribute 390 marks; Computer Knowledge is qualifying. Session II DEST is a separate 15-minute typing task and is not delivered here. Post-specific Paper II Statistics and Paper III Finance/Economics are separate exams and are excluded from this compulsory Paper I setup.\n\nSection times are editable preparation guidance. The app enforces the overall exam timer, not official locked section transitions.\n\n## Batch and reuse requirements\n\nGenerate only the requested batch quota; full-paper counts above are reference context, not an instruction to repeat the entire paper in each batch. Every question must include its complete passage, transcript, diagram data or constraints. Do not depend on another question or absent audio. Honor the current structured inputs when edited; question-bank reuse and missing-question generation are handled by the application.",
+    "sections": [
+      {
+        "subject": "Mathematical Abilities",
+        "count": 30,
+        "marks": 3.0,
+        "negative_marks": 1.0,
+        "topics": "Number systems, decimals and fractions, percentages, ratios, roots, averages, interest, profit/loss, discount, partnership, mixture/alligation, time/work/distance, algebra, geometry, mensuration, trigonometry and statistical charts. Include elementary statistics and probability.",
+        "duration_minutes": 30
+      },
+      {
+        "subject": "Reasoning and General Intelligence",
+        "count": 30,
+        "marks": 3.0,
+        "negative_marks": 1.0,
+        "topics": "Analogies, classification, series, coding-decoding, syllogisms, Venn diagrams, spatial reasoning, embedded figures, folding, relationships, inference, problem solving and critical thinking. Include self-contained diagrams where needed.",
+        "duration_minutes": 30
+      },
+      {
+        "subject": "English Language and Comprehension",
+        "count": 45,
+        "marks": 3.0,
+        "negative_marks": 1.0,
+        "topics": "Reading comprehension, vocabulary, grammar, sentence structure, synonyms/antonyms, error spotting, spelling, idioms, one-word substitutions, sentence improvement, active/passive voice, direct/indirect speech, sentence ordering and cloze passages.",
+        "duration_minutes": 40
+      },
+      {
+        "subject": "General Awareness",
+        "count": 25,
+        "marks": 3.0,
+        "negative_marks": 1.0,
+        "topics": "Indian history, culture, geography, economics, general policy, scientific research, everyday science and India’s neighbours. Date-label current affairs and use only supplied verified facts; do not invent recent events.",
+        "duration_minutes": 20
+      },
+      {
+        "subject": "Computer Knowledge (qualifying)",
+        "count": 20,
+        "marks": 3.0,
+        "negative_marks": 1.0,
+        "topics": "Computer organisation, CPU, memory, input/output devices, Windows, files, keyboard shortcuts, word processing, spreadsheets, presentations, internet, email, networking and cybersecurity basics.",
+        "duration_minutes": 15
+      }
+    ],
+    "reuse_questions": true,
+    "official_lookup_id": null
+  },
+  "sources": [
+    "https://ssc.gov.in/api/attachment/uploads/masterData/NoticeBoards/Notice_of_adv_cgl_2026.pdf"
+  ],
+  "checked_at": "2026-09-10",
+  "guidance": "AI-generated, reviewed editable authoring guidance"
+}

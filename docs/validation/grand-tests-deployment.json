@@ -1,0 +1,38 @@
+{
+  "base_url": "https://meritiqra.com",
+  "checks": {
+    "/healthz": 200,
+    "/app": 200,
+    "/static/grand-tests.js": 200,
+    "/static/grand-tests.css": 200,
+    "whole_pdf_questions": 1,
+    "classification_confidence": [
+      0.95
+    ],
+    "selected_portions_questions": 1,
+    "publication": "Scheduled snapshot and existing proctor code created; self-enrollment disabled",
+    "regression /api/questions?limit=1": 200,
+    "regression /api/programs?limit=1": 200,
+    "regression /api/exams": 200,
+    "regression /api/admin/users": 200,
+    "live_browser": "Admin workspace and mobile layout passed"
+  },
+  "workspace_id": 1,
+  "exam_id": 40,
+  "validation_exam_closed": true,
+  "date": "2026-09-10",
+  "project": "gen-lang-client-0491787004",
+  "region": "asia-south1",
+  "service": "question-bank-cloud-v4",
+  "revision": "question-bank-cloud-v4-grand-tests-final-0910",
+  "traffic_percent": 100,
+  "build_id": "d736d6a9-ddf3-4a7e-ab63-71b7878a0225",
+  "image_digest": "sha256:15862c3bc6cf9209e2294e80d171546a46cfdf6b49b7c08d8bc9d8650ab66094",
+  "rollback_revision": "question-bank-cloud-v4-epi-20260910192620",
+  "local_validation": {
+    "full_suite_passed": 194,
+    "subsequent_focused_suite_passed": 38,
+    "browser": "Admin lifecycle, Operator landing/access, cross-page selection, desktop/mobile passed",
+    "multi_student_proctor_enforcement": "Passed in automated integration tests"
+  }
+}

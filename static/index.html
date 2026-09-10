@@ -18,13 +18,15 @@
 <meta name="theme-color" content="#163b60">
 </head>
 <body>
+<a class="skip-navigation" href="#main-content">Skip to main content</a>
 <div id="public-registration" class="login-screen" hidden><section class="login-card registration-card"><img class="brand-logo-full" src="/static/meritiqra-logo.png?v=20260907-updated" alt="MeritIQra — Think Sharper. Reach Higher. Amplified by AI." /><span class="portal-label">Exam registration</span><h2 id="public-exam-name">Exam registration</h2><p id="public-exam-summary"></p><div id="public-google-block" hidden><p class="registration-hint">Sign in with Google to register</p><div id="public-google-signin"></div><button id="public-fallback-toggle" type="button" class="registration-fallback-toggle">or continue without Google</button></div><div id="public-fallback"><div class="registration-choice"><button id="public-new-registration" class="primary">New registration</button><button id="public-continue-login">Already registered? Login</button></div><form id="public-registration-form" class="bootstrap-form"><label>Full name<input name="full_name" autocomplete="name" required maxlength="120" /></label><label>Email address<input name="email" type="email" autocomplete="email" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Phone number<input name="phone_number" type="tel" autocomplete="tel" pattern="[+0-9 ()-]{7,20}" required /></label><label>School name<input name="school_name" required maxlength="160" /></label><button class="primary" type="submit">Register for exam</button></form><form id="public-student-login-form" class="bootstrap-form" hidden><h2>Student login</h2><label>Registered email<input name="email" type="email" autocomplete="username" required /></label><label>Date of birth<input name="date_of_birth" type="date" required /></label><label>Registered phone number<input name="phone_number" type="tel" autocomplete="tel" required /></label><button class="primary" type="submit">Open student portal</button></form></div><p id="public-registration-message" role="status"></p></section></div>
 <div id="login-screen" class="login-screen" hidden>
   <section class="login-card" aria-labelledby="login-title"><button id="login-close" class="login-close" type="button" aria-label="Close login">×</button>
     <img class="brand-logo-full" src="/static/meritiqra-logo.png?v=20260907-updated" alt="MeritIQra" />
     <h2 id="login-title">Think Sharper. Reach Higher.</h2>
     <p>AI-Powered Intelligence Platform</p>
-    <div id="google-signin"></div>
+    <label>Sign in as<select id="login-role"><option value="STUDENT">Student</option><option value="ADMIN">Administrator</option><option value="FLAG">FLAG user</option></select></label><div id="google-signin"></div>
+    <label id="mock-signin-email-wrap" hidden>Development email<input id="mock-signin-email" type="email" value="student@example.test" autocomplete="email" /></label>
     <button id="mock-signin" class="primary" hidden>Development sign in</button>
     <button id="bootstrap-admin-toggle" class="primary" hidden>Register first administrator</button>
     <button id="admin-login-toggle" class="primary" hidden>Login</button>
@@ -74,14 +76,14 @@
   <nav id="admin-nav" aria-label="Administrator navigation" hidden>
     <p>Workspace</p><button data-view="dashboard">Dashboard</button>
     <p>Content Studio</p><button data-view="questions">Question Bank</button><button data-view="ai-generate">Generate Questions by AI</button><button data-view="upload-crop">Upload &amp; Digitise</button>
-    <p>Exams</p><button data-view="exam">Generate Exam</button><button data-view="admin-exams" title="Manage Exams &amp; Registrations">Exam Admin</button><button data-view="admin-results">Results</button><button data-view="student-analytics">Performance Lab</button>
+    <p>Exams</p><button data-view="exam">Generate Exam</button><button data-view="admin-exams" title="Manage Exams &amp; Registrations">Exam Admin</button><button data-view="available-exams">Take exams</button><button data-view="my-exams">My exam attempts</button><button data-view="my-results">My results</button><button data-view="admin-results">Results</button><button data-view="student-analytics">Performance Lab</button>
   </nav>
   <nav id="student-nav" aria-label="Student navigation" hidden>
     <p>Learning</p><button data-view="dashboard">Home</button><button data-view="available-exams">Available Exams</button><button data-view="my-exams">My Exams</button><button data-view="my-results">My Results</button><button data-view="student-analytics">Performance Lab</button><button data-view="my-profile">My Profile</button>
   </nav>
   <nav id="proctor-nav" aria-label="Proctor navigation" hidden><p>Examinations</p><button data-view="admin-exams">My Assigned Exams</button><button data-view="admin-results">Exam Dashboard</button></nav>
 </aside>
-<main id="main-content">
+<main id="main-content" tabindex="-1">
   <div class="workspace-heading"><div><p class="eyebrow">MERITIQRA WORKSPACE</p><h2>From source to study-ready.</h2><p class="muted">Digitise, compare and organise your questions in one place.</p></div><span class="local-badge">Secure workspace</span></div>
   <div class="main-tabs legacy-tabs" aria-label="Main UI tabs">
     <button type="button" class="main-tab active" data-main-tab="questions">Questions</button>
@@ -96,9 +98,9 @@
   <section id="my-exams-panel" class="tab-panel" hidden><div class="page-header"><div><h2>My Exams</h2><p>Your enrollments and active attempts.</p></div></div><div id="my-exams-list" class="data-grid"></div></section>
   <section id="my-results-panel" class="tab-panel" hidden><div class="page-header"><div><h2>My Results</h2><p>Your completed attempts.</p></div></div><div id="my-results-list" class="table-wrap"></div></section>
   <section id="student-analytics-panel" class="tab-panel" hidden><div class="page-header"><div><p class="eyebrow">PERFORMANCE INTELLIGENCE</p><h2>Performance Lab</h2><p>Track scores by examination, find learning gaps, and follow a focused study plan.</p></div><button data-mentor="Explain this performance">Ask IQraMentor</button><button id="analytics-refresh" type="button">Refresh analytics</button></div><div class="analytics-toolbar panel"><label id="analytics-student-label" hidden>Student<select id="analytics-student-filter"><option value="">All students</option></select></label><label>Examination / program<select id="analytics-exam-filter"><option value="">All examinations</option></select></label><label>Attempts<select id="analytics-limit"><option value="10">Last 10</option><option value="5">Last 5</option><option value="20">Last 20</option></select></label><label>Date range<select id="analytics-days"><option value="365">Last year</option><option value="30">Last 30 days</option><option value="90">Last 90 days</option></select></label><label>Subject<input id="analytics-subject" placeholder="All subjects" maxlength="100"></label><label>Difficulty<input id="analytics-difficulty" placeholder="All difficulties" maxlength="100"></label><label>Question type<input id="analytics-qtype" placeholder="All types" maxlength="100"></label><nav class="analytics-section-nav" aria-label="Performance report sections"><a href="#analytics-overview-section">Overview</a><a href="#analytics-mastery-section">Topic mastery</a><a href="#analytics-gap-section">Gap analysis</a></nav></div><div id="analytics-context" class="analytics-context"></div><div id="analytics-status" class="empty-state">Loading your performance…</div><div id="analytics-content" hidden><section id="analytics-overview-section"><div id="analytics-kpis" class="exam-analytics performance-kpis"></div><article class="panel performance-card"><div class="section-heading"><div><h3>Score trend</h3><p>Completed attempts in chronological order.</p></div></div><div id="analytics-trend" class="analytics-chart"></div></article></section><section id="analytics-mastery-section" class="panel performance-card performance-section"><div class="section-heading"><div><h3>Topic mastery</h3><p>Accuracy by topic and difficulty for the selected examination.</p></div></div><div id="analytics-topics" class="mastery-list"></div></section><section id="analytics-gap-section" class="panel performance-card performance-section gap-analysis"><div class="section-heading"><div><p class="eyebrow">EXAMINATION GAP ANALYSIS</p><h3>Recommended next steps</h3><p>A targeted study plan derived from measured gaps in the selected program.</p></div></div><div id="analytics-recommendations" class="recommendation-grid"></div></section></div></section>
-  <section id="my-profile-panel" class="tab-panel" hidden><div class="page-header"><div><h2>My Profile</h2><p>Identity used for exam registrations.</p></div></div><form id="student-profile-form" class="compact-form panel"><label class="wide">Verified email<input id="profile-email" readonly /></label><label>Full name<input id="profile-name" required /></label><label>Date of birth<input id="profile-dob" type="date" required /></label><label>Phone number<input id="profile-phone" type="tel" pattern="[+0-9 ()-]{7,20}" required /></label><label>School name<input id="profile-school" required /></label><div class="actions wide"><button class="primary">Save profile</button></div></form></section>
-  <section id="admin-exams-panel" class="tab-panel" hidden><div class="page-header"><div><h2>Manage Exams</h2><p>Create, publish, open and conduct exams using Question Bank items.</p></div><button id="create-exam-toggle" class="primary">Create exam</button></div><form id="create-exam-form" class="compact-form panel" hidden><label>Name<input id="new-exam-name" required /></label><label>Subject<input id="new-exam-subject" /></label><label>Type<input id="new-exam-type" /></label><label>Level<input id="new-exam-level" /></label><label>Duration<input id="new-exam-duration" type="number" value="30" min="1" /></label><label>Attempts<input id="new-exam-attempts" type="number" value="1" min="1" /></label><label>Status<select id="new-exam-status"><option>DRAFT</option><option>PUBLISHED</option><option>OPEN</option><option>CLOSED</option></select></label><label class="inline"><input id="new-exam-proctor" type="checkbox" /> Require proctor code</label><label>Exam starts<input id="new-exam-start" type="datetime-local" /></label><label>Exam ends<input id="new-exam-end" type="datetime-local" /></label><label class="wide">Question IDs<input id="new-exam-questions" placeholder="1, 2, 3" /></label><label class="wide">Description<textarea id="new-exam-description" rows="3"></textarea></label><div class="actions wide"><button class="primary">Save exam</button><button id="create-exam-cancel" type="button">Cancel</button></div></form><div id="admin-exams-list" class="table-wrap"></div><section id="exam-access-panel" class="exam-access-panel" hidden><div class="section-heading"><div><h3>Exam Access / Proctor</h3><p id="exam-access-summary"></p></div><button id="exam-access-close">Close</button></div><div class="actions"><label>Validity (minutes)<input id="proctor-valid-minutes" type="number" min="1" value="60" /></label><button id="generate-proctor-code" class="primary">Generate new code</button></div><div id="proctor-code-once" class="proctor-code-once" hidden></div><div id="exam-monitor"></div></section></section>
-  <section id="admin-results-panel" class="tab-panel" hidden><div class="page-header"><div><h2>Results</h2><p>Completed exam attempts across the platform.</p></div></div><div id="admin-results-list"><p class="empty-state">No exam attempts yet.</p></div></section>
+  <section id="my-profile-panel" class="tab-panel" hidden><div class="page-header"><div><h2>My Profile</h2><p>Identity used for exam registrations.</p></div></div><form id="student-profile-form" class="compact-form panel"><label class="wide">Email address<input id="profile-email" readonly /></label><label>Full name<input id="profile-name" required /></label><label>Date of birth<input id="profile-dob" type="date" required /></label><label>Phone number<input id="profile-phone" type="tel" pattern="[+0-9 ()-]{7,20}" required /></label><label>School name<input id="profile-school" required /></label><div class="actions wide"><button class="primary" type="submit">Save profile</button></div><p id="profile-status" class="wide" role="status"></p></form></section>
+  <section id="admin-exams-panel" class="tab-panel" hidden><div class="page-header"><div><h2>Exam Admin</h2><p>Create, publish, open and conduct exams using Question Bank items.</p></div><button id="create-exam-toggle" class="primary">Create exam</button></div><form id="create-exam-form" class="compact-form panel" hidden><label>Name<input id="new-exam-name" required /></label><label>Subject<input id="new-exam-subject" /></label><label>Type<input id="new-exam-type" /></label><label>Level<input id="new-exam-level" /></label><label>Duration<input id="new-exam-duration" type="number" value="30" min="1" /></label><label>Attempts<input id="new-exam-attempts" type="number" value="1" min="1" /></label><label>Status<select id="new-exam-status"><option>DRAFT</option><option>PUBLISHED</option><option>OPEN</option><option>CLOSED</option></select></label><label class="inline"><input id="new-exam-proctor" type="checkbox" /> Require proctor code</label><label>Exam starts<input id="new-exam-start" type="datetime-local" /></label><label>Exam ends<input id="new-exam-end" type="datetime-local" /></label><label class="wide">Question IDs<input id="new-exam-questions" placeholder="1, 2, 3" /></label><label class="wide">Description<textarea id="new-exam-description" rows="3"></textarea></label><div class="actions wide"><button class="primary">Save exam</button><button id="create-exam-cancel" type="button">Cancel</button></div></form><section id="admin-publishing" class="panel"></section><section id="admin-paper-review" class="panel" hidden><div class="section-heading"><h3>Review &amp; publish</h3><button id="admin-review-close" type="button">Close review</button></div><div id="admin-paper-review-content"></div></section><div id="admin-exams-list" class="table-wrap"></div><section id="exam-access-panel" class="exam-access-panel" hidden><div class="section-heading"><div><h3>Exam Access / Proctor</h3><p id="exam-access-summary"></p></div><button id="exam-access-close">Close</button></div><div class="actions"><label>Validity (minutes)<input id="proctor-valid-minutes" type="number" min="1" value="60" /></label><button id="generate-proctor-code" class="primary">Generate new code</button></div><div id="proctor-code-once" class="proctor-code-once" hidden></div><div id="exam-monitor"></div></section></section>
+  <section id="admin-results-panel" class="tab-panel" hidden><div class="page-header"><div><h2>Results</h2><p>Completed exam attempts across the platform.</p></div></div><button data-manage-concerns>Review question concerns</button><div id="admin-results-list"><p class="empty-state">No exam attempts yet.</p></div></section>
 
   <section id="ai-generate-panel" class="tab-panel" hidden>
     <div class="page-header"><div><h2>Generate Questions by AI</h2><p>Your detailed prompt is the primary instruction. Metadata and syllabus provide context.</p></div><span id="ai-model-badge" class="badge">Vertex AI</span></div>
@@ -108,13 +110,13 @@
       <fieldset><legend>Exam and metadata</legend><div class="ai-metadata-grid">
         <label>Exam name *<input name="exam_name" required /></label><label>Exam type<input name="exam_type" /></label><label>Class / grade / level<input name="level" /></label>
         <label>Subject *<input name="subject" required /></label><label>Chapter<input name="chapter" /></label><label>Topic<input name="topic" /></label><label>Subtopic<input name="subtopic" /></label>
-        <label>Difficulty<input name="difficulty" /></label><label>Question type<input name="question_type" /></label><label>Number of questions *<input name="count" type="number" min="1" max="50" value="5" required /></label>
+        <label>Difficulty<input name="difficulty" list="generation-difficulties" /></label><datalist id="generation-difficulties"><option value="very_easy">Very Easy</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option><option value="very_hard">Very Hard</option></datalist><label>Question type<input name="question_type" /></label><label>Number of questions *<input name="count" type="number" min="1" max="50" value="5" required /></label>
         <label>Marks<input name="marks" /></label><label>Language<input name="language" value="English" /></label><label class="wide">Tags<input name="tags" placeholder="algebra, reasoning, practice" /></label>
       </div></fieldset>
       <div class="panel ai-guidance"><div><strong>Gemini prompt assistant</strong><p class="muted">Enter an exam name and subject. Class, chapter and topic improve the guidance.</p></div><button id="ai-guide-prompt" type="button" class="primary">Generate syllabus &amp; prompt</button></div>
-      <label class="ai-large-field"><span class="ai-field-heading"><strong>Syllabus / Curriculum Context</strong><button type="button" data-ai-toggle-field>Collapse</button></span><textarea name="syllabus" rows="8" placeholder="Generate with Gemini or enter curriculum context..."></textarea></label>
-      <label class="ai-large-field ai-primary-prompt"><span class="ai-field-heading"><strong>Question Generation Prompt *</strong><button type="button" data-ai-toggle-field>Collapse</button></span><small>This prompt controls examination style, reasoning, difficulty, option construction, and solution behavior.</small><textarea name="generation_prompt" rows="14" required placeholder="Describe exactly how Gemini should construct the questions..."></textarea></label>
-      <details class="ai-advanced"><summary>Advanced</summary><label class="ai-large-field"><span class="ai-field-heading"><strong>Extra Metadata (JSON)</strong><button type="button" data-ai-toggle-field>Collapse</button></span><textarea name="extra_metadata" rows="5" placeholder='{"target_time_minutes": 3, "calculator_allowed": false}'></textarea></label></details>
+      <label class="ai-large-field"><span class="ai-field-heading"><strong>Syllabus / Curriculum Context</strong><button type="button" data-ai-toggle-field>Collapse</button></span><textarea aria-label="Syllabus / Curriculum Context" name="syllabus" rows="8" placeholder="Generate with Gemini or enter curriculum context..."></textarea></label>
+      <label class="ai-large-field ai-primary-prompt"><span class="ai-field-heading"><strong>Question Generation Prompt *</strong><button type="button" data-ai-toggle-field>Collapse</button></span><small>This prompt controls examination style, reasoning, difficulty, option construction, and solution behavior.</small><textarea aria-label="Question Generation Prompt" name="generation_prompt" rows="14" required placeholder="Describe exactly how Gemini should construct the questions..."></textarea></label>
+      <details class="ai-advanced"><summary>Advanced</summary><label class="ai-large-field"><span class="ai-field-heading"><strong>Extra Metadata (JSON)</strong><button type="button" data-ai-toggle-field>Collapse</button></span><textarea aria-label="Extra Metadata (JSON)" name="extra_metadata" rows="5" placeholder='{"target_time_minutes": 3, "calculator_allowed": false}'></textarea></label></details>
       <div class="actions"><button id="ai-preview-prompt" type="button">Preview Effective Prompt</button><button id="ai-generate-submit" class="primary" type="submit">Generate Questions</button></div>
       <p id="ai-generation-status" class="muted" role="status"></p>
     </form>
@@ -122,18 +124,25 @@
     <section id="ai-generation-results" class="ai-generation-results" hidden></section>
     </div>
     <div id="ai-saved-pane" class="ai-tab-pane" hidden>
-    <section class="ai-run-history"><div class="section-heading"><div><h3>Saved generation runs</h3><p>Reuse or regenerate any previous prompt and context.</p></div><button id="ai-refresh-runs" type="button">Refresh</button></div><div id="ai-run-list" class="table-wrap"><p class="empty-state">No saved runs yet.</p></div></section>
+    <section class="ai-run-history"><div class="section-heading"><div><h3>Saved generation runs</h3><p>Reuse or regenerate any previous prompt and context.</p></div><button id="ai-refresh-runs" type="button">Refresh</button></div><form id="ai-run-filters" class="workspace-filters" role="search" aria-label="Filter saved generations">
+<label class="filter-search">Search<input name="q" placeholder="Exam, subject, chapter or topic" maxlength="200"></label>
+<label>Subject<input name="subject" placeholder="Exact subject" maxlength="200"></label>
+<label>Class / level<input name="level" placeholder="Exact class / level" maxlength="200"></label>
+<label>Difficulty<select name="difficulty"><option value="">All difficulties</option><option value="very_easy">Very Easy</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option><option value="very_hard">Very Hard</option></select></label>
+<label>Status<select name="status"><option value="">All statuses</option><option value="REVIEW_REQUIRED">Needs review</option><option value="SAVED">Saved to bank</option><option value="SAVED_FOR_REVIEW">Awaiting paper review</option><option value="RUNNING">Generating</option><option value="FAILED">Failed</option></select></label>
+<div class="actions"><button type="submit" class="primary">Apply filters</button><button type="reset">Clear</button></div></form>
+<p id="ai-run-summary" class="muted" role="status"></p><div id="ai-run-list" class="table-wrap"><p class="empty-state">No saved runs yet.</p></div><nav class="pagination" aria-label="Saved generation pages"><button id="ai-runs-prev" disabled>Previous</button><button id="ai-runs-next" disabled>Next</button></nav></section>
     </div>
   </section>
 
   <section id="questions-panel" class="tab-panel active">
     <section id="bank" class="panel">
-      <div class="section-heading"><div><h2>Your question library</h2><p class="muted">Find a question, review its source, or add something new.</p></div></div>
+      <div class="section-heading"><div><h2>Question Bank</h2><p class="muted">Find a question, review its source, or add something new.</p></div></div>
       <div class="filters">
         <input id="s-q" aria-label="Search questions" placeholder="Search questions, topics, tags…" />
         <select id="s-subject" aria-label="Filter by subject"><option value="">All subjects</option></select>
         <select id="s-chapter" aria-label="Filter by chapter"><option value="">All chapters</option></select>
-        <select id="s-difficulty" aria-label="Filter by difficulty"><option value="">Any difficulty</option><option>easy</option><option>medium</option><option>hard</option></select>
+        <select id="s-difficulty" aria-label="Filter by difficulty"><option value="">Any difficulty</option><option value="very_easy">Very Easy</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option><option value="very_hard">Very Hard</option></select>
         <label class="inline"><input type="checkbox" id="s-answers" checked /> answers</label>
         <label class="inline"><input type="checkbox" id="s-originals" checked /> original images</label>
         <div class="spacer"></div>
@@ -178,7 +187,7 @@
 
   <section id="exam-panel" class="tab-panel" hidden>
     <section class="panel">
-      <div class="section-heading"><div><h2>Generate exam</h2><p class="muted">Generate and start a standard timed paper with navigation, review flags, answer clearing, and final submission.</p></div></div>
+      <div class="section-heading"><div><h2>Generate Exam</h2><p class="muted">Generate and start a standard timed paper with navigation, review flags, answer clearing, and final submission.</p></div></div>
 
       <div id="exam-session-empty">
         <form id="exam-blueprint-form" class="exam-blueprint-form">
@@ -227,7 +236,7 @@
 
   <section id="upload-crop-panel" class="tab-panel" hidden>
     <section class="panel">
-      <h2>Upload, crop and digitise</h2>
+      <h2>Upload &amp; Digitise</h2>
       <p class="muted">Upload your source, compare the extracted questions with the original, and save the ones you need.</p>
       <div class="digitization-actions">
         <label class="btn primary" for="pdf-file">Upload document</label>
@@ -312,7 +321,7 @@
               </select>
             </label>
             <label>Difficulty
-              <select id="f-difficulty"><option>easy</option><option selected>medium</option><option>hard</option></select>
+              <select id="f-difficulty"><option value="very_easy">Very Easy</option><option value="easy">Easy</option><option value="medium" selected>Medium</option><option value="hard">Hard</option><option value="very_hard">Very Hard</option></select>
             </label>
             <label>Chapter <input id="f-chapter" placeholder="Definite Integrals" /></label>
             <label>Topic <input id="f-topic" placeholder="Properties of definite integrals" /></label>
@@ -489,12 +498,37 @@
 
 <input id="upload-file" type="file" accept="image/*" hidden />
 <div id="notification" class="notification" role="status" aria-live="polite" hidden></div>
-<script src="/static/app.js?v=20260909-mobile"></script>
+<link rel="stylesheet" href="/static/participation.css?v=20260910" />
+<script src="/static/program-participation.js?v=20260910"></script>
+<script src="/static/app.js?v=20260910-sync"></script>
 <script src="/static/pdf-viewer.js?v=20260909-web-fixes"></script>
-<script src="/static/registration-flow.js?v=20260909-ui-polish"></script>
-<script src="/static/platform-ui.js?v=20260909-available-start"></script>
-<script src="/static/performance-workspace.js?v=20260909-analytics"></script>
-<script src="/static/mentor.js?v=20260909-ui-polish"></script>
+<script src="/static/registration-flow.js?v=20260910-access-v3"></script>
+<script src="/static/platform-ui.js?v=20260910-access-v3"></script>
+<script src="/static/performance-workspace.js?v=20260911-performance-fix"></script>
+<script src="/static/performance-empty-state.js?v=20260910-lab"></script>
+<script src="/static/mentor.js?v=20260910-access-v3"></script>
 <script src="/static/mobile-client.js?v=20260909-ui-polish"></script>
+<link rel="stylesheet" href="/static/programs.css?v=20260910-images" />
+<script src="/static/blueprint-forms.js?v=1"></script>
+<script src="/static/blueprint-workspace.js?v=1"></script>
+<script src="/static/program-setup.js?v=1"></script>
+<script src="/static/program-exam.js?v=20260910-sync"></script>
+<script src="/static/programs.js?v=20260910-standards"></script>
+<script src="/static/question-correction.js?v=20260910-sync"></script>
+<script src="/static/result-tools.js?v=20260910-subjects"></script>
+<script src="/static/ai-batch-review.js?v=20260910-corrections"></script>
+<link rel="stylesheet" href="/static/ui-standards.css?v=20260910-v3" />
+<script src="/static/ui-standards.js?v=20260910"></script>
+<link rel="stylesheet" href="/static/student-content-guard.css?v=20260910" />
+<script src="/static/student-content-guard.js?v=20260910"></script>
+<link rel="stylesheet" href="/static/admin-workspace.css?v=20260910-sync" />
+<script src="/static/admin-workspace.js?v=20260910"></script>
+<script src="/static/admin-exam-corrections.js?v=20260910"></script>
+<link rel="stylesheet" href="/static/flag.css?v=20260910-premium" />
+<script src="/static/flag.js?v=20260910-access-v3"></script>
+<link rel="stylesheet" href="/static/engagement.css?v=20260910" />
+<script src="/static/engagement.js?v=20260910"></script>
+<link rel="stylesheet" href="/static/grand-tests.css?v=20260910" />
+<script src="/static/grand-tests.js?v=20260910"></script>
 </body>
 </html>
