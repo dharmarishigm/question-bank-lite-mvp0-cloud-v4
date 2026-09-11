@@ -6,20 +6,29 @@ root=Path(__file__).resolve().parents[1]
 stage=Path(tempfile.mkdtemp(prefix='meritiqra-engagement-'))
 files=['database.py','epidemiology_model.py','app.py','platform_api.py','flag_api.py','engagement.py','engagement_schema.py','marketing_pdf.py','requirements.txt',
        'migrations/versions/0017_engagement.py','static/index.html','static/home.html','static/flag.js',
-       'static/engagement.js','static/engagement.css','static/flag.css','static/enquiry.html','static/enquiry.js','static/public-auth.js']
+       'static/engagement.js','static/engagement.css','static/flag.css','static/enquiry.html','static/enquiry.js','static/public-auth.js','scripts/validate_release_migrations.py']
 files = sorted({*files, *[p.name for p in root.glob('*.py')],
                 *[str(p.relative_to(root)) for p in (root/'static').rglob('*') if p.is_file() and p.name!='.DS_Store'],
                 *[str(p.relative_to(root)) for p in (root/'migrations').rglob('*.py')]})
 for name in files:
     target=stage/name;target.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(root/name,target)
 tag=os.getenv('RELEASE_TAG','epidemiology-20260910')
-image=f'asia-south1-docker.pkg.dev/gen-lang-client-0491787004/question-bank/cloud-v4:{tag}'
-(stage/'Dockerfile').write_text('''FROM asia-south1-docker.pkg.dev/gen-lang-client-0491787004/question-bank/cloud-v4@sha256:45bbd1e1c2b9803326ff536c87a15132dcb6c31c5e1d8a98cd607058665c44e4
-ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
-RUN pip install --no-cache-dir playwright==1.62.0 && python -m playwright install --with-deps chromium
+image=f"{os.getenv('REGION','asia-south1')}-docker.pkg.dev/{os.getenv('PROJECT_ID','gen-lang-client-0491787004')}/question-bank/cloud-v4:{tag}"
+base=os.getenv('BASE_IMAGE','asia-south1-docker.pkg.dev/gen-lang-client-0491787004/question-bank/cloud-v4@sha256:acf7f0207bc8c2296bc590bc728ac0423190ff45eadc90278e104782470762b7')
+(stage/'Dockerfile').write_text(f'FROM {base}\n'+'''
 COPY *.py requirements.txt /app/
 COPY static/ /app/static/
 COPY migrations/ /app/migrations/
+COPY scripts/validate_release_migrations.py /app/scripts/validate_release_migrations.py
 ''')
-(stage/'cloudbuild.json').write_text(json.dumps({'steps':[{'name':'gcr.io/cloud-builders/docker','args':['build','-t',image,'.']}],'images':[image],'timeout':'1200s'}))
+validation = f'''set -eu
+docker run -d --name qb-migration-db --network cloudbuild -e POSTGRES_DB=qb_migration_test -e POSTGRES_PASSWORD=disposable-test-only postgres:16
+trap 'docker rm -f qb-migration-db' EXIT
+for attempt in $(seq 1 60); do
+  if docker exec qb-migration-db pg_isready -U postgres; then break; fi
+  sleep 1
+done
+docker run --rm --network cloudbuild -e DATABASE_URL=postgresql+psycopg://postgres:disposable-test-only@qb-migration-db:5432/qb_migration_test {image} python scripts/validate_release_migrations.py
+'''
+(stage/'cloudbuild.json').write_text(json.dumps({'steps':[{'name':'gcr.io/cloud-builders/docker','args':['build','-t',image,'.']},{'name':'gcr.io/cloud-builders/docker','entrypoint':'bash','args':['-c',validation]}],'images':[image],'timeout':'1200s'}))
 print(stage)

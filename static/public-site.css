@@ -26,3 +26,7 @@
 .public-exam-description a { color:#087a6b; text-decoration:underline; }
 
 @media(min-width:1051px){.public-header{padding-left:24px;padding-right:24px}.public-nav{flex-wrap:wrap;min-width:0}}
+.program-product-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.program-product-card{padding:26px;background:linear-gradient(145deg,#fff,#f0faf8);border:1px solid #cfe4e1;border-radius:20px;box-shadow:0 12px 30px #12445c0d}.program-product-card h3{margin:12px 0 8px;color:var(--public-navy)}.program-product-card>p{min-height:52px;color:#63768a;line-height:1.55}.program-badge{color:#087a6b;font-size:11px;font-weight:850;letter-spacing:.12em}.program-product-card button{margin:6px 4px 0 0;font-size:12px}
+.program-product-card{min-width:0;overflow:hidden}.program-product-card h3{overflow-wrap:anywhere}.program-product-card button{max-width:100%;white-space:normal}.program-product-grid{align-items:stretch}
+@media(max-width:1050px){.program-product-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.program-product-grid{grid-template-columns:minmax(0,1fr)}.program-product-card{padding:20px}.program-product-card button{width:100%;margin-right:0}.public-exam-card,.feature-grid article,.audience-grid article{min-width:0;overflow:hidden}.exam-card-meta{gap:5px}.exam-card-meta span{max-width:100%;overflow-wrap:anywhere}}

@@ -9,6 +9,7 @@ import secrets
 import time
 import uuid
 import math
+import os
 from difflib import SequenceMatcher
 
 from fastapi import APIRouter, BackgroundTasks, File, HTTPException, Request, UploadFile
@@ -17,7 +18,8 @@ from starlette.concurrency import run_in_threadpool
 from platform_api import _auth, db, require_admin
 from blueprint_gemini import structured_call
 
-router = APIRouter(prefix='/api/grand-tests', tags=['Grand Tests'])
+router = APIRouter(prefix='/api/grand-tests', tags=['DigitalQBank'])
+PAGE_STATUSES = {'Pending', 'InProgress', 'Completed', 'Not Applicable'}
 
 class Create(BaseModel):
     program_id: int = Field(gt=0)
@@ -25,6 +27,7 @@ class Create(BaseModel):
     paper_name: str = Field(default='', max_length=200)
     description: str = Field(default='', max_length=5000)
     academic_year: str = Field(default='', max_length=100)
+    document_id: int | None = Field(default=None, gt=0)
 
 class Revision(BaseModel):
     revision: int = Field(ge=1)
@@ -34,6 +37,9 @@ class Digitize(Revision):
 
 class Review(Revision):
     questions: list[dict] = Field(max_length=1000)
+
+class SaveQuestions(Revision):
+    question_ids: list[str] = Field(min_length=1, max_length=1000)
 
 class Schedule(Revision):
     name: str = Field(min_length=1, max_length=200)
@@ -63,11 +69,90 @@ def actor(request, write=False, admin=False):
         raise HTTPException(403, 'Grand Test permission required')
     return user
 
+@router.get('/documents')
+def documents(request: Request, program_id: int | None = None):
+    user=actor(request)
+    with closing(db()) as conn:
+        sql='SELECT d.*,p.name program_name,s.filename,s.mime_type,s.page_count,s.sha256 FROM program_documents d JOIN programs p ON p.id=d.program_id JOIN source_documents s ON s.id=d.source_document_id'
+        args=()
+        if program_id: sql+=' WHERE d.program_id=?'; args=(program_id,)
+        if user['role'] != 'ADMIN': sql += (' AND ' if ' WHERE ' in sql else ' WHERE ') + 'd.available_for_digitisation=1 AND s.mime_type=\'application/pdf\''
+        return [dict(r) for r in conn.execute(sql+' ORDER BY d.created_at DESC',args).fetchall()]
+
+@router.post('/documents', status_code=201)
+async def upload_document(request: Request, program_id: int, subject: str = '', file: UploadFile=File(...)):
+    user=actor(request,True)
+    content=await file.read(50*1024*1024+1)
+    if len(content)>50*1024*1024: raise HTTPException(400,'file too large (max 50 MB)')
+    filename=file.filename or 'document.pdf'
+    if not filename.lower().endswith('.pdf'): raise HTTPException(400,'Program Library currently supports PDF uploads; convert DOC/DOCX/PPT/PPTX/XLS/XLSX/ODT to PDF before uploading.')
+    from app import _prepare_pdf_preview
+    preview=await run_in_threadpool(_prepare_pdf_preview,content,filename)
+    with closing(db()) as conn:
+        if not conn.execute("SELECT 1 FROM programs WHERE id=? AND status='ACTIVE'",(program_id,)).fetchone(): raise HTTPException(422,'Choose an active Program')
+        existing=conn.execute('SELECT id FROM program_documents WHERE program_id=? AND source_document_id=?',(program_id,preview['id'])).fetchone()
+        if existing:return dict(conn.execute('SELECT * FROM program_documents WHERE id=?',(existing['id'],)).fetchone())
+        safe_subject=re.sub(r'[^a-zA-Z0-9_-]+','-',subject.strip()).strip('-') or 'general'
+        key=f'programs/{program_id}/{safe_subject}/{time.strftime("%Y-%m-%d")}/{filename}'
+        if os.getenv('GCS_DATA_BUCKET'):
+            from google.cloud import storage
+            storage.Client().bucket(os.getenv('GCS_DATA_BUCKET')).blob(key).upload_from_string(content,content_type='application/pdf',if_generation_match=0)
+        now=time.time(); cur=conn.execute('INSERT INTO program_documents(program_id,source_document_id,original_filename,gcs_object,subject,created_by,updated_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',(program_id,preview['id'],filename,key,subject,user['id'],user['id'],now,now));conn.commit()
+        return dict(conn.execute('SELECT * FROM program_documents WHERE id=?',(cur.lastrowid,)).fetchone())
+
+@router.get('/admin/document-library')
+def admin_document_library(request: Request):
+    user=actor(request, admin=True)
+    with closing(db()) as conn:
+        rows=conn.execute('SELECT d.*,p.name program_name,s.filename,s.mime_type,s.page_count,s.sha256,u.email uploaded_by FROM program_documents d JOIN programs p ON p.id=d.program_id JOIN source_documents s ON s.id=d.source_document_id LEFT JOIN users u ON u.id=d.created_by ORDER BY d.created_at DESC').fetchall()
+        result=[]
+        for row in rows:
+            item=dict(row); item['workspaces']=[]
+            status_rows=conn.execute('SELECT ps.*,u.email actor_email FROM grand_test_page_status ps JOIN grand_tests g ON g.id=ps.workspace_id LEFT JOIN users u ON u.id=ps.updated_by WHERE ps.source_document_id=? AND g.program_id=? ORDER BY ps.updated_at,ps.id',(row['source_document_id'],row['program_id'])).fetchall()
+            latest={r['page_number']:r for r in status_rows if 1<=r['page_number']<=row['page_count']}
+            item['progress']={status:0 for status in PAGE_STATUSES}
+            for number in range(1,row['page_count']+1):item['progress'][latest[number]['status'] if number in latest else 'Pending']+=1
+            item['completed']=item['progress'].get('Completed',0); item['pending']=item['progress'].get('Pending',0)
+            item['percentage_complete']=round(100*(item['completed']+item['progress']['Not Applicable'])/row['page_count'],1) if row['page_count'] else 0
+            item['overall_status']='Completed' if item['percentage_complete']==100 else 'In Progress' if item['completed'] or item['progress']['InProgress'] else 'Not Started'
+            item['last_digitalised_by']=status_rows[-1]['actor_email'] if status_rows else None
+            item['last_status_update']=status_rows[-1]['updated_at'] if status_rows else None
+            for work in conn.execute('SELECT id,name,status,error,source_json FROM grand_tests WHERE program_id=?',(row['program_id'],)).fetchall():
+                if json.loads(work['source_json']).get('id')==row['source_document_id']:
+                    item['workspaces'].append({'id':work['id'],'name':work['name'],'status':work['status']})
+                    if work['error']:item['overall_status']='Failed/Needs Review'
+            result.append(item)
+        return result
+
+@router.get('/documents/available')
+def available_documents(request: Request, program_id: int | None = None):
+    """Explicit Operator-safe document feed for DigitalQBank selectors."""
+    return documents(request, program_id)
+
+class Availability(BaseModel):
+    available: bool
+
+@router.put('/admin/documents/{document_id}/availability')
+def set_document_availability(document_id: int, payload: Availability, request: Request):
+    user=actor(request, True, admin=True); now=time.time()
+    with closing(db()) as conn:
+        row=conn.execute('SELECT * FROM program_documents WHERE id=?',(document_id,)).fetchone()
+        if not row: raise HTTPException(404,'Document not found')
+        previous='Available' if row['available_for_digitisation'] else 'Hidden'; new='Available' if payload.available else 'Hidden'
+        conn.execute('UPDATE program_documents SET available_for_digitisation=?,availability_changed_at=?,availability_changed_by=?,updated_at=?,updated_by=? WHERE id=?',(int(payload.available),now,user['id'],now,user['id'],document_id))
+        conn.execute('INSERT INTO program_document_audit(document_id,action,previous_value,new_value,changed_at,changed_by) VALUES(?,?,?,?,?,?)',(document_id,'availability',previous,new,now,user['id']))
+        conn.commit(); return dict(conn.execute('SELECT * FROM program_documents WHERE id=?',(document_id,)).fetchone())
+
 
 def workspace(conn, gid, user):
     row = conn.execute('SELECT * FROM grand_tests WHERE id=?', (gid,)).fetchone()
     if not row or (user['role'] != 'ADMIN' and row['created_by'] != user['id']):
         raise HTTPException(404, 'Grand Test not found')
+    source=json.loads(row['source_json'])
+    if source and user['role'] != 'ADMIN':
+        doc=conn.execute('SELECT available_for_digitisation FROM program_documents WHERE program_id=? AND source_document_id=?',(row['program_id'],source['id'])).fetchone()
+        if doc and not doc['available_for_digitisation']:
+            raise HTTPException(404, 'Document is not available for digitisation')
     return dict(row)
 
 
@@ -76,6 +161,21 @@ def output(row):
     result['source'] = json.loads(result.pop('source_json'))
     result['questions'] = json.loads(result.pop('questions_json'))
     return result
+
+def page_progress(conn, gid, user=None):
+    rows = conn.execute('SELECT * FROM grand_test_page_status WHERE workspace_id=? ORDER BY page_number', (gid,)).fetchall()
+    counts = {status: 0 for status in PAGE_STATUSES}
+    for row in rows: counts[row['status']] = counts.get(row['status'], 0) + 1
+    return {'pages': [dict(r) for r in rows], 'counts': counts, 'total': len(rows),
+            'completed': counts['Completed'], 'remaining': counts['Pending'] + counts['InProgress']}
+
+def ensure_page_statuses(conn, gid, source, user_id):
+    if not source or not source.get('page_count'): return
+    conn.execute('DELETE FROM grand_test_page_status WHERE workspace_id=? AND source_document_id<>?',(gid,source['id']))
+    now = time.time()
+    for page_number in range(1, int(source['page_count']) + 1):
+        conn.execute('INSERT OR IGNORE INTO grand_test_page_status(workspace_id,source_document_id,page_number,status,created_at,updated_at,created_by,updated_by) VALUES(?,?,?,?,?,?,?,?)',
+                     (gid, source['id'], page_number, 'Pending', now, now, user_id, user_id))
 
 
 def change(conn, row, user, revision, **values):
@@ -103,7 +203,18 @@ def listing(request: Request):
         rows = conn.execute('SELECT g.*,u.email operator_email FROM grand_tests g JOIN users u ON u.id=g.updated_by'+
                             ('' if user['role']=='ADMIN' else ' WHERE g.created_by=?')+' ORDER BY g.id DESC',
                             () if user['role']=='ADMIN' else (user['id'],)).fetchall()
-    return [output(r) for r in rows]
+    result=[]
+    for r in rows:
+        if user['role']!='ADMIN':
+            with closing(db()) as access_conn:
+                try:workspace(access_conn,r['id'],user)
+                except HTTPException as exc:
+                    if exc.status_code==404:continue
+                    raise
+        item=output(r)
+        with closing(db()) as progress_conn: item['digitisation_progress']=page_progress(progress_conn,r['id'])
+        result.append(item)
+    return result
 
 
 @router.post('', status_code=201)
@@ -112,9 +223,16 @@ def create(payload: Create, request: Request):
     with closing(db()) as conn:
         if not conn.execute("SELECT 1 FROM programs WHERE id=? AND status='ACTIVE'", (payload.program_id,)).fetchone():
             raise HTTPException(422, 'Choose an active Program')
-        now=time.time()
-        cur=conn.execute('INSERT INTO grand_tests(program_id,name,paper_name,description,academic_year,created_by,updated_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)',
-                         (*payload.model_dump().values(),user['id'],user['id'],now,now))
+        now=time.time(); data=payload.model_dump(); document_id=data.pop('document_id',None); source={}
+        if document_id:
+            stored=conn.execute('SELECT d.*,s.filename,s.mime_type,s.page_count,s.sha256 FROM program_documents d JOIN source_documents s ON s.id=d.source_document_id WHERE d.id=? AND d.program_id=?',(document_id,payload.program_id)).fetchone()
+            if not stored or stored['mime_type'] != 'application/pdf': raise HTTPException(422,'Choose a PDF from the selected Program')
+            if user['role'] != 'ADMIN' and not stored['available_for_digitisation']:
+                raise HTTPException(403,'Document is not available for digitisation')
+            source={'id':stored['source_document_id'],'filename':stored['filename'],'mime_type':stored['mime_type'],'sha256':stored['sha256'],'page_count':stored['page_count'],'pages':[{'number':i,'url':f'/api/grand-tests/{{gid}}/pages/{i}'} for i in range(1,stored['page_count']+1)]}
+        cur=conn.execute('INSERT INTO grand_tests(program_id,name,paper_name,description,academic_year,source_json,created_by,updated_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)',
+                         (data['program_id'],data['name'],data['paper_name'],data['description'],data['academic_year'],json.dumps(source),user['id'],user['id'],now,now))
+        ensure_page_statuses(conn, cur.lastrowid, source, user['id'])
         row=workspace(conn,cur.lastrowid,user);conn.commit()
     return output(row)
 
@@ -124,7 +242,10 @@ def detail(gid: int, request: Request):
     user=actor(request)
     with closing(db()) as conn:
         row=workspace(conn,gid,user)
+        ensure_page_statuses(conn, gid, json.loads(row['source_json']), user['id'])
+        conn.commit()
         result=output(row)
+        result['digitisation_progress']=page_progress(conn,gid)
         if row['exam_id'] and user['role']=='ADMIN':
             result['exam']=dict(conn.execute('SELECT * FROM exams WHERE id=?',(row['exam_id'],)).fetchone())
     return result
@@ -143,6 +264,7 @@ async def upload(gid: int, request: Request, revision: int, file: UploadFile=Fil
     with closing(db()) as conn:
         row=workspace(conn,gid,user);editable(row)
         change(conn,row,user,revision,source_json=json.dumps(source),status='REVIEW_REQUIRED' if json.loads(row['questions_json']) else 'DRAFT')
+        ensure_page_statuses(conn, gid, source, user['id'])
         conn.commit()
     return detail(gid,request)
 
@@ -213,6 +335,10 @@ async def digitize_job(gid, source, selections, revision, program_id, user_id):
                     SequenceMatcher(None,re.sub(r'\W+','',old['statement']).casefold(),re.sub(r'\W+','',q['statement']).casefold()).ratio()>.94 for old in combined)
                 if key not in seen and not duplicate:combined.append(q);seen.add(key)
             change(conn,dict(row),{'id':user_id},revision,questions_json=json.dumps(combined),status='REVIEW_REQUIRED',error='')
+            now=time.time()
+            pages={s.page for s in selections} if selections else {r['page_number'] for r in conn.execute('SELECT page_number FROM grand_test_page_status WHERE workspace_id=?',(gid,)).fetchall()}
+            for page_number in pages:
+                conn.execute("UPDATE grand_test_page_status SET status='Completed',updated_at=?,updated_by=? WHERE workspace_id=? AND page_number=?", (now,user_id,gid,page_number))
             conn.commit()
     except Exception as exc:
         logging.exception('Grand Test digitization failed')
@@ -243,9 +369,44 @@ async def digitize(gid: int, payload: Digitize, request: Request, tasks: Backgro
         editable(row);source=json.loads(row['source_json'])
         if not source:raise HTTPException(422,'Upload a PDF first')
         if any(s.page>source['page_count'] for s in selections):raise HTTPException(422,'Selection page is outside the PDF')
-        change(conn,row,user,revision,status='DIGITIZING',error='');conn.commit()
+        change(conn,row,user,revision,status='DIGITIZING',error='')
+        now=time.time()
+        target_pages = [selection.page for selection in selections] or [r['page_number'] for r in conn.execute('SELECT page_number FROM grand_test_page_status WHERE workspace_id=?',(gid,)).fetchall()]
+        for page_number in target_pages:
+            conn.execute("UPDATE grand_test_page_status SET status='InProgress',updated_at=?,updated_by=? WHERE workspace_id=? AND page_number=?", (now,user['id'],gid,page_number))
+        conn.commit()
     tasks.add_task(digitize_job,gid,source,selections,revision+1,row['program_id'],user['id'])
     return {'status':'DIGITIZING'}
+
+@router.get('/{gid}/page-status')
+def get_page_status(gid: int, request: Request):
+    user=actor(request)
+    with closing(db()) as conn:
+        workspace(conn,gid,user)
+        return page_progress(conn,gid)
+
+class PageStatus(BaseModel):
+    revision: int = Field(ge=1)
+    page: int = Field(ge=1)
+    status: str
+    reason: str = Field(default='', max_length=500)
+
+@router.put('/{gid}/page-status')
+def update_page_status(gid: int, payload: PageStatus, request: Request):
+    user=actor(request, True)
+    if payload.status not in PAGE_STATUSES: raise HTTPException(422, 'Invalid page status')
+    with closing(db()) as conn:
+        row=workspace(conn,gid,user); source=json.loads(row['source_json'])
+        editable(row)
+        change(conn,row,user,payload.revision)
+        if payload.page > int(source.get('page_count',0)): raise HTTPException(422, 'Page is outside the PDF')
+        item=conn.execute('SELECT * FROM grand_test_page_status WHERE workspace_id=? AND page_number=?',(gid,payload.page)).fetchone()
+        if not item:
+            ensure_page_statuses(conn,gid,source,user['id']); item=conn.execute('SELECT * FROM grand_test_page_status WHERE workspace_id=? AND page_number=?',(gid,payload.page)).fetchone()
+        now=time.time(); previous=item['status']
+        conn.execute('UPDATE grand_test_page_status SET status=?,updated_at=?,updated_by=? WHERE id=?',(payload.status,now,user['id'],item['id']))
+        conn.execute('INSERT INTO grand_test_page_status_audit(workspace_id,source_document_id,page_number,previous_status,new_status,changed_at,changed_by,reason) VALUES(?,?,?,?,?,?,?,?)',(gid,item['source_document_id'],payload.page,previous,payload.status,now,user['id'],payload.reason))
+        conn.commit(); result=page_progress(conn,gid);result['revision']=payload.revision+1;return result
 
 
 @router.put('/{gid}/questions')
@@ -259,14 +420,43 @@ def review(gid: int, payload: Review, request: Request):
             key=raw.get('id')
             if key not in originals or key in seen:raise HTTPException(422,'Invalid or duplicate question ID')
             seen.add(key)
+            if originals[key].get('saved_question_id'):
+                questions.append(originals[key])
+                continue
             pid=int(raw.get('program_id',row['program_id']))
             program=conn.execute("SELECT name FROM programs WHERE id=? AND status='ACTIVE'",(pid,)).fetchone()
             if not program:raise HTTPException(422,'Choose an active Program for each question')
             q=Question.model_validate(raw).model_dump();q['exam']=program['name']
             q.update(id=key,number=raw.get('number',originals[key]['number']),program_id=pid,
                      reviewed=bool(raw.get('reviewed',False)),classification_confidence=originals[key].get('classification_confidence',0))
+            if originals[key].get('saved_question_id'):
+                q['saved_question_id']=originals[key]['saved_question_id']
             questions.append(q)
         change(conn,row,user,payload.revision,questions_json=json.dumps(questions),status='REVIEW_REQUIRED');conn.commit()
+    return detail(gid,request)
+
+
+@router.post('/{gid}/save-questions')
+def save_questions(gid: int, payload: SaveQuestions, request: Request):
+    user=actor(request,True)
+    from app import Question, FIELDS, values_of
+    with closing(db()) as conn:
+        row=workspace(conn,gid,user);editable(row)
+        questions=json.loads(row['questions_json']);chosen=set(payload.question_ids)
+        if not chosen.issubset({q['id'] for q in questions}):
+            raise HTTPException(422,'Invalid question ID')
+        change(conn,row,user,payload.revision)
+        now=time.time()
+        for raw in questions:
+            if raw['id'] not in chosen or raw.get('saved_question_id'):continue
+            if not raw.get('reviewed'):
+                raise HTTPException(422,'Review each selected question before saving')
+            if any(not str(raw.get(k,'')).strip() for k in ('statement','subject','chapter','topic','subtopic','difficulty','qtype','answer')):
+                raise HTTPException(422,'Complete the question, answer and classification before saving')
+            q=Question.model_validate({**raw,'verification_status':'VERIFIED'})
+            cur=conn.execute('INSERT INTO questions('+','.join(FIELDS)+',created_at,updated_at) VALUES('+','.join('?' for _ in FIELDS)+',?,?)',values_of(q)+[now,now])
+            raw['saved_question_id']=cur.lastrowid
+        conn.execute('UPDATE grand_tests SET questions_json=? WHERE id=?',(json.dumps(questions),gid));conn.commit()
     return detail(gid,request)
 
 
@@ -300,8 +490,11 @@ def generate(gid: int, payload: Revision, request: Request):
                          (row['name'],row['description'],'GRAND_TEST',user['id'],now,now));eid=cur.lastrowid
         for order,raw in enumerate(questions,1):
             q=Question.model_validate({**raw,'verification_status':'VERIFIED'})
-            cur=conn.execute('INSERT INTO questions('+','.join(FIELDS)+',created_at,updated_at) VALUES('+','.join('?' for _ in FIELDS)+',?,?)',values_of(q)+[now,now])
-            conn.execute('INSERT INTO exam_questions(exam_id,question_id,display_order,marks,section_name,created_at) VALUES(?,?,?,?,?,?)',(eid,cur.lastrowid,order,1,q.subject,now))
+            question_id=raw.get('saved_question_id')
+            if not question_id:
+                cur=conn.execute('INSERT INTO questions('+','.join(FIELDS)+',created_at,updated_at) VALUES('+','.join('?' for _ in FIELDS)+',?,?)',values_of(q)+[now,now])
+                question_id=cur.lastrowid
+            conn.execute('INSERT INTO exam_questions(exam_id,question_id,display_order,marks,section_name,created_at) VALUES(?,?,?,?,?,?)',(eid,question_id,order,1,q.subject,now))
         conn.execute('UPDATE exams SET total_marks=? WHERE id=?',(len(questions),eid))
         conn.execute('UPDATE grand_tests SET exam_id=? WHERE id=?',(eid,gid));conn.commit()
     return {'exam_id':eid}

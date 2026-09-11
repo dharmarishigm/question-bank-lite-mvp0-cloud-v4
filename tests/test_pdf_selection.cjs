@@ -3,7 +3,7 @@ const vm = require('node:vm');
 const fs = require('node:fs');
 const source = fs.readFileSync('static/pdf-viewer.js', 'utf8');
 const context = vm.createContext({});
-vm.runInContext(source.slice(0, source.indexOf('async function previewPdfDocument')), context);
+vm.runInContext(source.slice(source.indexOf('function pdfSelectionPoint'), source.indexOf('function setPdfCropMode')), context);
 const run = code => JSON.parse(JSON.stringify(vm.runInContext(code, context)));
 assert.deepEqual(run('pdfSelectionPoint({clientX:300, clientY:450}, {left:100, top:150, width:400, height:600})'), [.5, .5]);
 assert.deepEqual(run('pdfSelectionPoint({clientX:500, clientY:750}, {left:100, top:150, width:800, height:1200})'), [.5, .5]);

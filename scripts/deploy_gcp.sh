@@ -4,11 +4,15 @@ set -euo pipefail
 PROJECT_ID="${PROJECT_ID:-gen-lang-client-0491787004}"
 REGION="${REGION:-asia-south1}"
 SERVICE="${SERVICE:-question-bank-cloud-v4}"
-RELEASE_TAG="${RELEASE_TAG:-epidemiology-$(date +%Y%m%d%H%M%S)}"
-REVISION_SUFFIX="${REVISION_SUFFIX:-epi-${RELEASE_TAG#*-}}"
+RELEASE_TAG="${RELEASE_TAG:-digitalqbank-$(date +%Y%m%d%H%M%S)}"
+REVISION_SUFFIX="${REVISION_SUFFIX:-dqb-$(date +%Y%m%d%H%M%S)}"
 
 gcloud config set project "$PROJECT_ID" >/dev/null
 STAGE="$(RELEASE_TAG="$RELEASE_TAG" .venv/bin/python scripts/stage_engagement_release.py | tail -1)"
+if ! grep -q 'translate_ddl(statement)' "$STAGE/migrations/versions/0019_digitalqbank_page_tracking.py"; then
+  echo 'Staged migration 0019 is stale; refusing to deploy an incompatible PostgreSQL migration.' >&2
+  exit 1
+fi
 IMAGE="$(.venv/bin/python -c 'import json,sys; print(json.load(open(sys.argv[1]))["images"][0])' "$STAGE/cloudbuild.json")"
 
 echo "Submitting Cloud Build for $IMAGE"
@@ -26,8 +30,18 @@ while true; do
 done
 
 DIGEST="$(gcloud builds describe "$BUILD_ID" --project="$PROJECT_ID" --format='value(results.images[0].digest)')"
-IMAGE_REF="${IMAGE%@*}@${DIGEST}"
+IMAGE_REF="${IMAGE%:*}@${DIGEST}"
 echo "Deploying $IMAGE_REF"
+
+# A previous failed deployment can leave spec.traffic pointing at an unready
+# revision even while status.traffic still serves the healthy one. Preserve
+# the actual serving allocation before asking Cloud Run for another candidate.
+SERVING_TRAFFIC="$(gcloud run services describe "$SERVICE" --project="$PROJECT_ID" --region="$REGION" --format='json(status.traffic)' | .venv/bin/python -c 'import json,sys; print(",".join(str(t["revisionName"])+"="+str(t["percent"]) for t in json.load(sys.stdin)["status"]["traffic"] if t.get("percent",0)>0))')"
+if [ -z "$SERVING_TRAFFIC" ]; then
+  echo 'No healthy serving allocation found; inspect the service before deploying.' >&2
+  exit 1
+fi
+gcloud run services update-traffic "$SERVICE" --project="$PROJECT_ID" --region="$REGION" --to-revisions="$SERVING_TRAFFIC" --quiet
 
 gcloud run deploy "$SERVICE" \
   --project="$PROJECT_ID" \
@@ -35,9 +49,7 @@ gcloud run deploy "$SERVICE" \
   --image="$IMAGE_REF" \
   --no-traffic \
   --revision-suffix="$REVISION_SUFFIX" \
-  --update-env-vars="VERTEX_MODEL_PRIMARY=${VERTEX_MODEL_PRIMARY:-gemini-2.5-flash},VERTEX_MODEL_VERIFY=${VERTEX_MODEL_VERIFY:-gemini-2.5-flash},VERTEX_MODEL_TUTOR=${VERTEX_MODEL_TUTOR:-gemini-2.5-flash},AI_MAX_RETRIES=${AI_MAX_RETRIES:-1},AI_GENERATION_MAX_OUTPUT_TOKENS=${AI_GENERATION_MAX_OUTPUT_TOKENS:-12000},AI_GUIDANCE_MAX_OUTPUT_TOKENS=${AI_GUIDANCE_MAX_OUTPUT_TOKENS:-4096},BLUEPRINT_MAX_OUTPUT_TOKENS=${BLUEPRINT_MAX_OUTPUT_TOKENS:-5000},BLUEPRINT_MAX_RETRIES=${BLUEPRINT_MAX_RETRIES:-1},TUTOR_MAX_OUTPUT_TOKENS=${TUTOR_MAX_OUTPUT_TOKENS:-900},QB_GEMINI_MAX_OUTPUT_TOKENS=${QB_GEMINI_MAX_OUTPUT_TOKENS:-12000}" \
-  --no-cpu-throttling \
-  --min-instances="${MIN_INSTANCES:-0}" \
+  --tag=release-check \
   --quiet
 
 READY="$(gcloud run revisions describe "$SERVICE-$REVISION_SUFFIX" --project="$PROJECT_ID" --region="$REGION" --format='value(status.conditions[0].status)')"
@@ -46,6 +58,9 @@ if [ "$READY" != True ]; then
   exit 1
 fi
 
+CANDIDATE_URL="$(gcloud run services describe "$SERVICE" --project="$PROJECT_ID" --region="$REGION" --format=json | .venv/bin/python -c 'import json,sys; print(next(t["url"] for t in json.load(sys.stdin)["status"]["traffic"] if t.get("tag")=="release-check"))')"
+curl --fail --silent --show-error --retry 3 --max-time 30 "${CANDIDATE_URL}/api/health"
+
 gcloud run services update-traffic "$SERVICE" \
   --project="$PROJECT_ID" \
   --region="$REGION" \
@@ -53,6 +68,6 @@ gcloud run services update-traffic "$SERVICE" \
   --quiet
 
 SERVICE_URL="${PUBLIC_URL:-https://meritiqra.com}"
-curl --fail --silent --show-error --retry 3 --max-time 30 "${SERVICE_URL%/}/healthz"
+curl --fail --silent --show-error --retry 3 --max-time 30 "${SERVICE_URL%/}/api/health"
 echo
 echo "Deployment complete: $SERVICE-$REVISION_SUFFIX"

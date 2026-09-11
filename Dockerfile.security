@@ -1,0 +1,16 @@
+FROM python:3.12-slim
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends tesseract-ocr && rm -rf /var/lib/apt/lists/*
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/playwright
+RUN python -m playwright install --with-deps chromium
+COPY *.py /app/
+COPY migrations/ /app/migrations/
+COPY alembic.ini /app/
+COPY static/ /app/static/
+COPY scripts/ /app/scripts/
+COPY program_presets/ /app/program_presets/
+ENV QB_SCHEMA_MANAGED=1 DB_POOL_ENABLED=1 DB_POOL_SIZE=5 SECURITY_HARDENING=1 REQUIRE_STAFF_MFA=1
+# Schema changes happen only in the explicit migration job.
+CMD ["sh","-c","python scripts/check_staging_runtime.py && exec python -m uvicorn app:app --host 0.0.0.0 --port ${PORT:-8080}"]

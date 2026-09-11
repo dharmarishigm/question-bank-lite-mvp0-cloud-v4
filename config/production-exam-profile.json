@@ -1,0 +1,32 @@
+{
+  "status": "candidate_requires_2000_student_3_hour_validation",
+  "target_students": 2000,
+  "exam_duration_minutes": 180,
+  "cloud_run": {
+    "cpu": 2,
+    "memory": "2Gi",
+    "concurrency": 10,
+    "min_instances_idle": 0,
+    "min_instances_exam_window": 4,
+    "max_instances": 12,
+    "workers_per_instance": 1,
+    "db_pool_size": 5,
+    "db_pool_max_overflow": 0,
+    "request_timeout_seconds": 300
+  },
+  "cloud_sql": {
+    "proposed_vcpus": 4,
+    "proposed_memory_mib": 15360,
+    "availability": "REGIONAL",
+    "required_connection_budget_including_rollout": 150,
+    "automatic_cpu_memory_scaling": false
+  },
+  "validation": {
+    "required_successful_runs": 2,
+    "answer_save_p95_ms": 1000,
+    "submission_p95_ms": 2000,
+    "unexpected_errors": 0,
+    "lost_answers": 0,
+    "incorrect_scores": 0
+  }
+}

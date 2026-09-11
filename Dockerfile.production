@@ -1,0 +1,10 @@
+# Immutable tested runtime; no database credentials or migration runs in the build.
+FROM asia-south1-docker.pkg.dev/gen-lang-client-0491787004/qb-security-staging/app@sha256:7203f0111466b408d709bbe33ca58044992d578cf44847958f4d65670e749365
+WORKDIR /app
+COPY *.py /app/
+COPY static/ /app/static/
+COPY migrations/ /app/migrations/
+COPY scripts/check_production_runtime.py /app/scripts/check_production_runtime.py
+ENV APP_ENV=production QB_SCHEMA_MANAGED=1 SECURITY_HARDENING=1 REQUIRE_STAFF_MFA=1 DB_POOL_ENABLED=1 DB_POOL_SIZE=5 PYTHONUNBUFFERED=1
+# No Alembic on web startup. Schema promotion is a separate, reviewed operation.
+CMD ["sh","-c","python scripts/check_production_runtime.py && exec python -m uvicorn app:app --host 0.0.0.0 --port ${PORT:-8080}"]

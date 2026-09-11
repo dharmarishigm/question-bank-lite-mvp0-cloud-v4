@@ -1,0 +1,41 @@
+{
+  "completed": 1000,
+  "correctly_scored": 1000,
+  "errors": [],
+  "event": "summary",
+  "exam_id": 7,
+  "latency_ms": {
+    "read": {
+      "count": 21000,
+      "max": 1237.1,
+      "p95": 205.1,
+      "p99": 309.7
+    },
+    "save": {
+      "count": 20000,
+      "max": 1062.5,
+      "p95": 171.3,
+      "p99": 268.6
+    },
+    "start": {
+      "count": 1000,
+      "max": 1398.1,
+      "p95": 226.8,
+      "p99": 593.3
+    },
+    "submit": {
+      "count": 1000,
+      "max": 716.6,
+      "p95": 329,
+      "p99": 405.7
+    }
+  },
+  "passed": true,
+  "peak_active": 1000,
+  "persisted_answers": 20000,
+  "run": "load1000-1789130155",
+  "status_counts": {
+    "200": 43000
+  },
+  "synthetic_sessions_revoked": true
+}

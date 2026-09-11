@@ -84,6 +84,8 @@ def test_full_lifecycle_and_multiple_students(clients):
 
 def test_operator_ownership_permissions_and_csrf(clients):
     admin,operator,anonymous=clients;pid=create(admin)['id'];uid=operator.get('/api/auth/me').json()['id']
+    email=operator.get('/api/auth/me').json()['email']
+    assert admin.post('/api/admin/operator-allowlist',json={'email':email}).status_code==200
     assert admin.put(f'/api/admin/users/{uid}/role',json={'role':'OPERATOR'}).status_code==200
     path,g=build(operator,pid,True)
     assert admin.get(path).status_code==200

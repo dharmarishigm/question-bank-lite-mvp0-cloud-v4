@@ -323,9 +323,13 @@ app = FastAPI(title="MeritIQra", description="AI-Powered Intelligence Platform",
 
 # The authenticated exam platform shares the configured database adapter.
 from platform_api import init_platform, router as platform_router
-if not os.getenv("DATABASE_URL"):
+# Run additive schema migrations for both local SQLite and Cloud SQL.  The
+# database adapter translates the shared DDL for PostgreSQL.
+if os.getenv('QB_SCHEMA_MANAGED') != '1':
     init_platform()
 app.include_router(platform_router)
+from security_mfa import router as security_mfa_router
+app.include_router(security_mfa_router)
 from blueprint_api import router as programs_router
 app.include_router(programs_router)
 from blueprint_setup import router as program_setup_router
@@ -369,7 +373,8 @@ async def protect_legacy_admin_api(request: Request, call_next):
     mock mode is configured. This keeps offline parser unit tests usable while a
     configured application never exposes the legacy question APIs to students.
     """
-    configured = bool(os.getenv("GOOGLE_CLIENT_ID") or os.getenv("ADMIN_LOCAL_EMAIL")) or os.getenv("AUTH_MODE") == "mock"
+    from security_boundary import enabled
+    configured = enabled() or bool(os.getenv("GOOGLE_CLIENT_ID") or os.getenv("ADMIN_LOCAL_EMAIL")) or os.getenv("AUTH_MODE") == "mock"
     admin_prefixes = (
         "/api/questions", "/api/facets", "/api/upload", "/api/source",
         "/api/pdf", "/api/ocr", "/api/export", "/api/import",
@@ -396,6 +401,9 @@ async def protect_legacy_admin_api(request: Request, call_next):
         response.headers['Permissions-Policy']='display-capture=()'
         response.headers['X-Content-Type-Options']='nosniff'
     return response
+
+from security_boundary import SecurityBoundary
+app.add_middleware(SecurityBoundary)
 
 
 def row_to_exam_registration(row: sqlite3.Row) -> dict:
@@ -1486,6 +1494,7 @@ def _sample_exam_questions() -> list[dict]:
     questions = [_exam_question_from_db(row, idx + 1) for idx, row in enumerate(rows)]
     if len(questions) >= 15:
         return questions
+    idx = 0
     fallback = [
         {'number': idx + 1, 'statement': 'If 3x + 5 = 20, what is x?', 'options': ['3', '4', '5', '6'], 'answer': 'B', 'subject': 'Mathematics', 'chapter': 'Linear equations', 'difficulty': 'easy'},
         {'number': idx + 2, 'statement': 'The value of 7^2 is:', 'options': ['14', '49', '56', '63'], 'answer': 'B', 'subject': 'Mathematics', 'chapter': 'Squares', 'difficulty': 'easy'},
@@ -1825,6 +1834,18 @@ def _read_pdf_source(source):
             if not content or len(content)>MAX_SOURCE_BYTES: continue
             return content
         except FileNotFoundError: continue
+    gcs_key=source.get('gcs_object') if hasattr(source,'get') else None
+    if not gcs_key:
+        with closing(connect()) as conn:
+            link=conn.execute('SELECT gcs_object FROM program_documents WHERE source_document_id=?',(source['id'],)).fetchone()
+            gcs_key=link['gcs_object'] if link else None
+    if gcs_key and os.getenv('GCS_DATA_BUCKET'):
+        try:
+            from google.cloud import storage
+            content=storage.Client().bucket(os.getenv('GCS_DATA_BUCKET')).blob(gcs_key).download_as_bytes()
+            if content:return content
+        except Exception:
+            pass
     raise HTTPException(409,'The stored PDF is unavailable. Upload the original PDF again to restore its pages.')
 
 
@@ -2066,6 +2087,14 @@ def mobile_service_worker():
 @app.get("/healthz")
 def healthz():
     return {"status": "ok"}
+
+
+@app.get("/api/health")
+def public_health():
+    # Cloud Run's frontend may intercept /healthz before it reaches the app.
+    with closing(connect()) as conn:
+        conn.execute('SELECT 1').fetchone()
+    return {"status": "ok", "revision": os.getenv('K_REVISION', 'local')}
 
 
 @app.get("/")

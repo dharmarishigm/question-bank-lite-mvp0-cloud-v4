@@ -21,6 +21,12 @@ CREATE TABLE IF NOT EXISTS users (
  family_name TEXT NOT NULL DEFAULT '', profile_picture TEXT NOT NULL DEFAULT '', role TEXT NOT NULL DEFAULT 'STUDENT',
  status TEXT NOT NULL DEFAULT 'ACTIVE', created_at REAL NOT NULL, updated_at REAL NOT NULL, last_login_at REAL NOT NULL);
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE TABLE IF NOT EXISTS operator_email_allowlist (
+ id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE,
+ active INTEGER NOT NULL DEFAULT 1, created_by INTEGER NOT NULL,
+ created_at REAL NOT NULL, updated_at REAL NOT NULL,
+ FOREIGN KEY(created_by) REFERENCES users(id));
+CREATE INDEX IF NOT EXISTS idx_operator_allowlist_email ON operator_email_allowlist(email);
 CREATE TABLE IF NOT EXISTS app_sessions (
  id INTEGER PRIMARY KEY AUTOINCREMENT, token_hash TEXT NOT NULL UNIQUE, user_id INTEGER NOT NULL,
  csrf_token TEXT NOT NULL, expires_at REAL NOT NULL, created_at REAL NOT NULL, FOREIGN KEY(user_id) REFERENCES users(id));
@@ -74,8 +80,14 @@ def db():
     return connect()
 
 def init_platform():
+    from security_boundary import SCHEMA as SECURITY_SCHEMA
+    with closing(db()) as conn:
+        conn.executescript(SECURITY_SCHEMA); conn.commit()
     with closing(db()) as conn:
         conn.executescript(SCHEMA); conn.commit()
+    from security_mfa import SCHEMA as MFA_SCHEMA
+    with closing(db()) as conn:
+        conn.executescript(MFA_SCHEMA);conn.commit()
     from flag_schema import SCHEMA as FLAG_SCHEMA
     with closing(db()) as conn:
         conn.executescript(FLAG_SCHEMA); conn.commit()
@@ -108,7 +120,11 @@ def init_platform():
 def _hash(value: str) -> str: return hashlib.sha256(value.encode()).hexdigest()
 def _admins(): return {x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
 def _public_user(row):
-    return {**{k: row[k] for k in ('id','email','display_name','given_name','family_name','profile_picture','role','status')},'email_verified':bool(row['email_verified'])}
+    result={**{k: row[k] for k in ('id','email','display_name','given_name','family_name','profile_picture','role','status')},'email_verified':bool(row['email_verified'])}
+    if os.getenv('REQUIRE_STAFF_MFA')=='1':
+        from security_mfa import required
+        result['mfa_required']=required(row)
+    return result
 
 def _local_request(request: Request) -> bool:
     host=(request.client.host if request.client else '').split('%')[0]
@@ -127,6 +143,7 @@ def _create_login(identity: dict, response: Response):
     if not sub or not email or not identity.get('email_verified'): raise HTTPException(401,'Verified Google identity required')
     now=time.time(); role='ADMIN' if email in _admins() else 'STUDENT'
     with closing(db()) as conn:
+        approved_operator=bool(conn.execute('SELECT 1 FROM operator_email_allowlist WHERE lower(email)=? AND active=1',(email,)).fetchone())
         from registration_identity import reserve_email,reserve_phone,phone_key
         reserve_email(conn,email)
         row=conn.execute('SELECT * FROM users WHERE google_sub=?',(sub,)).fetchone()
@@ -140,11 +157,13 @@ def _create_login(identity: dict, response: Response):
         if row and row['email'].strip().lower()!=email and conn.execute('SELECT 1 FROM users WHERE lower(trim(email))=? AND id<>?',(email,row['id'])).fetchone():
             raise HTTPException(409,'This email is already registered to another account.')
         if row:
-            next_role = 'ADMIN' if email in _admins() else row['role']
+            if row['status'] != 'ACTIVE':raise HTTPException(403,'Account unavailable')
+            next_role = 'ADMIN' if email in _admins() else ('OPERATOR' if approved_operator else ('STUDENT' if row['role']=='OPERATOR' else row['role']))
             conn.execute('UPDATE users SET email=?,email_verified=1,display_name=?,given_name=?,family_name=?,profile_picture=?,role=?,last_login_at=?,updated_at=? WHERE id=?',
               (email,identity.get('name',''),identity.get('given_name',''),identity.get('family_name',''),identity.get('picture',''),next_role,now,now,row['id']))
             uid=row['id']
         else:
+            role='OPERATOR' if approved_operator else role
             cur=conn.execute('INSERT INTO users(google_sub,email,email_verified,display_name,given_name,family_name,profile_picture,role,status,created_at,updated_at,last_login_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
               (sub,email,1,identity.get('name',''),identity.get('given_name',''),identity.get('family_name',''),identity.get('picture',''),role,'ACTIVE',now,now,now)); uid=cur.lastrowid
         pending=conn.execute("SELECT * FROM pending_exam_registrations WHERE lower(registered_email)=? AND status='PENDING'",(email,)).fetchall() if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='pending_exam_registrations'").fetchone() else []
@@ -161,8 +180,8 @@ def _create_login(identity: dict, response: Response):
         conn.execute('INSERT INTO app_sessions(token_hash,user_id,csrf_token,expires_at,created_at) VALUES(?,?,?,?,?)',(_hash(raw),uid,csrf,now+SESSION_SECONDS,now)); conn.commit()
         if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='exam_audit_log'").fetchone():conn.execute("INSERT INTO exam_audit_log(user_id,event_type,metadata_json,created_at) VALUES(?,'USER_LOGIN','{}',?)",(uid,now));conn.commit()
         user=conn.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
-    response.set_cookie('qb_session',raw,max_age=SESSION_SECONDS,httponly=True,samesite='lax',secure=os.getenv('APP_BASE_URL','').startswith('https://'))
-    response.set_cookie('qb_csrf',csrf,max_age=SESSION_SECONDS,httponly=False,samesite='lax',secure=os.getenv('APP_BASE_URL','').startswith('https://'))
+    response.set_cookie('qb_session',raw,max_age=SESSION_SECONDS,httponly=True,samesite='lax',secure=(bool(os.getenv('K_SERVICE')) or os.getenv('APP_BASE_URL','').startswith('https://')))
+    response.set_cookie('qb_csrf',csrf,max_age=SESSION_SECONDS,httponly=False,samesite='lax',secure=(bool(os.getenv('K_SERVICE')) or os.getenv('APP_BASE_URL','').startswith('https://')))
     return _public_user(user)
 
 def current_user(qb_session: str|None=Cookie(None)):
@@ -178,14 +197,18 @@ def require_admin(user=None):
     return user
 
 def _auth(request: Request, csrf: bool=False):
-    user=current_user(request.cookies.get('qb_session'))
-    if csrf:
+    user=getattr(request.state,'authenticated_user',None)
+    if user is None:
+        user=current_user(request.cookies.get('qb_session'))
+        request.state.authenticated_user=user
+    if csrf and not getattr(request.state,'csrf_validated',False):
         sent=request.headers.get('x-csrf-token',''); cookie=request.cookies.get('qb_csrf','')
         raw=request.cookies.get('qb_session','')
         with closing(db()) as conn:
             session=conn.execute('SELECT csrf_token FROM app_sessions WHERE token_hash=? AND expires_at>?',(_hash(raw),time.time())).fetchone()
         expected=session['csrf_token'] if session else ''
         if not sent or not cookie or not expected or not secrets.compare_digest(sent,cookie) or not secrets.compare_digest(sent,expected): raise HTTPException(403,'Invalid CSRF token')
+        request.state.csrf_validated=True
     from student_content_guard import protect
     protect(request,user)
     return user
@@ -197,9 +220,17 @@ def auth_config(request:Request):
     # identity remains server-side and is resolved only after authentication.
     return {'client_id':os.getenv('GOOGLE_CLIENT_ID',''),'mock':os.getenv('AUTH_MODE')=='mock' and os.getenv('APP_ENV') in {'test','development'},'bootstrap_available':_bootstrap_available(request),'local_admin':bool(local_email and os.getenv('ADMIN_LOCAL_PASSWORD'))}
 @router.get('/auth/me')
-def auth_me(request:Request): return _public_user(_auth(request))
+def auth_me(request:Request):
+    user=_auth(request)
+    result=_public_user(user)
+    if os.getenv('REQUIRE_STAFF_MFA')=='1':
+        from security_mfa import state
+        result.update(state(request,user))
+    return result
 @router.post('/auth/google')
 async def auth_google(request:Request,response:Response):
+    if not os.getenv('GOOGLE_CLIENT_ID'):
+        raise HTTPException(503,'Google sign-in is not configured')
     login_data=await request.json()
     token=login_data.get('credential','')
     try:
@@ -208,7 +239,7 @@ async def auth_google(request:Request,response:Response):
         identity=id_token.verify_oauth2_token(token,grequests.Request(),os.getenv('GOOGLE_CLIENT_ID'))
     except Exception as exc: raise HTTPException(401,'Google authentication failed') from exc
     selected=login_data.get('login_role','STUDENT')
-    if selected not in {'STUDENT','ADMIN','FLAG'}:raise HTTPException(422,'Select Student, Administrator or FLAG user')
+    if selected not in {'STUDENT','ADMIN','OPERATOR','FLAG'}:raise HTTPException(422,'Select Student, Administrator, Operator or FLAG user')
     email=str(identity.get('email','')).strip().lower()
     if selected=='ADMIN':
         with closing(db()) as conn:
@@ -217,6 +248,10 @@ async def auth_google(request:Request,response:Response):
     if selected=='FLAG':
         from flag_api import entitlement
         if not entitlement({'email':email,'email_verified':identity.get('email_verified',False),'role':'STUDENT'})['allowed']:raise HTTPException(403,'An administrator must add this Google email to FLAG before you can sign in as a FLAG user')
+    if selected=='OPERATOR':
+        with closing(db()) as conn:
+            approved=conn.execute('SELECT 1 FROM operator_email_allowlist WHERE lower(email)=? AND active=1',(email,)).fetchone()
+        if not approved: raise HTTPException(403,'An Admin must approve this email for Operator access before sign-in')
     return _create_login(identity,response)
 @router.post('/auth/mock')
 async def auth_mock(request:Request,response:Response):
@@ -257,9 +292,9 @@ async def admin_login(request:Request,response:Response):
             else:
                 cur=conn.execute('INSERT INTO users(google_sub,email,email_verified,display_name,role,status,created_at,updated_at,last_login_at) VALUES(?,?,?,?,?,?,?,?,?)',('local-admin:'+secrets.token_urlsafe(12),email,1,'MeritIQra Administrator','ADMIN','ACTIVE',now,now,now));user=conn.execute('SELECT * FROM users WHERE id=?',(cur.lastrowid,)).fetchone()
             conn.commit();user=conn.execute('SELECT * FROM users WHERE lower(email)=? AND role=\'ADMIN\' AND status=\'ACTIVE\'',(email,)).fetchone()
-        if not user:raise HTTPException(403,'Configured administrator account was not found')
+        if not user or user['role']!='ADMIN' or user['status']!='ACTIVE':raise HTTPException(403,'Active administrator account required')
         raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(24);conn.execute('INSERT INTO app_sessions(token_hash,user_id,csrf_token,expires_at,created_at) VALUES(?,?,?,?,?)',(_hash(raw),user['id'],csrf,now+SESSION_SECONDS,now));conn.execute('UPDATE users SET last_login_at=?,updated_at=? WHERE id=?',(now,now,user['id']));conn.commit()
-    _ADMIN_LOGIN_FAILURES.pop(host,None);secure=os.getenv('APP_BASE_URL','').startswith('https://');response.set_cookie('qb_session',raw,max_age=SESSION_SECONDS,httponly=True,samesite='lax',secure=secure);response.set_cookie('qb_csrf',csrf,max_age=SESSION_SECONDS,httponly=False,samesite='lax',secure=secure);return _public_user(user)
+    _ADMIN_LOGIN_FAILURES.pop(host,None);secure=(bool(os.getenv('K_SERVICE')) or os.getenv('APP_BASE_URL','').startswith('https://'));response.set_cookie('qb_session',raw,max_age=SESSION_SECONDS,httponly=True,samesite='lax',secure=secure);response.set_cookie('qb_csrf',csrf,max_age=SESSION_SECONDS,httponly=False,samesite='lax',secure=secure);return _public_user(user)
 
 @router.post('/auth/student-registration-login')
 async def student_registration_login(request:Request,response:Response):
@@ -282,13 +317,32 @@ async def student_registration_login(request:Request,response:Response):
             if registration['status']=='PENDING' and registration['date_of_birth']==dob and re.sub(r'\D','',registration['phone_number'])==phone:
                 conn.execute("INSERT INTO exam_enrollments(exam_id,user_id,status,registered_at,created_at,updated_at,registered_email,registration_source,created_by,full_name_snapshot,registration_link_id) VALUES(?,?,'ENROLLED',?,?,?,?,?,?,?,?) ON CONFLICT(exam_id,user_id) DO UPDATE SET status='ENROLLED',updated_at=excluded.updated_at",(registration['exam_id'],uid,now,now,now,email,registration['registration_source'],registration['created_by'],registration['full_name'],registration['registration_link_id']));conn.execute("UPDATE pending_exam_registrations SET status='LINKED',updated_at=? WHERE id=?",(now,registration['id']))
         raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(24);conn.execute('INSERT INTO app_sessions(token_hash,user_id,csrf_token,expires_at,created_at) VALUES(?,?,?,?,?)',(_hash(raw),uid,csrf,now+SESSION_SECONDS,now));conn.commit();user=conn.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
-    secure=os.getenv('APP_BASE_URL','').startswith('https://');response.set_cookie('qb_session',raw,max_age=SESSION_SECONDS,httponly=True,samesite='lax',secure=secure);response.set_cookie('qb_csrf',csrf,max_age=SESSION_SECONDS,httponly=False,samesite='lax',secure=secure);return _public_user(user)
+    secure=(bool(os.getenv('K_SERVICE')) or os.getenv('APP_BASE_URL','').startswith('https://'));response.set_cookie('qb_session',raw,max_age=SESSION_SECONDS,httponly=True,samesite='lax',secure=secure);response.set_cookie('qb_csrf',csrf,max_age=SESSION_SECONDS,httponly=False,samesite='lax',secure=secure);return _public_user(user)
 @router.post('/auth/logout')
 def logout(request:Request,response:Response):
     _auth(request,True)
     raw=request.cookies.get('qb_session','')
     with closing(db()) as conn: conn.execute('DELETE FROM app_sessions WHERE token_hash=?',(_hash(raw),));conn.commit()
     response.delete_cookie('qb_session');response.delete_cookie('qb_csrf');return {'ok':True}
+
+@router.post('/auth/refresh')
+def refresh_session(request:Request,response:Response):
+    """Rotate the session and CSRF token without extending absolute lifetime."""
+    user=_auth(request,True);now=time.time()
+    old_hash=_hash(request.cookies.get('qb_session',''))
+    raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(24)
+    with closing(db()) as conn:
+        session=conn.execute('SELECT expires_at,created_at FROM app_sessions WHERE token_hash=? AND expires_at>?',(old_hash,now)).fetchone()
+        if not session:raise HTTPException(401,'Session expired')
+        claimed=conn.execute('DELETE FROM app_sessions WHERE token_hash=?',(old_hash,))
+        if claimed.rowcount!=1:raise HTTPException(401,'Session already rotated')
+        conn.execute('INSERT INTO app_sessions(token_hash,user_id,csrf_token,expires_at,created_at) VALUES(?,?,?,?,?)',(_hash(raw),user['id'],csrf,session['expires_at'],session['created_at']));conn.commit()
+    secure=bool(os.getenv('K_SERVICE')) or os.getenv('APP_BASE_URL','').startswith('https://')
+    age=max(1,int(session['expires_at']-now))
+    response.set_cookie('qb_session',raw,max_age=age,httponly=True,samesite='lax',secure=secure)
+    response.set_cookie('qb_csrf',csrf,max_age=age,samesite='lax',secure=secure)
+    response.headers['Cache-Control']='no-store'
+    return {'ok':True,'expires_in':age}
 
 class ExamIn(BaseModel):
     name:str=Field(min_length=1,max_length=200); description:str='';exam_type:str='';subject:str='';level:str='';instructions:str=''
@@ -422,6 +476,12 @@ def public_exams():
         rows=exam_program_context(conn,rows)
     return [{**dict(row),'proctor_required':bool(row['proctor_required']),'allow_self_registration':bool(row['allow_self_registration'])} for row in rows]
 
+@router.get('/public/programs')
+def public_programs():
+    with closing(db()) as conn:
+        rows=conn.execute("SELECT id,code,name,payload_json FROM programs WHERE status='ACTIVE' ORDER BY name").fetchall()
+    return [{'id':r['id'],'code':r['code'],'name':r['name'],'description':json.loads(r['payload_json'] or '{}').get('description','Structured preparation for '+r['name']+'.')} for r in rows]
+
 @router.post('/public/exams/{exam_id}/register')
 async def public_exam_registration(exam_id:int,request:Request,response:Response):
     if os.getenv('APP_ENV')!='test':
@@ -446,7 +506,7 @@ async def public_exam_registration(exam_id:int,request:Request,response:Response
             uid=user['id'];conn.execute('UPDATE users SET display_name=?,given_name=?,family_name=?,date_of_birth=?,last_login_at=?,updated_at=? WHERE id=?',(name,first,last,dob,now,now,uid))
         conn.execute("INSERT INTO exam_enrollments(exam_id,user_id,status,registered_at,created_at,updated_at,registered_email,registration_source,created_by,full_name_snapshot) VALUES(?,?,'ENROLLED',?,?,?,?,'PUBLIC',?,?) ON CONFLICT(exam_id,user_id) DO UPDATE SET status='ENROLLED',cancelled_at=NULL,updated_at=excluded.updated_at",(exam_id,uid,now,now,now,email,uid,name))
         raw,csrf=secrets.token_urlsafe(32),secrets.token_urlsafe(24);conn.execute('INSERT INTO app_sessions(token_hash,user_id,csrf_token,expires_at,created_at) VALUES(?,?,?,?,?)',(_hash(raw),uid,csrf,now+SESSION_SECONDS,now));conn.commit();user=conn.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone()
-    secure=os.getenv('APP_BASE_URL','').startswith('https://');response.set_cookie('qb_session',raw,max_age=SESSION_SECONDS,httponly=True,samesite='lax',secure=secure);response.set_cookie('qb_csrf',csrf,max_age=SESSION_SECONDS,httponly=False,samesite='lax',secure=secure)
+    secure=(bool(os.getenv('K_SERVICE')) or os.getenv('APP_BASE_URL','').startswith('https://'));response.set_cookie('qb_session',raw,max_age=SESSION_SECONDS,httponly=True,samesite='lax',secure=secure);response.set_cookie('qb_csrf',csrf,max_age=SESSION_SECONDS,httponly=False,samesite='lax',secure=secure)
     return {'registered':True,'exam_id':exam_id,'user':_public_user(user)}
 
 @router.get('/exams')
@@ -592,7 +652,13 @@ def get_session(sid:int,request:Request):
     return {'session':safe_session,'exam':dict(exam),'server_time':time.time(),'questions':questions}
 @router.put('/sessions/{sid}/answers/{qid}')
 async def save_answer(sid:int,qid:int,request:Request):
-    user=_auth(request,True);data=await request.json();selected=str(data.get('selected_answer',''));now=time.time()
+    from starlette.concurrency import run_in_threadpool
+    data=await request.json()
+    return await run_in_threadpool(_save_answer_sync,sid,qid,request,data)
+
+def _save_answer_sync(sid:int,qid:int,request:Request,data:dict):
+    # The PostgreSQL adapter is synchronous; never wait for it on the event loop.
+    user=_auth(request,True);selected=str(data.get('selected_answer',''));now=time.time()
     with closing(db()) as conn:
         s=_session(conn,sid,user['id'])
         if s['status']!='IN_PROGRESS':raise HTTPException(409,'Submitted exams cannot be modified')
@@ -784,9 +850,41 @@ async def set_user_role(user_id:int,request:Request):
     admin=require_admin(_auth(request,True));data=await request.json();role=str(data.get('role','')).upper()
     if role not in {'ADMIN','PROCTOR','OPERATOR','STUDENT'}:raise HTTPException(400,'Invalid role')
     if user_id==admin['id']:raise HTTPException(409,'Administrators cannot change their own role')
-    with closing(db()) as conn:cur=conn.execute('UPDATE users SET role=?,updated_at=? WHERE id=?',(role,time.time(),user_id));conn.commit()
+    with closing(db()) as conn:
+        target=conn.execute('SELECT email FROM users WHERE id=?',(user_id,)).fetchone()
+        if not target: raise HTTPException(404,'User not found')
+        if role=='OPERATOR' and not conn.execute('SELECT 1 FROM operator_email_allowlist WHERE lower(email)=? AND active=1',(target['email'].strip().lower(),)).fetchone():
+            raise HTTPException(403,'Add this email to the active Operator allowlist before assigning Operator role')
+        cur=conn.execute('UPDATE users SET role=?,updated_at=? WHERE id=?',(role,time.time(),user_id))
+        if os.getenv('REQUIRE_STAFF_MFA')=='1':
+            conn.execute('DELETE FROM app_sessions WHERE user_id=?',(user_id,))
+        conn.commit()
     if not cur.rowcount:raise HTTPException(404,'User not found')
     return {'id':user_id,'role':role}
+
+@router.get('/admin/operator-allowlist')
+def operator_allowlist(request:Request):
+    require_admin(_auth(request))
+    with closing(db()) as conn: rows=conn.execute('SELECT id,email,active,created_at,updated_at FROM operator_email_allowlist ORDER BY email').fetchall()
+    return [dict(r) for r in rows]
+
+@router.post('/admin/operator-allowlist')
+async def add_operator_email(request:Request):
+    admin=require_admin(_auth(request,True)); data=await request.json(); email=str(data.get('email','')).strip().lower()
+    if not re.fullmatch(r'[^@\s]+@[^@\s]+\.[^@\s]+',email): raise HTTPException(422,'Enter a valid email address')
+    now=time.time()
+    with closing(db()) as conn:
+        conn.execute('INSERT INTO operator_email_allowlist(email,active,created_by,created_at,updated_at) VALUES(?,1,?,?,?) ON CONFLICT(email) DO UPDATE SET active=1,updated_at=?',(email,admin['id'],now,now,now)); conn.commit()
+    return {'email':email,'active':True}
+
+@router.delete('/admin/operator-allowlist/{email}')
+def remove_operator_email(email:str,request:Request):
+    admin=require_admin(_auth(request,True)); email=email.strip().lower(); now=time.time()
+    with closing(db()) as conn:
+        conn.execute('UPDATE operator_email_allowlist SET active=0,updated_at=? WHERE lower(email)=?',(now,email))
+        conn.execute("UPDATE users SET role='STUDENT',updated_at=? WHERE lower(email)=? AND role='OPERATOR'",(now,email))
+        conn.execute('DELETE FROM app_sessions WHERE user_id IN (SELECT id FROM users WHERE lower(email)=?)',(email,)); conn.commit()
+    return {'email':email,'active':False}
 
 @router.get('/dashboard')
 def dashboard(request:Request):

@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import re
 import sqlite3
+import threading
 from collections.abc import Iterator, Mapping
 
 
@@ -116,11 +117,29 @@ class PostgresConnection:
         self.close()
 
 
+_engines={}
+_engine_lock=threading.Lock()
+
 def connect(sqlite_path: str):
     url=os.getenv('DATABASE_URL','').strip()
     if not url:
         connection=sqlite3.connect(sqlite_path);connection.row_factory=sqlite3.Row;connection.execute('PRAGMA foreign_keys = ON');return connection
     import psycopg
     from psycopg.rows import dict_row
+    if os.getenv('DB_POOL_ENABLED')=='1':
+        from sqlalchemy import create_engine
+        key=(os.getpid(),url)
+        with _engine_lock:
+            if key not in _engines:
+                sqlalchemy_url=url.replace('postgresql://','postgresql+psycopg://',1)
+                _engines[key]=create_engine(sqlalchemy_url,
+                    pool_size=int(os.getenv('DB_POOL_SIZE','5')),max_overflow=0,
+                    pool_timeout=5,pool_recycle=300,pool_pre_ping=True,
+                    connect_args={'connect_timeout':5,
+                      'options':'-c statement_timeout=30000 -c lock_timeout=5000 -c idle_in_transaction_session_timeout=60000'})
+            engine=_engines[key]
+        connection=engine.raw_connection()
+        connection.driver_connection.row_factory=dict_row
+        return PostgresConnection(connection)
     if url.startswith('postgresql+psycopg://'):url='postgresql://'+url.split('://',1)[1]
     return PostgresConnection(psycopg.connect(url,row_factory=dict_row))

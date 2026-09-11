@@ -2,7 +2,8 @@ from unittest.mock import patch
 from tests.test_programs import clients
 
 
-def test_google_role_choice_does_not_grant_permissions(clients):
+def test_google_role_choice_does_not_grant_permissions(clients, monkeypatch):
+    monkeypatch.setenv('GOOGLE_CLIENT_ID','test-client.apps.googleusercontent.com')
     admin, student, anon = clients
     identity = {'sub':'new-flag-google', 'email':'flag-login@example.test', 'email_verified':True, 'name':'FLAG learner'}
     with patch('google.oauth2.id_token.verify_oauth2_token', return_value=identity):
