@@ -29,9 +29,15 @@ def main():
         if conn.execute("SELECT rolsuper OR rolcreatedb OR rolcreaterole FROM pg_roles WHERE rolname=current_user").fetchone()[0]:raise RuntimeError('Runtime role is privileged')
         if conn.execute("SELECT has_schema_privilege(current_user,'public','CREATE')").fetchone()[0]:raise RuntimeError('Runtime must not own schema creation')
         if conn.execute("SELECT has_table_privilege(current_user,'alembic_version','UPDATE')").fetchone()[0]:raise RuntimeError('Runtime must not migrate')
-        if conn.execute('SELECT version_num FROM alembic_version').fetchone()!=('0022_security_sessions',):raise RuntimeError('Reviewed schema version required')
+        expected=os.environ.get('EXPECTED_SCHEMA_REVISION','0022_security_sessions')
+        if expected not in {'0020_dqb_document_controls','0022_security_sessions'}:raise RuntimeError('Unreviewed schema version')
+        if conn.execute('SELECT version_num FROM alembic_version').fetchone()!=(expected,):raise RuntimeError('Reviewed schema version required')
         for table in ('security_mfa','security_session_state','security_rate_limits'):
             if not conn.execute('SELECT to_regclass(%s)',(table,)).fetchone()[0]:raise RuntimeError('Missing security schema')
+        # Resolve required security columns even in backward-compatible expansion mode.
+        conn.execute('SELECT user_id,secret_ciphertext,enabled,last_counter FROM security_mfa LIMIT 0')
+        conn.execute('SELECT token_hash,last_seen,mfa_at FROM security_session_state LIMIT 0')
+        conn.execute('SELECT bucket,hits,expires_at FROM security_rate_limits LIMIT 0')
     print('Production runtime identity, schema and privilege checks passed')
 
 if __name__=='__main__':main()

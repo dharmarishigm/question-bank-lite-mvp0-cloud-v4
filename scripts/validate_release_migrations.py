@@ -15,6 +15,16 @@ with engine.begin() as conn:
         conn.execute(text(f'DROP TABLE IF EXISTS {table}'))
     for column in ('subject','chapter','available_for_digitisation','availability_changed_at','availability_changed_by','updated_at','updated_by'):
         conn.execute(text(f'ALTER TABLE program_documents DROP COLUMN IF EXISTS {column}'))
+# Verify additive security expansion preserves the legacy rollback marker.
+command.upgrade(config, '0020_dqb_document_controls')
+from security_boundary import SCHEMA as QUOTAS
+from security_mfa import SCHEMA as MFA
+from database import translate_ddl
+with engine.begin() as conn:
+    for ddl in (QUOTAS+';'+MFA).split(';'):
+        if ddl.strip():conn.execute(text(translate_ddl(ddl)))
+    assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar()=='0020_dqb_document_controls'
+print('Security schema expansion preserves legacy Alembic marker')
 command.upgrade(config, 'head')
 command.upgrade(config, 'head')
 with engine.connect() as conn:
