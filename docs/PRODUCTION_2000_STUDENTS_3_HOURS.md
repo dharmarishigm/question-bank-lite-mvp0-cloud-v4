@@ -153,3 +153,7 @@ asia-south1-docker.pkg.dev/gen-lang-client-0491787004/qb-security-staging/app@sh
 ```
 
 Local validation: 223 backend tests passed; exam heartbeat test passed; JavaScript/Python syntax and diff checks passed. The three-hour/2,000-student staging soak, production privilege preflight, security launch gaps and promotion gates remain outstanding. This image was built but not deployed to production.
+
+## Subsequent production release — 11 September 2026
+
+The security application release was subsequently deployed as `question-bank-cloud-v4-security-20260911b` with 100% traffic. See [the deployment record](PRODUCTION_DEPLOYMENT_PREFLIGHT_20260911.md) for the immutable image, approved provisioning, validation and rollback. The database was not resized and the 2,000-student/three-hour capacity profile in this document remains a proposal requiring validation.
