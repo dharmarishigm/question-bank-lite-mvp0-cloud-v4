@@ -2,6 +2,7 @@
 from contextlib import closing
 import json
 import logging
+import os
 import time
 from typing import Literal
 
@@ -384,7 +385,10 @@ def run_build(jid):
                 if not missing:
                     break
                 while missing:
-                    count = min(missing, 5)
+                    # Reduce provider round trips for ordinary practice papers,
+                    # while keeping structured output bounded and operator-tunable.
+                    batch_size=max(1,min(20,int(os.getenv('PROGRAM_EXAM_BATCH_SIZE','10'))))
+                    count = min(missing, batch_size)
                     payload = GenerationRequest(exam_name=job['input']['program_name'], subject=section.subject,
                         level=settings.level, language=settings.language, count=count,
                         syllabus=settings.curriculum + '\nSection topics: ' + section.topics,
@@ -455,14 +459,17 @@ def run_build(jid):
             for item in selected:
                 if item['origin'] == 'GENERATED':
                     q = pending[item.pop('pending_index')]
-                    existing=conn.execute('SELECT * FROM questions WHERE generation_fingerprint=? LIMIT 1',(q.generation_fingerprint,)).fetchone()
+                    # Fingerprints are intentionally not globally unique: the same
+                    # stem may exist under another program/prompt scope. Select a
+                    # compatible saved copy instead of failing on whichever row the
+                    # database happens to return first. If a compatible copy was
+                    # corrected while generation ran, its current snapshot is the
+                    # version the administrator reviews and approves.
+                    candidates=[row_to_dict(row) for row in conn.execute('SELECT * FROM questions WHERE generation_fingerprint=? ORDER BY id DESC',(q.generation_fingerprint,)).fetchall()]
+                    existing=next((candidate for candidate in candidates
+                        if question_scope(candidate)==q.generation_metadata['program_exam_scope']
+                        and candidate['verification_status'] in ('APPROVED','VERIFIED','REVIEW_REQUIRED')),None)
                     if existing:
-                        existing=row_to_dict(existing)
-                        if question_scope(existing)!=q.generation_metadata['program_exam_scope'] or existing['verification_status'] not in ('APPROVED','VERIFIED','REVIEW_REQUIRED'):
-                            raise ValueError('A conflicting duplicate was saved while this paper was generating; retry')
-                        rendered=statement_with_question_figures(existing['statement'],existing.get('visual_assets',[]))
-                        if rendered!=q.statement or any(existing[key]!=getattr(q,key) for key in ('subject','difficulty','options','answer','solution')):
-                            raise ValueError('A saved question changed during generation; retry after reviewing it')
                         item['question']=snapshot(existing)
                         continue
                     qid = conn.execute(f'INSERT INTO questions ({", ".join(FIELDS)}, created_at, updated_at) VALUES ({", ".join(["?"] * len(FIELDS))}, ?, ?)', values_of(q)+[time.time(),time.time()]).lastrowid
@@ -477,8 +484,11 @@ def run_build(jid):
     except Exception as exc:
         logging.getLogger(__name__).exception('Guided paper %s failed',jid)
         with closing(db()) as conn:
+            complete=len(selected)==total
+            message=(f'All {total} questions are preserved. Finalization for review was interrupted; retry finalization without regenerating questions. '
+                     if complete else f'Generation paused with {len(selected)} of {total} questions preserved. Retry generation resumes the remaining questions. ')
             conn.execute("UPDATE program_exam_jobs SET status='FAILED',error=?,updated_at=? WHERE id=? AND status='RUNNING' AND updated_at=?",
-                (f'Generation paused with {len(selected)} of {total} questions preserved. Retry generation resumes the remaining questions. No incomplete paper was published. ({type(exc).__name__})',time.time(),jid,lease))
+                (message+f'No incomplete paper was published. ({type(exc).__name__})',time.time(),jid,lease))
             conn.commit()
 
 

@@ -145,7 +145,7 @@ def test_large_paper_batches_and_partial_failure_do_not_save_partial_bank(client
         admin.post(root+'/exam-papers',json={'request_key':'large-paper-key','settings':value})
     job=admin.get(root+'/exam-papers').json()[0]
     assert job['status']=='REVIEW_REQUIRED',job
-    assert calls==[5]*16 and job['result']['generated']==80
+    assert calls==[10]*8 and job['result']['generated']==80
     before=admin.get('/api/questions').json()['total']
     def partial(request):
         if request.subject=='Language':raise RuntimeError('Second section unavailable')
@@ -189,9 +189,9 @@ def test_checkpoint_retry_keeps_completed_batches(clients):
         for q in batch.questions:q.statement='Checkpoint original: '+q.statement
         return batch,usage,model
     with patch('app.generate_questions',side_effect=interrupted),patch('program_exam.time.sleep'):
-        admin.post(root+'/exam-papers',json={'request_key':'checkpoint-request','settings':settings(sections=[{'subject':'Arithmetic','count':8}])})
+        admin.post(root+'/exam-papers',json={'request_key':'checkpoint-request','settings':settings(sections=[{'subject':'Arithmetic','count':13}])})
     job=admin.get(root+'/exam-papers').json()[0]
-    assert job['status']=='FAILED' and job['result']['progress']['completed']==5
+    assert job['status']=='FAILED' and job['result']['progress']['completed']==10
     assert admin.get('/api/questions').json()['total']==0
     stems=[x['question']['statement'] for x in job['result']['questions']]
     resumed=[]
@@ -202,9 +202,9 @@ def test_checkpoint_retry_keeps_completed_batches(clients):
         admin.post(root+f'/exam-papers/{job["id"]}/retry')
     job=admin.get(root+'/exam-papers').json()[0]
     assert job['status']=='REVIEW_REQUIRED' and resumed==[3]
-    assert len(job['result']['questions'])==8
-    assert [x['question']['statement'] for x in job['result']['questions'][:5]]==stems
-    assert admin.get('/api/questions').json()['total']==8
+    assert len(job['result']['questions'])==13
+    assert [x['question']['statement'] for x in job['result']['questions'][:10]]==stems
+    assert admin.get('/api/questions').json()['total']==13
 
 
 def test_manual_batch_save_does_not_break_paper_and_is_reusable(clients):
@@ -225,6 +225,25 @@ def test_manual_batch_save_does_not_break_paper_and_is_reusable(clients):
         admin.post(root+'/exam-papers',json={'request_key':'reuse-manual-batch','settings':settings()})
     job=admin.get(root+'/exam-papers').json()[0]
     assert job['status']=='REVIEW_REQUIRED' and job['result']['reused']==2
+
+
+def test_compatible_question_corrected_during_generation_is_finalized_for_review(clients):
+    import app
+    admin,_,_=clients;pid=create(admin)['id'];root=f'/api/programs/{pid}'
+    original=app.generate_ai_questions_core
+    def save_and_correct_during_generation(payload):
+        batch=original(payload)
+        saved=admin.post(f'/api/ai/runs/{batch["run_id"]}/save',json={})
+        assert saved.status_code==200,saved.text
+        question=admin.get('/api/questions').json()['items'][0]
+        corrected=admin.put(f'/api/questions/{question["id"]}',json={**question,'solution':'Administrator-corrected solution retained for review.'})
+        assert corrected.status_code==200,corrected.text
+        return batch
+    with patch('app.generate_questions',side_effect=author),patch('app.generate_ai_questions_core',side_effect=save_and_correct_during_generation):
+        admin.post(root+'/exam-papers',json={'request_key':'corrected-during-finalization','settings':settings()})
+    job=admin.get(root+'/exam-papers').json()[0]
+    assert job['status']=='REVIEW_REQUIRED',job
+    assert any(item['question']['solution']=='Administrator-corrected solution retained for review.' for item in job['result']['questions'])
 
 
 def test_repeated_click_joins_identical_running_paper(clients):

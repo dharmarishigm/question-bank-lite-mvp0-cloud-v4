@@ -205,8 +205,9 @@ window.ProgramExam = (() => {
           el('p',`${completed} of ${total} questions ready${progress?.section?' · '+progress.section:''}. Completed work is saved; retries continue from this point.`,card);
           const meter=el('progress','',card);meter.max=total;meter.value=completed;meter.setAttribute('aria-label','Paper generation progress');
         }
-        if(row.status==='FAILED'||(['RUNNING','QUEUED'].includes(row.status)&&Date.now()/1000-row.updated_at>1800))button('Retry generation',card,async()=>{try{await request(`/${program.id}/exam-papers/${row.id}/retry`,'POST');await refresh();}catch(error){status.textContent=error.message;}});
-        if(row.result.questions&&['REVIEW_REQUIRED','DRAFT','PUBLISHED'].includes(row.status)){
+        const requestedTotal=setup.sections.reduce((n,s)=>n+s.count,0),completeFailure=row.status==='FAILED'&&(row.result.questions?.length||0)===requestedTotal;
+        if(row.status==='FAILED'||(['RUNNING','QUEUED'].includes(row.status)&&Date.now()/1000-row.updated_at>1800))button(completeFailure?'Finalize for review':'Retry generation',card,async event=>{const retryButton=event.currentTarget;retryButton.disabled=true;status.textContent=completeFailure?'Finalizing the preserved paper for review…':'Resuming paper generation…';try{await request(`/${program.id}/exam-papers/${row.id}/retry`,'POST');await refresh();}catch(error){status.textContent=error.message;retryButton.disabled=false;}});
+        if(row.result.questions&&(['REVIEW_REQUIRED','DRAFT','PUBLISHED'].includes(row.status)||completeFailure)){
           el('p',`${row.result.reused} reused from the bank · ${row.result.generated} generated`,card);
           const paper=el('details','',card);el('summary','Review question paper, answers and solutions',paper);
           row.result.questions.forEach((item,index)=>{
@@ -218,6 +219,7 @@ window.ProgramExam = (() => {
             if(q.id)button('Edit / AI correct / Regenerate',block,()=>QuestionCorrection.open(q,{programPaperId:row.id,onSaved:()=>refresh()}));
             if(q.id)button('Report a concern',block,()=>window.ResultTools?.reportConcern(q.id,null));
           });
+          if(completeFailure)el('p','All questions are available to inspect. Finalize the preserved paper to enable approval and publication; no new AI generation is required.',card);
           const frozen=el('details','',card);el('summary','Inputs and prompt used for this paper',frozen);const frozenPrompt=el('div','',frozen);frozenPrompt.className='guided-prompt-markdown';renderInto(frozenPrompt,row.input.effective_prompt);
           if(row.status==='REVIEW_REQUIRED'||row.status==='DRAFT'){
             const reviewed=field('I reviewed the questions, answers and marking scheme','reviewed','','input',card);reviewed.type='checkbox';
