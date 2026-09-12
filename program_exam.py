@@ -39,6 +39,7 @@ class Settings(Contract):
     pattern: str = Field(default='', max_length=10000)
     instructions: str = Field(default='', max_length=5000)
     generation_prompt: str = Field(default='', max_length=20000)
+    additional_conditions: str = Field(default='', max_length=10000)
     sections: list[Section] = Field(default_factory=list, max_length=20)
     reuse_questions: bool = True
     official_lookup_id: int | None = Field(default=None, gt=0)
@@ -171,6 +172,8 @@ def effective_prompt(program, settings):
               '', '## Exam pattern notes', '', settings.pattern,
               '', '## Student instructions', '', settings.instructions,
               '', '## Editable authoring instructions', '', settings.generation_prompt,
+              '', '## Additional conditions supplied by the administrator', '', settings.additional_conditions or 'None specified.',
+              '', 'Apply these additional conditions to every generated question unless they conflict with the structured paper settings, syllabus boundaries, output schema, or system safety requirements.',
               '', '## Difficulty guidance', '', difficulty_guidance[settings.difficulty],
               '', '## Output requirements', '',
               '- Create original single-correct MCQs (`mcq_single`) with four distinct options A–D.',

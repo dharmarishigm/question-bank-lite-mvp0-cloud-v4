@@ -79,6 +79,17 @@ def test_subject_scope_full_sections_and_prompt(clients):
         assert expected in preview
 
 
+def test_additional_conditions_are_frozen_into_final_prompt(clients):
+    admin,_,_=clients;pid=create(admin)['id'];root=f'/api/programs/{pid}'
+    condition='Include exactly one data-interpretation question and avoid calculator-dependent arithmetic.'
+    value=settings(additional_conditions=condition)
+    preview=admin.post(root+'/exam-prompt',json=value).json()['effective_prompt']
+    assert 'Additional conditions supplied by the administrator' in preview and condition in preview
+    job=build(admin,pid,value,key='additional-condition-paper')
+    assert job['input']['settings']['additional_conditions']==condition
+    assert condition in job['input']['effective_prompt']
+
+
 def test_failed_generation_atomicity_retry_and_stale_preview(clients):
     admin,_,_=clients;pid=create(admin)['id'];root=f'/api/programs/{pid}'
     with patch('app.generate_questions',side_effect=RuntimeError('secret upstream error')):

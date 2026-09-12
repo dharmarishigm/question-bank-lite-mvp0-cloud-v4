@@ -72,6 +72,7 @@ window.ProgramExam = (() => {
     const patternButton=button('Load official pattern with AI',form,()=>loadOfficial(true));
     const instructions=field('Student instructions','instructions','','textarea');instructions.maxLength=5000;
     const prompt=field('Editable generation prompt','generation_prompt','','textarea');prompt.rows=8;prompt.maxLength=20000;
+    const additionalConditions=field('Additional conditions for final prompt (optional)','additional_conditions','','textarea');additionalConditions.rows=4;additionalConditions.maxLength=10000;additionalConditions.placeholder='For example: balance numerical and conceptual questions; avoid calculator-dependent arithmetic; include two assertion-reason questions.';
     const promptActions=el('div','',form);promptActions.className='actions wide';
     button('Build prompt from my inputs',promptActions,()=>{
       prompt.value=`Prepare an original ${mode.value==='FULL'?'full':'subject-wise'} ${program.name} paper for ${level.value||'the chosen level'} in ${language.value}. Use ${difficulty.selectedOptions[0].textContent} difficulty. Follow the curriculum, section counts, marking scheme and pattern supplied with this prompt. Cover the listed topics, construct plausible distractors, use clear age-appropriate language, provide one unambiguous correct answer and a worked solution for every question. Include visual reasoning where the curriculum requires it using the supported visual format. Avoid repeated questions and disclose no claims of official approval.`;invalidate();
@@ -95,7 +96,7 @@ window.ProgramExam = (() => {
     button('Copy final prompt',previewBox,async()=>{try{await navigator.clipboard.writeText(rawPrompt.value);status.textContent='Final prompt copied.';}catch{rawPrompt.select();status.textContent='Select and copy the Markdown source.';}});
     const results=el('section','');
     if(options.reviewOnly){form.hidden=true;officialPanel.hidden=true;previewBox.hidden=true;}
-    function settings(){return {name:name.value.trim(),mode:mode.value,level:level.value.trim(),language:language.value.trim(),duration_minutes:Number(duration.value),difficulty:difficulty.value,curriculum:curriculum.value.trim(),pattern:pattern.value.trim(),instructions:instructions.value.trim(),generation_prompt:prompt.value.trim(),sections:readSections(),reuse_questions:reuse.checked,official_lookup_id:officialLookupId};}
+    function settings(){return {name:name.value.trim(),mode:mode.value,level:level.value.trim(),language:language.value.trim(),duration_minutes:Number(duration.value),difficulty:difficulty.value,curriculum:curriculum.value.trim(),pattern:pattern.value.trim(),instructions:instructions.value.trim(),generation_prompt:prompt.value.trim(),additional_conditions:additionalConditions.value.trim(),sections:readSections(),reuse_questions:reuse.checked,official_lookup_id:officialLookupId};}
     let requestKey=null,lastRequest='',timer,previewTimer,previewVersion=0,officialTimer,officialLookupId=null,officialRow=null;
     const totals=el('div','',subjectArea);totals.className='guided-totals';const totalQuestions=field('Total questions','total_questions',0,'input',totals),totalMarks=field('Total marks','total_marks',0,'input',totals);totalQuestions.readOnly=true;totalMarks.readOnly=true;
     function updateTotals(){const values=readSections();totalQuestions.value=values.reduce((n,s)=>n+s.count,0);totalMarks.value=Number(values.reduce((n,s)=>n+s.count*s.marks,0).toFixed(4));}
@@ -135,7 +136,7 @@ window.ProgramExam = (() => {
     function populate(value){
       if(value.mode==='FULL')fullDuration=value.duration_minutes;
       mode.value=value.mode;name.value=value.name;level.value=value.level;language.value=value.language;difficulty.value=value.difficulty;duration.value=value.duration_minutes;
-      curriculum.value=value.curriculum;pattern.value=value.pattern;instructions.value=value.instructions;prompt.value=value.generation_prompt;reuse.checked=value.reuse_questions;officialLookupId=value.official_lookup_id||null;setSections(value.sections);addSubject.hidden=value.mode==='SUBJECT';updateTotals();
+      curriculum.value=value.curriculum;pattern.value=value.pattern;instructions.value=value.instructions;prompt.value=value.generation_prompt;additionalConditions.value=value.additional_conditions||'';reuse.checked=value.reuse_questions;officialLookupId=value.official_lookup_id||null;setSections(value.sections);addSubject.hidden=value.mode==='SUBJECT';updateTotals();
     }
     function showOfficial(){
       officialPanel.replaceChildren();const busy=['QUEUED','RUNNING'].includes(officialRow?.status);allButton.disabled=busy;patternButton.disabled=busy;if(!officialRow)return;

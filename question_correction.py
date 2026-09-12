@@ -32,6 +32,7 @@ class Suggestion(Contract):
         # differences; Content still validates the actual replacement strictly.
         if 'question' not in result and 'statement' in result:
             result['question']={key:result.get(key,'' if key!='options' else []) for key in Content.model_fields}
+            for key in Content.model_fields:result.pop(key,None)
         for key in ('changes','uncertainties'):
             note=result.get(key,[])
             result[key]=[note] if isinstance(note,str) and note.strip() else (note or [])

@@ -31,6 +31,11 @@ def test_suggestion_recovers_with_text_when_first_provider_attempt_fails(clients
  assert r.status_code==200,r.text
  assert llm.call_count==2 and r.json()['saved'] is False
 
+def test_suggestion_normalizes_safe_provider_shape_variations():
+ flat={'statement':'Replacement question','options':['A','B'],'answer':'A','solution':'Because A.','changes':'Replaced question'}
+ proposal=Suggestion.model_validate(flat)
+ assert proposal.question.statement=='Replacement question' and proposal.changes==['Replaced question'] and proposal.uncertainties==[]
+
 def test_paper_syllabus_replacement_uses_server_frozen_context(clients):
  admin,_,_=clients;q=question(admin)
  p=admin.post('/api/programs',json={'code':'REPLACE','name':'Replacement','status':'ACTIVE'}).json();uid=admin.get('/api/auth/me').json()['id']
