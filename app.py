@@ -1328,7 +1328,19 @@ def generate_ai_questions_core(payload: GenerationRequest):
     with closing(connect()) as conn:
         conn.execute("INSERT INTO ai_generation_runs(id,exam_name,exam_type,level,subject,chapter,topic,subtopic,difficulty,question_type,requested_count,language,system_prompt_version,generation_prompt,syllabus,metadata_json,request_json,status,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'RUNNING',?)",(run_id,payload.exam_name,payload.exam_type,payload.level,payload.subject,payload.chapter,payload.topic,payload.subtopic,payload.difficulty,payload.question_type,payload.count,payload.language,SYSTEM_PROMPT_VERSION,payload.generation_prompt,payload.syllabus,json.dumps(metadata,ensure_ascii=False),payload.model_dump_json(),now));conn.commit()
     try:
-        batch,usage,model=generate_questions(payload)
+        manual_batch_size=max(1,min(10,int(os.getenv('AI_INTERACTIVE_BATCH_SIZE','5'))))
+        if payload.count>manual_batch_size and not payload.extra_metadata.get('program_exam_job_id'):
+            from concurrent.futures import ThreadPoolExecutor
+            counts=[manual_batch_size]*(payload.count//manual_batch_size)
+            if payload.count%manual_batch_size:counts.append(payload.count%manual_batch_size)
+            requests=[payload.model_copy(update={'count':count,'generation_prompt':payload.generation_prompt+f'\n\nINTERACTIVE BATCH {index+1} OF {len(counts)}: use a distinct mix of concepts and scenarios.'}) for index,count in enumerate(counts)]
+            with ThreadPoolExecutor(max_workers=min(4,len(requests)),thread_name_prefix='question-batch') as pool:
+                batches=list(pool.map(generate_questions,requests))
+            batch=batches[0][0].model_copy(update={'questions':[question for result,_,_ in batches for question in result.questions]})
+            usage=dict(batches[0][1]);usage['interactive_batches']=len(batches)
+            model=batches[0][2]
+        else:
+            batch,usage,model=generate_questions(payload)
         review=[];rejected=0;seen=set()
         for generated in batch.questions:
             if generated.visual_required and generated.visual_spec:
@@ -1345,11 +1357,14 @@ def generate_ai_questions_core(payload: GenerationRequest):
             prompt_version=f"QUESTION_GENERATE:v{usage.get('prompt_version_id','')}"
             conn.execute("UPDATE ai_generation_runs SET generated_count=?,rejected_count=?,model=?,system_prompt_version=?,output_json=?,usage_json=?,status='REVIEW_REQUIRED' WHERE id=?",(len(batch.questions),rejected,model,prompt_version,json.dumps({"questions":review},ensure_ascii=False),json.dumps(usage),run_id))
             from prompt_registry import bind_prompt
-            prompt_row=conn.execute('SELECT v.*,d.prompt_key FROM prompt_versions v JOIN prompt_definitions d ON d.id=v.prompt_definition_id WHERE v.id=?',(usage.get('prompt_version_id'),)).fetchone()
+            prompt_row=(conn.execute('SELECT v.*,d.prompt_key FROM prompt_versions v JOIN prompt_definitions d ON d.id=v.prompt_definition_id WHERE v.id=?',(usage.get('prompt_version_id'),)).fetchone()
+                        if usage.get('prompt_version_id') else None)
             if prompt_row:bind_prompt(conn,run_type='QUESTION_GENERATION',run_id=run_id,resolved={**dict(prompt_row),'key':prompt_row['prompt_key']},model=model,parameters={'requested_count':payload.count})
             conn.commit()
         return {"run_id":run_id,"exam":payload.exam_name,"subject":payload.subject,"requested":payload.count,"generated":len(batch.questions),"accepted":0,"rejected":rejected,"review_required":len(review),"model":model,"questions":review,"saved":False}
     except Exception as exc:
+        import logging
+        logging.getLogger(__name__).exception('Question generation run %s failed type=%s',run_id,type(exc).__name__)
         with closing(connect()) as conn:conn.execute("UPDATE ai_generation_runs SET status='FAILED',error_message=? WHERE id=?",(str(exc)[:2000],run_id));conn.commit()
         if isinstance(exc,(ValueError,RuntimeError)): raise HTTPException(422,str(exc)) from exc
         raise HTTPException(502,"Question generation failed") from exc

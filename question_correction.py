@@ -22,6 +22,20 @@ class Suggestion(Contract):
     question:Content
     changes:list[str]=Field(default_factory=list,max_length=30)
     uncertainties:list[str]=Field(default_factory=list,max_length=30)
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_provider_shape(cls,value):
+        if not isinstance(value,dict):return value
+        result=dict(value)
+        # Some valid Gemini responses flatten the question despite the response
+        # schema, or omit optional review notes. Normalize only those safe shape
+        # differences; Content still validates the actual replacement strictly.
+        if 'question' not in result and 'statement' in result:
+            result['question']={key:result.get(key,'' if key!='options' else []) for key in Content.model_fields}
+        for key in ('changes','uncertainties'):
+            note=result.get(key,[])
+            result[key]=[note] if isinstance(note,str) and note.strip() else (note or [])
+        return result
 class SuggestInput(Contract):
     mode:Literal['correct','regenerate','replace_from_paper']='correct'
     source_image:str=Field(default='',max_length=1000)

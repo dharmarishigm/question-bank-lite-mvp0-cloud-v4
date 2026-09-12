@@ -263,6 +263,18 @@ def unpack(row):
     return item
 
 
+def schedule_build(tasks, jid):
+    # Starlette waits for BackgroundTasks before completing the HTTP request.
+    # In Cloud Run that kept a nominal 202 request open for the whole AI build
+    # and exposed it to the request timeout. Production has always-allocated CPU,
+    # so detach the resumable/checkpointed worker and return the job immediately.
+    if os.getenv('APP_ENV') == 'test':
+        tasks.add_task(run_build,jid)
+    else:
+        from threading import Thread
+        Thread(target=run_build,args=(jid,),name=f'program-paper-{jid}',daemon=True).start()
+
+
 @router.post('/{pid}/exam-papers', status_code=202)
 def build(pid: int, data: BuildInput, request: Request, tasks: BackgroundTasks):
     user = require_admin(_auth(request, True))
@@ -288,7 +300,7 @@ def build(pid: int, data: BuildInput, request: Request, tasks: BackgroundTasks):
             raise HTTPException(409, 'This request key already belongs to different inputs')
         conn.commit()
         if inserted.rowcount:
-            tasks.add_task(run_build, row['id'])
+            schedule_build(tasks,row['id'])
         return unpack(row)
 
 
@@ -310,7 +322,7 @@ def retry(pid: int, jid: int, request: Request, tasks: BackgroundTasks):
         if not changed.rowcount:
             raise HTTPException(409, 'Only failed or interrupted generation can be retried')
         conn.commit()
-    tasks.add_task(run_build, jid)
+    schedule_build(tasks,jid)
     return {'id': jid, 'status': 'QUEUED'}
 
 
