@@ -107,6 +107,7 @@ body { background: var(--canvas); color: var(--ink); font: 14px/1.45 Inter, ui-s
 .proctor-code-once { margin: 16px 0; padding: 18px; color: white; background: #102d2a; border-radius: var(--radius-lg); text-align: center; }
 .proctor-code-once strong { display: block; font-size: 30px; letter-spacing: .18em; }
 .exam-start-box { width: min(520px,calc(100vw - 32px)); }.exam-start-box label { display: grid; gap: 5px; margin: 16px 0; }.exam-start-box input { font-size: 20px; letter-spacing: .12em; text-transform: uppercase; }
+.exam-start-instructions { margin: 14px 0; padding: 14px; border: 1px solid #d9e6ff; border-radius: 10px; background: #f8fbff; }.exam-start-instructions h3 { margin: 0 0 8px; }.exam-start-instructions li { margin: 6px 0; }.exam-start-instructions .exam-consent { display: flex; gap: 8px; align-items: flex-start; font-weight: 700; }.exam-start-instructions .exam-consent input { width: auto; margin-top: 4px; }
 .exam-focus .sidebar,.exam-focus #app-header,.exam-focus .site-footer { display: none !important; }.exam-focus .app-shell { display: block; min-height: 100vh; }.exam-focus #main-content { padding-top: 18px; }
 .conduct-section { margin-top: 20px; }.conduct-section > .actions { margin-bottom: 10px; }.conduct-section > .actions input { width: min(360px,100%); }.conduct-section h4 { margin: 0 0 10px; font-size: 16px; }
 /* Public registration and attempt review */

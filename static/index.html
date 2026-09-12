@@ -187,9 +187,20 @@
 
   <section id="exam-panel" class="tab-panel" hidden>
     <section class="panel">
-      <div class="section-heading"><div><h2>Generate Exam</h2><p class="muted">Generate and start a standard timed paper with navigation, review flags, answer clearing, and final submission.</p></div></div>
+        <div class="section-heading"><div><h2>Generate Exam</h2><p class="muted">Generate and start a standard timed paper with navigation, review flags, answer clearing, and final submission.</p></div><button id="exam-demo-button" type="button">Try demo exam</button></div>
 
       <div id="exam-session-empty">
+        <section class="exam-instructions" aria-labelledby="exam-instructions-title">
+          <h3 id="exam-instructions-title">Before you begin</h3>
+          <p>This practice exam is timed for 30 minutes and contains up to 15 questions. Answers are saved as you move between questions.</p>
+          <ul>
+            <li>Use Previous, Next, Mark for review, and Clear response to manage your paper.</li>
+            <li>Do not refresh, close the tab, copy content, take screenshots, or use browser shortcuts during an examination.</li>
+            <li>Keep a stable connection. If the connection drops, reconnect before submitting.</li>
+            <li>Submit only when you are finished; submission is final.</li>
+          </ul>
+          <label class="exam-consent"><input id="exam-consent" type="checkbox"> I have read and accept these examination instructions.</label>
+        </section>
         <form id="exam-blueprint-form" class="exam-blueprint-form">
           <fieldset><legend>Exam information</legend><div class="blueprint-global-grid">
             <label>Exam name *<input id="blueprint-name" required placeholder="Grade 8 Mathematics Olympiad" /></label><label>Exam type<input id="blueprint-type" placeholder="Olympiad" /></label>
@@ -209,10 +220,12 @@
       <div id="exam-session" class="exam-session" oncopy="return false" oncut="return false" onpaste="return false" oncontextmenu="return false" onselectstart="return false" ondragstart="return false" hidden>
         <div class="exam-header-bar">
           <div class="exam-status-group">
-            <strong>Exam in progress</strong>
+            <strong><img class="exam-logo" src="/static/app-icon.svg" alt="MeritIQra"> <span id="exam-header-name">Exam in progress</span></strong>
             <span id="exam-progress-text"></span>
           </div>
+          <div class="exam-context" aria-label="Exam context"><span id="exam-header-program">Program</span> · <span id="exam-header-subject">Subject</span> · <span id="exam-header-student">Student</span> · <span id="exam-header-section">Section</span></div>
           <div class="exam-timer" id="exam-timer">30:00</div>
+          <span id="exam-save-status" class="exam-save-status" role="status" aria-live="polite">Not saved</span>
           <a id="exam-home" class="btn exam-home" href="/">Home</a>
         </div>
         <div id="exam-security-notice" class="exam-security-notice" role="status">Secure exam mode · Fullscreen required · Copying, tab switching and leaving the browser are monitored.</div>
@@ -494,7 +507,7 @@
   </div>
 </div>
 
-<div id="exam-start-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="exam-start-title" hidden><div class="modal-box exam-start-box"><div class="modal-head"><h2 id="exam-start-title">Start examination</h2><span class="spacer"></span><button id="exam-start-close">Close</button></div><div id="exam-start-details"></div><label id="proctor-code-field">Enter Proctor Code<input id="student-proctor-code" autocomplete="one-time-code" /></label><div class="actions"><button id="verify-start-exam" class="primary">Verify &amp; Start Exam</button></div><p id="exam-start-status" class="muted" role="status"></p></div></div>
+<div id="exam-start-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="exam-start-title" hidden><div class="modal-box exam-start-box"><div class="modal-head"><h2 id="exam-start-title">Start examination</h2><span class="spacer"></span><button id="exam-start-close">Close</button></div><div id="exam-start-details"></div><section class="exam-start-instructions" aria-labelledby="exam-start-instructions-title"><h3 id="exam-start-instructions-title">Before you begin</h3><ul><li>Your timer is controlled by the server and continues after refresh or reconnect.</li><li>Answers save automatically. Submission is final.</li><li>Tab switching, copy/paste, printing, and fullscreen exits may be recorded.</li></ul><label class="exam-consent"><input id="exam-start-consent" type="checkbox"> I have read and accept the examination instructions.</label></section><label id="proctor-code-field">Enter Proctor Code<input id="student-proctor-code" autocomplete="one-time-code" /></label><div class="actions"><button id="verify-start-exam" class="primary" disabled>Verify &amp; Start Exam</button></div><p id="exam-start-status" class="muted" role="status"></p></div></div>
 
 <input id="upload-file" type="file" accept="image/*" hidden />
 <div id="notification" class="notification" role="status" aria-live="polite" hidden></div>
@@ -503,7 +516,7 @@
 <script src="/static/app.js?v=20260910-sync"></script>
 <script src="/static/pdf-viewer.js?v=20260911-validated"></script>
 <script src="/static/registration-flow.js?v=20260910-access-v3"></script>
-<script src="/static/platform-ui.js?v=20260910-access-v3"></script>
+<script src="/static/platform-ui.js?v=20260912-consent-fix"></script>
 <script src="/static/performance-workspace.js?v=20260911-performance-fix"></script>
 <script src="/static/performance-empty-state.js?v=20260910-lab"></script>
 <script src="/static/mentor.js?v=20260910-access-v3"></script>
@@ -529,6 +542,6 @@
 <link rel="stylesheet" href="/static/engagement.css?v=20260910" />
 <script src="/static/engagement.js?v=20260910"></script>
 <link rel="stylesheet" href="/static/grand-tests.css?v=20260911-review-save" />
-<script src="/static/grand-tests.js?v=20260911-review-save"></script>
+<script src="/static/digitaliq-capture.js?v=20260912"></script><script src="/static/grand-tests.js?v=20260911-review-save"></script>
 </body>
 </html>

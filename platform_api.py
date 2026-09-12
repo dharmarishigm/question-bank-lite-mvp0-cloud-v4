@@ -79,12 +79,18 @@ def db():
     from app import connect
     return connect()
 
+TIMING_COLUMNS={'grace_period_minutes':'INTEGER NOT NULL DEFAULT 0','section_timing_json':"TEXT NOT NULL DEFAULT '{}'"}
+
 def init_platform():
     from security_boundary import SCHEMA as SECURITY_SCHEMA
     with closing(db()) as conn:
         conn.executescript(SECURITY_SCHEMA); conn.commit()
     with closing(db()) as conn:
         conn.executescript(SCHEMA); conn.commit()
+        columns={row['name'] for row in conn.execute('PRAGMA table_info(exams)')}
+        for name,ddl in TIMING_COLUMNS.items():
+            if name not in columns: conn.execute(f'ALTER TABLE exams ADD COLUMN {name} {ddl}')
+        conn.commit()
     from security_mfa import SCHEMA as MFA_SCHEMA
     with closing(db()) as conn:
         conn.executescript(MFA_SCHEMA);conn.commit()
@@ -346,7 +352,7 @@ def refresh_session(request:Request,response:Response):
 
 class ExamIn(BaseModel):
     name:str=Field(min_length=1,max_length=200); description:str='';exam_type:str='';subject:str='';level:str='';instructions:str=''
-    duration_minutes:int=Field(default=30,ge=1,le=1440);negative_marking:float=0;status:str='DRAFT';max_attempts:int=Field(default=1,ge=1,le=20)
+    duration_minutes:int=Field(default=30,ge=1,le=1440);grace_period_minutes:int=Field(default=0,ge=0,le=120);section_timing:dict[str,int]=Field(default_factory=dict);negative_marking:float=0;status:str='DRAFT';max_attempts:int=Field(default=1,ge=1,le=20)
     registration_start_at:float|None=None;registration_end_at:float|None=None;exam_start_at:float|None=None;exam_end_at:float|None=None
     proctor_required:bool=False;result_release_mode:str='IMMEDIATE'
     allow_retake:bool=False;allow_self_registration:bool=True;allow_registration_link:bool=True
@@ -529,7 +535,7 @@ async def create_exam(request:Request):
     if data.status not in {'DRAFT','PUBLISHED','OPEN','CLOSED','ARCHIVED'}: raise HTTPException(400,'Invalid status')
     if data.status in {'PUBLISHED','OPEN'} and not data.question_ids:raise HTTPException(409,'Add at least one question before publishing or opening an exam')
     with closing(db()) as conn:
-        cur=conn.execute('INSERT INTO exams(name,description,exam_type,subject,level,instructions,duration_minutes,negative_marking,status,max_attempts,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',(*[getattr(data,k) for k in ('name','description','exam_type','subject','level','instructions','duration_minutes','negative_marking','status','max_attempts')],user['id'],now,now)); eid=cur.lastrowid
+        cur=conn.execute('INSERT INTO exams(name,description,exam_type,subject,level,instructions,duration_minutes,grace_period_minutes,section_timing_json,negative_marking,status,max_attempts,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(*[getattr(data,k) for k in ('name','description','exam_type','subject','level','instructions','duration_minutes')],data.grace_period_minutes,json.dumps(data.section_timing),data.negative_marking,data.status,data.max_attempts,user['id'],now,now)); eid=cur.lastrowid
         for i,qid in enumerate(data.question_ids): conn.execute('INSERT INTO exam_questions(exam_id,question_id,display_order,marks,negative_marks,created_at) VALUES(?,?,?,?,?,?)',(eid,qid,i+1,1,data.negative_marking,now))
         conn.execute('UPDATE exams SET total_marks=(SELECT COALESCE(SUM(marks),0) FROM exam_questions WHERE exam_id=?) WHERE id=?',(eid,eid));conn.commit()
         conn.execute('UPDATE exams SET registration_start_at=?,registration_end_at=?,exam_start_at=?,exam_end_at=?,proctor_required=?,result_release_mode=?,allow_retake=?,allow_self_registration=?,allow_registration_link=? WHERE id=?',(data.registration_start_at,data.registration_end_at,data.exam_start_at,data.exam_end_at,int(data.proctor_required),data.result_release_mode,int(data.allow_retake),int(data.allow_self_registration),int(data.allow_registration_link),eid));conn.commit()
@@ -544,7 +550,7 @@ async def update_exam(exam_id:int,request:Request):
     if data.status in {'PUBLISHED','OPEN'} and not data.question_ids:raise HTTPException(409,'Add at least one question before publishing or opening an exam')
     with closing(db()) as conn:
         if not conn.execute('SELECT 1 FROM exams WHERE id=?',(exam_id,)).fetchone():raise HTTPException(404,'Exam not found')
-        conn.execute('UPDATE exams SET name=?,description=?,exam_type=?,subject=?,level=?,instructions=?,duration_minutes=?,negative_marking=?,status=?,max_attempts=?,updated_at=? WHERE id=?',(*[getattr(data,k) for k in ('name','description','exam_type','subject','level','instructions','duration_minutes','negative_marking','status','max_attempts')],now,exam_id))
+        conn.execute('UPDATE exams SET name=?,description=?,exam_type=?,subject=?,level=?,instructions=?,duration_minutes=?,grace_period_minutes=?,section_timing_json=?,negative_marking=?,status=?,max_attempts=?,updated_at=? WHERE id=?',(*[getattr(data,k) for k in ('name','description','exam_type','subject','level','instructions','duration_minutes')],data.grace_period_minutes,json.dumps(data.section_timing),data.negative_marking,data.status,data.max_attempts,now,exam_id))
         conn.execute('DELETE FROM exam_questions WHERE exam_id=?',(exam_id,))
         for i,qid in enumerate(data.question_ids):conn.execute('INSERT INTO exam_questions(exam_id,question_id,display_order,marks,negative_marks,created_at) VALUES(?,?,?,?,?,?)',(exam_id,qid,i+1,1,data.negative_marking,now))
         conn.execute('UPDATE exams SET total_marks=(SELECT COALESCE(SUM(marks),0) FROM exam_questions WHERE exam_id=?) WHERE id=?',(exam_id,exam_id));conn.commit()
@@ -618,8 +624,12 @@ def _submit(conn,s,status='SUBMITTED'):
     conn.commit()
 
 @router.post('/exams/{exam_id}/sessions')
-def start_exam(exam_id:int,request:Request):
-    user=_auth(request,True);now=time.time()
+async def start_exam(exam_id:int,request:Request):
+    user=_auth(request,True);now=time.time();body=await request.json() if request.headers.get('content-type','').startswith('application/json') else {}
+    if body.get('consent') is not True:
+        raise HTTPException(422,detail={'reason_code':'CONSENT_REQUIRED','message':'You must accept the examination instructions before starting.'})
+    raw=body.get('consent_client') if isinstance(body.get('consent_client'),dict) else {}
+    consent_metadata={key:str(raw.get(key,''))[:200] for key in ('user_agent','language','screen')}
     with closing(db()) as conn:
         reg=conn.execute("SELECT * FROM exam_enrollments WHERE exam_id=? AND user_id=? AND status='ENROLLED'",(exam_id,user['id'])).fetchone(); exam=conn.execute("SELECT * FROM exams WHERE id=? AND status IN ('PUBLISHED','OPEN')",(exam_id,)).fetchone()
         if not reg or not exam: raise HTTPException(403,'Enrollment in a published exam is required')
@@ -635,7 +645,9 @@ def start_exam(exam_id:int,request:Request):
         else:
             from exam_conduct import _snapshot
             snapshot=_snapshot(conn,exam_id);version_id=None
-        cur=conn.execute("INSERT INTO exam_sessions(exam_id,user_id,registration_id,attempt_number,status,started_at,expires_at,duration_minutes,question_set_json,exam_version_id,created_at,updated_at) VALUES(?,?,?,?,'IN_PROGRESS',?,?,?,?,?,?,?)",(exam_id,user['id'],reg['id'],attempt,now,now+exam['duration_minutes']*60,exam['duration_minutes'],json.dumps(snapshot),version_id,now,now));conn.commit();return {'session_id':cur.lastrowid,'resumed':False}
+        expiry=now+(exam['duration_minutes']+int(exam['grace_period_minutes'] or 0))*60
+        section_timing=exam['section_timing_json'] if 'section_timing_json' in exam.keys() else '{}'
+        cur=conn.execute("INSERT INTO exam_sessions(exam_id,user_id,registration_id,attempt_number,status,started_at,expires_at,duration_minutes,question_set_json,exam_version_id,consent_at,consent_metadata_json,section_timing_json,created_at,updated_at) VALUES(?,?,?,?,'IN_PROGRESS',?,?,?,?,?,?,?,?,?,?)",(exam_id,user['id'],reg['id'],attempt,now,expiry,exam['duration_minutes'],json.dumps(snapshot),version_id,now,json.dumps(consent_metadata),section_timing,now,now));conn.execute("INSERT INTO exam_audit_log(exam_id,user_id,session_id,event_type,metadata_json,created_at) VALUES(?,?,?,?,?,?)",(exam_id,user['id'],cur.lastrowid,'CONSENT_ACCEPTED',json.dumps(consent_metadata),now));conn.commit();return {'session_id':cur.lastrowid,'resumed':False}
 @router.get('/sessions/{sid}')
 def get_session(sid:int,request:Request):
     user=_auth(request)
@@ -649,12 +661,24 @@ def get_session(sid:int,request:Request):
         from correction_sync import annotate
         annotate(conn,questions,snapshot,include_answers=False)
     safe_session={key:s[key] for key in ('id','exam_id','attempt_number','status','started_at','expires_at','duration_minutes')}
-    return {'session':safe_session,'exam':dict(exam),'server_time':time.time(),'questions':questions}
+    return {'session':{**safe_session,'section_timing':json.loads(s['section_timing_json'] or '{}') if 'section_timing_json' in s.keys() else {}},'exam':dict(exam),'server_time':time.time(),'questions':questions}
 @router.put('/sessions/{sid}/answers/{qid}')
 async def save_answer(sid:int,qid:int,request:Request):
     from starlette.concurrency import run_in_threadpool
     data=await request.json()
     return await run_in_threadpool(_save_answer_sync,sid,qid,request,data)
+
+def _section_expiry(session,snapshot,qid,now):
+    try: limits={str(k):max(1,int(v))*60 for k,v in json.loads(session['section_timing_json'] or '{}').items()}
+    except (TypeError,ValueError,json.JSONDecodeError): return None
+    if not limits or not snapshot:return None
+    names=[]
+    for row in snapshot:
+        name=str(row.get('section_name') or row.get('section') or 'General')
+        if name not in names:names.append(name)
+    current=next((str(row.get('section_name') or row.get('section') or 'General') for row in snapshot if int(row.get('id'))==qid),None)
+    if current not in limits:return None
+    return session['started_at']+sum(limits.get(name,0) for name in names[:names.index(current)+1])
 
 def _save_answer_sync(sid:int,qid:int,request:Request,data:dict):
     # The PostgreSQL adapter is synchronous; never wait for it on the event loop.
@@ -664,6 +688,11 @@ def _save_answer_sync(sid:int,qid:int,request:Request,data:dict):
         if s['status']!='IN_PROGRESS':raise HTTPException(409,'Submitted exams cannot be modified')
         snapshot=json.loads(s['question_set_json'] or '[]') if 'question_set_json' in s.keys() else [];exists=any(int(q['id'])==qid for q in snapshot) if snapshot else conn.execute('SELECT 1 FROM exam_questions WHERE exam_id=? AND question_id=?',(s['exam_id'],qid)).fetchone()
         if not exists:raise HTTPException(404,'Question not in this exam')
+        section_expiry=_section_expiry(s,snapshot,qid,now)
+        if section_expiry is not None and now>=section_expiry:
+            from exam_conduct import audit
+            from platform_api import _submit
+            _submit(conn,s,'AUTO_SUBMITTED');audit(conn,'SECTION_TIMER_EXPIRED',exam_id=s['exam_id'],user_id=user['id'],session_id=sid,metadata={'question_id':qid});conn.commit();raise HTTPException(409,'This section time has expired; the exam was submitted automatically.')
         state='ANSWERED' if selected else 'NOT_ANSWERED';conn.execute('INSERT INTO exam_answers(session_id,question_id,selected_answer,answer_payload_json,is_answered,answered_at,first_answered_at,status,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,question_id) DO UPDATE SET selected_answer=excluded.selected_answer,answer_payload_json=excluded.answer_payload_json,is_answered=excluded.is_answered,answered_at=excluded.answered_at,first_answered_at=COALESCE(exam_answers.first_answered_at,excluded.first_answered_at),status=CASE WHEN exam_answers.status IN (\'MARKED_FOR_REVIEW\',\'ANSWERED_AND_MARKED\') THEN CASE WHEN excluded.is_answered=1 THEN \'ANSWERED_AND_MARKED\' ELSE \'MARKED_FOR_REVIEW\' END ELSE excluded.status END,updated_at=excluded.updated_at',(sid,qid,selected,json.dumps(data.get('answer_payload',{})),int(bool(selected)),now,now if selected else None,state,now));
         from exam_conduct import audit
         audit(conn,'ANSWER_SAVED',exam_id=s['exam_id'],user_id=user['id'],session_id=sid,metadata={'question_id':qid});conn.commit()

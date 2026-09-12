@@ -1565,6 +1565,8 @@ function renderExamCurrentQuestion() {
   const container = $('exam-current-question');
   if (!container || !examState.questions.length) return;
   const question = examState.questions[examState.currentIndex];
+  $('exam-header-subject').textContent = question.subject || 'General subject';
+  $('exam-header-section').textContent = question.section_name || `Section ${examState.currentIndex + 1}`;
   const questionNumber = question.number || examState.currentIndex + 1;
   const questionKey = getExamQuestionKey(examState.currentIndex);
   const selected = examState.answers[questionKey] ?? '';
@@ -1707,6 +1709,12 @@ function submitExamSession(force = false) {
 }
 
 async function startExamSession() {
+  const consent = $('exam-consent');
+  if (consent && !consent.checked) {
+    notify('Accept the examination instructions before starting.');
+    consent.focus();
+    return;
+  }
   const sessionEmpty = $('exam-session-empty');
   const questions = examState.questions.length ? examState.questions : await loadExamPaperIntoTab();
   if (!questions.length) {
@@ -1954,7 +1962,25 @@ $('exam-reset-form')?.addEventListener('click', () => {
   if (status) status.textContent = 'Only Gmail accounts can register. Confirm the link sent to your Google account before final submission.';
 });
 $('exam-start-button')?.addEventListener('click', startExamSession);
+$('exam-consent')?.addEventListener('change', (event) => {
+  const button = $('exam-start-button');
+  if (button) button.disabled = !event.target.checked;
+});
 $('exam-generate-paper-tab')?.addEventListener('click', () => loadExamPaperIntoTab());
+$('exam-demo-button')?.addEventListener('click', async () => {
+  const target = $('exam-paper-preview-tab');
+  if (!target) return;
+  target.innerHTML = '<div class="exam-demo-banner" role="status"><strong>Demo exam</strong><span>Sample questions only · no attempt, score, or submission is recorded.</span></div><p class="muted">Loading sample questions…</p>';
+  try {
+    const res = await fetch('/api/exam-registrations/sample-paper');
+    if (!res.ok) throw new Error('Could not load the demo exam.');
+    const body = await res.json();
+    renderExamPaperToTab(target, body.questions || []);
+    target.insertAdjacentHTML('afterbegin', '<div class="exam-demo-banner" role="status"><strong>Demo exam</strong><span>Sample questions only · this is not a real attempt.</span></div>');
+  } catch (err) {
+    target.innerHTML = `<div class="empty-state"><h3>Demo unavailable</h3><p>${escapeHtml(err.message)}</p></div>`;
+  }
+});
 $('exam-prev-question')?.addEventListener('click', () => moveExamQuestion(examState.currentIndex - 1));
 $('exam-next-question')?.addEventListener('click', () => moveExamQuestion(examState.currentIndex + 1));
 $('exam-mark-review')?.addEventListener('click', toggleMarkForReview);

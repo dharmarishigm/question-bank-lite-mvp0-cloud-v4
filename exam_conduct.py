@@ -23,7 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_registration_links_exam ON exam_registration_link
 EXAM_COLUMNS={"proctor_required":"INTEGER NOT NULL DEFAULT 0","result_release_mode":"TEXT NOT NULL DEFAULT 'IMMEDIATE'","negative_marking_enabled":"INTEGER NOT NULL DEFAULT 0","assigned_proctor_id":"INTEGER","allow_retake":"INTEGER NOT NULL DEFAULT 0","allow_self_registration":"INTEGER NOT NULL DEFAULT 1","allow_registration_link":"INTEGER NOT NULL DEFAULT 1","current_version_id":"INTEGER"}
 USER_COLUMNS={"date_of_birth":"TEXT NOT NULL DEFAULT ''","phone_number":"TEXT NOT NULL DEFAULT ''","school_name":"TEXT NOT NULL DEFAULT ''","profile_completed":"INTEGER NOT NULL DEFAULT 0"}
 ENROLL_COLUMNS={"registered_email":"TEXT NOT NULL DEFAULT ''","registration_source":"TEXT NOT NULL DEFAULT 'SELF'","created_by":"INTEGER","full_name_snapshot":"TEXT NOT NULL DEFAULT ''","registration_link_id":"INTEGER","max_attempts_override":"INTEGER"}
-SESSION_COLUMNS={"question_set_json":"TEXT NOT NULL DEFAULT '[]'","proctor_code_id":"INTEGER","auto_submitted_at":"REAL","exam_version_id":"INTEGER"}
+SESSION_COLUMNS={"question_set_json":"TEXT NOT NULL DEFAULT '[]'","proctor_code_id":"INTEGER","auto_submitted_at":"REAL","exam_version_id":"INTEGER","consent_at":"REAL","consent_metadata_json":"TEXT NOT NULL DEFAULT '{}'","section_timing_json":"TEXT NOT NULL DEFAULT '{}'"}
 ANSWER_COLUMNS={"status":"TEXT NOT NULL DEFAULT 'NOT_VISITED'","first_answered_at":"REAL","scored_at":"REAL"}
 PENDING_COLUMNS={"full_name":"TEXT NOT NULL DEFAULT ''","date_of_birth":"TEXT NOT NULL DEFAULT ''","phone_number":"TEXT NOT NULL DEFAULT ''","school_name":"TEXT NOT NULL DEFAULT ''","registration_link_id":"INTEGER"}
 
@@ -97,6 +97,10 @@ def evaluate_exam_start_eligibility(conn,user,exam_id,code=""):
 async def start(exam_id:int,request:Request):
     from platform_api import _auth
     user=_auth(request,True);body=await request.json();now=time.time()
+    if body.get("consent") is not True:
+        raise HTTPException(422,detail={"reason_code":"CONSENT_REQUIRED","message":"You must accept the examination instructions before starting."})
+    raw_metadata=body.get("consent_client") if isinstance(body.get("consent_client"),dict) else {}
+    consent_metadata={key:str(raw_metadata.get(key,""))[:200] for key in ("user_agent","language","screen")}
     with closing(db()) as conn:
         try:
             conn.execute("BEGIN IMMEDIATE");result=evaluate_exam_start_eligibility(conn,user,exam_id,str(body.get("proctor_code","")))
@@ -111,6 +115,8 @@ async def start(exam_id:int,request:Request):
             if not snapshot:raise HTTPException(409,"Exam has no questions")
             cur=conn.execute("INSERT INTO exam_sessions(exam_id,user_id,registration_id,attempt_number,status,started_at,expires_at,duration_minutes,question_set_json,proctor_code_id,exam_version_id,created_at,updated_at) VALUES(?,?,?,?,'IN_PROGRESS',?,?,?,?,?,?,?,?)",(exam_id,user["id"],reg["id"],result["attempt"],now,(min(now+exam["duration_minutes"]*60,exam["exam_end_at"]) if exam["exam_type"]=="GRAND_TEST" and exam["exam_end_at"] else now+exam["duration_minutes"]*60),exam["duration_minutes"],json.dumps(snapshot),result["code"]["id"] if result["code"] else None,version["id"],now,now));sid=cur.lastrowid
             if result["code"]:conn.execute("UPDATE exam_proctor_codes SET usage_count=usage_count+1 WHERE id=?",(result["code"]["id"],))
+            conn.execute("UPDATE exam_sessions SET consent_at=?,consent_metadata_json=? WHERE id=?",(now,json.dumps(consent_metadata),sid))
+            audit(conn,"CONSENT_ACCEPTED",exam_id=exam_id,user_id=user["id"],session_id=sid,metadata=consent_metadata)
             audit(conn,"START_ATTEMPT",exam_id=exam_id,user_id=user["id"],session_id=sid);conn.commit();return {"session_id":sid,"resumed":False}
         except HTTPException:conn.rollback();raise
         except sqlite3.IntegrityError:conn.rollback();active=conn.execute("SELECT id FROM exam_sessions WHERE exam_id=? AND user_id=? AND status='IN_PROGRESS' ORDER BY id DESC LIMIT 1",(exam_id,user["id"])).fetchone();
