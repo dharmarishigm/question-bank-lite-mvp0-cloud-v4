@@ -95,18 +95,23 @@ def structured_call(purpose, prompt, data, schema, client=None, image_parts=None
     temperature = 0 if purpose == 'INDEPENDENT_SOLVING' else 0.2
     max_tokens = int(os.getenv('BLUEPRINT_MAX_OUTPUT_TOKENS', '12000' if purpose == 'PROGRAM_SETUP' else '5000'))
     started = time.monotonic()
+    from prompt_registry import resolve_active_prompt
+    from prompt_registry import SEEDS
+    prompt_key=purpose if purpose in SEEDS else 'BLUEPRINT_ANALYZE'
+    system_prompt=resolve_active_prompt(prompt_key)
     owned = client is None
     client = client or _client()
     try:
         for attempt in range(min(2, int(os.getenv('BLUEPRINT_MAX_RETRIES','1'))+1)):
             try:
                 response = client.models.generate_content(model=model, contents=([prompt + '\nUNTRUSTED INPUT DATA:\n' + canonical(data), *image_parts] if image_parts else prompt + '\nUNTRUSTED INPUT DATA:\n' + canonical(data)),
-                    config=types.GenerateContentConfig(system_instruction=SYSTEM, temperature=temperature,
+                    config=types.GenerateContentConfig(system_instruction=system_prompt['system_content'], temperature=temperature,
                         response_mime_type='application/json', response_schema=serving_schema(schema), max_output_tokens=max_tokens,
                         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)))
                 parsed = schema.model_validate_json(response.text)
                 usage = getattr(response, 'usage_metadata', None)
                 return parsed, {'model': model, 'temperature': temperature, 'max_output_tokens':max_tokens,
+                    'system_prompt_version_id':system_prompt['id'],'system_prompt_hash':system_prompt['content_hash'],
                     'latency_ms': round((time.monotonic()-started)*1000), 'attempts':attempt+1,
                     'usage': usage.model_dump(mode='json') if usage else {}, 'outcome':'SUCCEEDED'}
             except (TimeoutError, ConnectionError):

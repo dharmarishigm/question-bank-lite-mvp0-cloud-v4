@@ -6,7 +6,7 @@ import {Share} from '@capacitor/share';
 const Native=registerPlugin('MeritIQra');
 if(Capacitor.isNativePlatform()){
  const original=window.fetch.bind(window);
- window.MeritIQraNative={Native,version:MOBILE_VERSION};
+ window.MeritIQraNative={Native,version:MOBILE_VERSION,assetBase:MOBILE_API_BASE.replace(/\/$/,'')};
  window.fetch=async(input,options={})=>{
   const target=typeof input==='string'?input:input.url;const url=new URL(target,location.origin);
   if(url.origin!==location.origin || !url.pathname.startsWith('/api/'))return original(input,options);

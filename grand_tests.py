@@ -41,6 +41,12 @@ class Review(Revision):
 class SaveQuestions(Revision):
     question_ids: list[str] = Field(min_length=1, max_length=1000)
 
+class ExamCreate(Revision):
+    question_ids: list[int] = Field(min_length=1, max_length=1000)
+    name: str = Field(min_length=1, max_length=200)
+    duration_minutes: int = Field(default=30, ge=1, le=1440)
+    request_key: str = Field(min_length=8, max_length=100, pattern=r'^[A-Za-z0-9_-]+$')
+
 class Schedule(Revision):
     name: str = Field(min_length=1, max_length=200)
     start_at: float = Field(allow_inf_nan=False)
@@ -196,6 +202,13 @@ def fingerprint(q):
     return hashlib.sha256((text + json.dumps(q.get('options', []), sort_keys=True)).encode()).hexdigest()
 
 
+REVIEWED_FIELDS=('statement','options','answer','solution','program_id','subject','chapter','topic','subtopic','difficulty','qtype','source_image','visual_assets','content_blocks','math_evidence')
+
+def reviewed_payload_hash(q):
+    payload={key:q.get(key,[] if key in {'options','visual_assets','content_blocks','math_evidence'} else '') for key in REVIEWED_FIELDS}
+    return hashlib.sha256(json.dumps(payload,sort_keys=True,separators=(',',':'),ensure_ascii=False).encode()).hexdigest()
+
+
 @router.get('')
 def listing(request: Request):
     user = actor(request)
@@ -249,6 +262,21 @@ def detail(gid: int, request: Request):
         if row['exam_id'] and user['role']=='ADMIN':
             result['exam']=dict(conn.execute('SELECT * FROM exams WHERE id=?',(row['exam_id'],)).fetchone())
     return result
+
+
+@router.delete('/{gid}')
+def delete_workspace(gid: int, request: Request):
+    """Delete a workspace draft; generated exams remain an explicit safety boundary."""
+    user=actor(request,True)
+    with closing(db()) as conn:
+        row=workspace(conn,gid,user)
+        if row['exam_id']:
+            raise HTTPException(409,'This workspace has a generated exam. Delete the exam first before deleting the workspace.')
+        conn.execute('DELETE FROM grand_test_page_status_audit WHERE workspace_id=?',(gid,))
+        conn.execute('DELETE FROM grand_test_page_status WHERE workspace_id=?',(gid,))
+        cur=conn.execute('DELETE FROM grand_tests WHERE id=?',(gid,));conn.commit()
+        if not cur.rowcount:raise HTTPException(404,'Workspace not found')
+    return {'deleted':gid}
 
 
 @router.post('/{gid}/pdf')
@@ -427,8 +455,14 @@ def review(gid: int, payload: Review, request: Request):
             program=conn.execute("SELECT name FROM programs WHERE id=? AND status='ACTIVE'",(pid,)).fetchone()
             if not program:raise HTTPException(422,'Choose an active Program for each question')
             q=Question.model_validate(raw).model_dump();q['exam']=program['name']
-            q.update(id=key,number=raw.get('number',originals[key]['number']),program_id=pid,
-                     reviewed=bool(raw.get('reviewed',False)),classification_confidence=originals[key].get('classification_confidence',0))
+            reviewed=bool(raw.get('reviewed',False));q.update(id=key,number=raw.get('number',originals[key]['number']),program_id=pid,
+                     reviewed=reviewed,classification_confidence=originals[key].get('classification_confidence',0))
+            for field in ('transcription_prompt_version_id','verification_prompt_version_id'):
+                q[field]=originals[key].get(field)
+            if reviewed:
+                q.update(reviewed_by=user['id'],reviewed_at=time.time(),reviewed_payload_hash=reviewed_payload_hash(q))
+            else:
+                q.update(reviewed_by=None,reviewed_at=None,reviewed_payload_hash='')
             if originals[key].get('saved_question_id'):
                 q['saved_question_id']=originals[key]['saved_question_id']
             questions.append(q)
@@ -451,13 +485,42 @@ def save_questions(gid: int, payload: SaveQuestions, request: Request):
             if raw['id'] not in chosen or raw.get('saved_question_id'):continue
             if not raw.get('reviewed'):
                 raise HTTPException(422,'Review each selected question before saving')
+            if not raw.get('reviewed_payload_hash') or raw['reviewed_payload_hash']!=reviewed_payload_hash(raw):
+                raise HTTPException(409,'A selected question changed after review. Review it again before saving')
             if any(not str(raw.get(k,'')).strip() for k in ('statement','subject','chapter','topic','subtopic','difficulty','qtype','answer')):
                 raise HTTPException(422,'Complete the question, answer and classification before saving')
-            q=Question.model_validate({**raw,'verification_status':'VERIFIED'})
+            provenance={**(raw.get('generation_metadata') or {}),
+                        'transcription_prompt_version_id':raw.get('transcription_prompt_version_id'),
+                        'verification_prompt_version_id':raw.get('verification_prompt_version_id'),
+                        'reviewed_payload_hash':raw.get('reviewed_payload_hash')}
+            q=Question.model_validate({**raw,'generation_metadata':provenance,'verification_status':'VERIFIED'})
             cur=conn.execute('INSERT INTO questions('+','.join(FIELDS)+',created_at,updated_at) VALUES('+','.join('?' for _ in FIELDS)+',?,?)',values_of(q)+[now,now])
             raw['saved_question_id']=cur.lastrowid
         conn.execute('UPDATE grand_tests SET questions_json=? WHERE id=?',(json.dumps(questions),gid));conn.commit()
     return detail(gid,request)
+
+
+@router.post('/{gid}/exams', status_code=201)
+def create_exam_from_saved(gid: int, payload: ExamCreate, request: Request):
+    user=actor(request,True,True)
+    if len(set(payload.question_ids))!=len(payload.question_ids):raise HTTPException(422,'Duplicate question IDs are not allowed')
+    with closing(db()) as conn:
+        row=workspace(conn,gid,user)
+        questions=json.loads(row['questions_json']);linked={int(q['saved_question_id']):q for q in questions if q.get('saved_question_id')}
+        if not set(payload.question_ids).issubset(linked):raise HTTPException(422,'Every selected question must be saved from this workspace')
+        if row['exam_id']:
+            return {'exam_id':row['exam_id'],'created':False}
+        change(conn,row,user,payload.revision,status='EXAM_GENERATED')
+        now=time.time();total_marks=0
+        cur=conn.execute("INSERT INTO exams(name,description,exam_type,status,duration_minutes,created_by,created_at,updated_at,proctor_required) VALUES(?,?,?,'DRAFT',?,?,?,?,1)",(payload.name,row['description'],'GRAND_TEST',payload.duration_minutes,user['id'],now,now));eid=cur.lastrowid
+        for order,qid in enumerate(payload.question_ids,1):
+            raw=linked[qid]
+            try:marks=float(raw.get('marks') or 1)
+            except (TypeError,ValueError):marks=1
+            total_marks+=marks
+            conn.execute('INSERT INTO exam_questions(exam_id,question_id,display_order,marks,section_name,created_at) VALUES(?,?,?,?,?,?)',(eid,qid,order,marks,raw.get('subject',''),now))
+        conn.execute('UPDATE exams SET total_marks=? WHERE id=?',(total_marks,eid));conn.execute('UPDATE grand_tests SET exam_id=? WHERE id=?',(eid,gid));conn.commit()
+        return {'exam_id':eid,'created':True,'question_count':len(payload.question_ids)}
 
 
 @router.post('/{gid}/finalize')

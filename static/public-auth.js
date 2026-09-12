@@ -20,13 +20,16 @@
   });
   document.addEventListener('meritiqra:login-mode',event=>{
     const admin=event.detail.mode==='admin';role.value=admin?'ADMIN':'STUDENT';
-    byId('login-title').textContent=admin?'Administrator login':'Student login';byId('admin-login-toggle').textContent=admin?'Login':'Login';
+    byId('login-title').textContent='Login to MeritIQra';byId('admin-login-toggle').textContent='Login';
+    byId('login-options').hidden=false;byId('admin-login-form').hidden=true;
     byId('student-google-prompt').hidden=admin;byId('google-signin').hidden=admin;byId('mock-signin-email-wrap').hidden=admin||!authConfig.mock;byId('mock-signin').hidden=admin||!authConfig.mock;
     byId('admin-login-toggle').hidden=true;byId('admin-login-form').hidden=!admin;
     byId('bootstrap-admin-toggle').hidden=true;byId('bootstrap-admin-form').hidden=true;
     if(admin)byId('login-message').textContent=authConfig.local_admin?'Enter the administrator credentials configured for MeritIQra.':'Administrator credentials are not configured.';else showStudentGoogleState();
     if(admin){byId('admin-login-email').value='';byId('admin-login-password').value='';byId('admin-login-email').focus();}
   });
+  byId('password-login-toggle').onclick=()=>{role.value='ADMIN';byId('student-google-prompt').hidden=true;byId('google-signin').hidden=true;byId('login-options').hidden=true;byId('admin-login-form').hidden=false;byId('admin-login-email').focus();byId('login-message').textContent='Enter your username and password.';};
+  byId('exam-registration-toggle').onclick=()=>window.openPublicRegistration?.();
   byId('bootstrap-admin-toggle').onclick=()=>{byId('bootstrap-admin-toggle').hidden=true;byId('bootstrap-admin-form').hidden=false;byId('bootstrap-admin-name').focus();};
   byId('bootstrap-admin-cancel').onclick=()=>{byId('bootstrap-admin-form').hidden=true;byId('bootstrap-admin-toggle').hidden=false;};
   byId('bootstrap-admin-form').onsubmit=async event=>{event.preventDefault();try{await json('/api/auth/bootstrap-admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:byId('bootstrap-admin-name').value,email:byId('bootstrap-admin-email').value})});complete();}catch(error){byId('login-message').textContent=error.message;}};

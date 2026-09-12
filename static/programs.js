@@ -16,7 +16,7 @@
   matchMedia('(max-width:800px)').addEventListener('change', event => {if(event.matches && !panel.hidden){document.getElementById('app-shell').classList.remove('nav-open');document.getElementById('sidebar-toggle').setAttribute('aria-expanded','false');}});
   const find = selector => panel.querySelector(selector);
   const createExamButton=document.createElement('button');createExamButton.dataset.programTab='create-exam';createExamButton.textContent='Create exam';createExamButton.className='primary';
-  const advanced=document.createElement('details');const advancedTitle=document.createElement('summary');advancedTitle.textContent='Advanced program workspace';advanced.append(advancedTitle);const programNav=find('[aria-label="Program sections"]');programNav.before(createExamButton,advanced);advanced.append(programNav);
+  const programNav=find('[aria-label="Program sections"]');programNav.classList.add('workspace-tabs');programNav.prepend(createExamButton);
   const setupButton=document.createElement('button');setupButton.dataset.programTab='setup';setupButton.textContent='Generate setup with Gemini';setupButton.className='primary';
   find('[aria-label="Program sections"]').prepend(setupButton);
   const escape = value => { const node = document.createElement('span'); node.textContent = String(value ?? ''); return node.innerHTML.replaceAll('"', '&quot;').replaceAll("'", '&#39;'); };
@@ -29,7 +29,7 @@
     try {
       const query = new URLSearchParams(new FormData(find('[data-program-search]'))); query.set('offset', offset);
       const data = await request('?' + query); items = data.items;
-      find('[data-program-list]').innerHTML = items.map(p => `<article class="exam-tile"><span class="badge">${escape(p.status)}</span><h3>${escape(p.name)}</h3><div class="rich-description rendered">${toHtml(p.payload.description || 'No description provided.')}</div>${ProgramParticipation.html(p,{fallback:true})}<p>Full exam or subject-wise · Five difficulty levels</p><div class="actions"><button class="primary" data-program-open="${p.id}">${p.status === 'ARCHIVED' ? 'View archived program' : 'Create exam'}</button>${p.status === 'ARCHIVED' ? '' : `<button data-program-edit="${p.id}">Edit</button>`}<button data-program-state="${p.id}">${p.status === 'ARCHIVED' ? 'Restore' : 'Archive'}</button></div></article>`).join('') || '<p class="empty-state">No programs match this search. Try another name or status.</p>';
+      find('[data-program-list]').innerHTML = items.map(p => `<article class="exam-tile"><span class="badge">${escape(p.status)}</span><h3>${escape(p.name)}</h3><div class="rich-description rendered">${toHtml(p.payload.description || 'No description provided.')}</div>${ProgramParticipation.html(p,{fallback:true})}<p>Full exam or subject-wise · Five difficulty levels</p><div class="actions"><button class="primary" data-program-open="${p.id}">${p.status === 'ARCHIVED' ? 'View archived program' : 'Create exam'}</button>${p.status === 'ARCHIVED' ? '' : `<button data-program-edit="${p.id}">Edit</button>`}<button data-program-state="${p.id}">${p.status === 'ARCHIVED' ? 'Restore' : 'Delete / archive'}</button></div></article>`).join('') || '<p class="empty-state">No programs match this search. Try another name or status.</p>';
       find('[data-program-page]').textContent = `${data.total ? offset + 1 : 0}–${offset + items.length} of ${data.total}`;
       find('[data-program-prev]').disabled = offset === 0; find('[data-program-next]').disabled = offset + items.length >= data.total;
       find('[data-program-list]').querySelectorAll('.rich-description').forEach(typeset);
@@ -52,6 +52,7 @@
       panel.querySelectorAll('[data-program-tab]').forEach(b=>b.setAttribute('aria-current',String(b.dataset.programTab===tab)));
       current = await request('/' + current.id); find('[data-program-title]').textContent = current.name;
       find('[data-program-workspace]').hidden = false;
+      find('[data-program-search]').hidden=true;find('[data-program-list]').hidden=true;find('[data-program-prev]').parentElement.hidden=true;
       if (tab === 'create-exam') {await ProgramExam.render(content,current,request);return;}
       if (tab === 'overview') { content.innerHTML = `<div class="rich-description rendered">${toHtml(current.payload.description || 'No description provided.')}</div>${ProgramParticipation.html(current,{fallback:true})}<dl><dt>Authority</dt><dd>${escape(current.payload.authority || 'Not specified')}</dd><dt>Revision</dt><dd>${current.revision}</dd><dt>Status</dt><dd>${escape(current.status)}</dd></dl><button class="primary" data-program-tab="setup">Generate setup with Gemini</button><p>Prepare program details, curriculum, blueprints, prompts and a practice preview from the program name.</p>`; return; }
       if (tab === 'setup') {await ProgramSetup.render(content,current,request);return;}
@@ -105,9 +106,9 @@
     if(b.hasAttribute('data-program-add')) edit(null);
     if(b.dataset.programEdit) edit(items.find(p=>p.id===Number(b.dataset.programEdit)));
     if(b.dataset.programOpen) {current=items.find(p=>p.id===Number(b.dataset.programOpen));workspace();}
-    if(b.hasAttribute('data-program-close')) find('[data-program-workspace]').hidden=true;
+    if(b.hasAttribute('data-program-close')) {find('[data-program-workspace]').hidden=true;find('[data-program-search]').hidden=false;find('[data-program-list]').hidden=false;find('[data-program-prev]').parentElement.hidden=false;}
     if(b.dataset.programTab) workspace(b.dataset.programTab);
-    if(b.dataset.programState) {const p=items.find(p=>p.id===Number(b.dataset.programState));if(!confirm(`${p.status==='ARCHIVED'?'Restore':'Archive'} ${p.name}? Blueprint history is retained.`))return;
+    if(b.dataset.programState) {const p=items.find(p=>p.id===Number(b.dataset.programState));if(!confirm(`${p.status==='ARCHIVED'?'Restore':'Delete / archive'} ${p.name}? Blueprint history is retained.`))return;
       try {await request(`/${p.id}${p.status==='ARCHIVED'?'/restore':''}?revision=${p.revision}`,p.status==='ARCHIVED'?'POST':'DELETE');await load();if(current?.id===p.id)await workspace();} catch(error){find('[data-program-status]').textContent=error.message;}}
   });
   panel.addEventListener('program-restored',load);

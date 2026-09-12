@@ -113,6 +113,9 @@ def init_platform():
     init_identities()
     from blueprint_store import init_blueprints
     init_blueprints()
+    from program_enrollment_schema import SCHEMA as PROGRAM_ENROLLMENT_SCHEMA
+    with closing(db()) as conn:
+        conn.executescript(PROGRAM_ENROLLMENT_SCHEMA); conn.commit()
     from explanation_quota import SCHEMA as QUOTA_SCHEMA
     with closing(db()) as conn:
         conn.executescript(QUOTA_SCHEMA); conn.commit()
@@ -464,7 +467,7 @@ def exam_program_context(conn,rows):
     items=[dict(row) for row in rows]
     if not items:return items
     ids=[row['id'] for row in items]
-    links=conn.execute('SELECT j.exam_id,p.code,p.name FROM program_exam_jobs j JOIN programs p ON p.id=j.program_id WHERE j.exam_id IN ('+','.join('?' for _ in ids)+') ORDER BY j.id',tuple(ids)).fetchall()
+    links=conn.execute('SELECT j.exam_id,p.code,p.name FROM program_exam_jobs j JOIN programs p ON p.id=j.program_id WHERE j.exam_id IN ('+','.join('?' for _ in ids)+') UNION SELECT gt.exam_id,p.code,p.name FROM grand_tests gt JOIN programs p ON p.id=gt.program_id WHERE gt.exam_id IN ('+','.join('?' for _ in ids)+')',tuple(ids)+tuple(ids)).fetchall()
     by_exam={row['exam_id']:row for row in links}
     for item in items:
         link=by_exam.get(item['id'])
@@ -487,6 +490,23 @@ def public_programs():
     with closing(db()) as conn:
         rows=conn.execute("SELECT id,code,name,payload_json FROM programs WHERE status='ACTIVE' ORDER BY name").fetchall()
     return [{'id':r['id'],'code':r['code'],'name':r['name'],'description':json.loads(r['payload_json'] or '{}').get('description','Structured preparation for '+r['name']+'.')} for r in rows]
+
+@router.get('/my/programs')
+def my_programs(request:Request):
+    user=_auth(request)
+    with closing(db()) as conn:
+        return [dict(r) for r in conn.execute("SELECT p.id,p.code,p.name,e.status,e.registered_at FROM program_enrollments e JOIN programs p ON p.id=e.program_id WHERE e.user_id=? AND e.status='ENROLLED' ORDER BY e.registered_at DESC",(user['id'],)).fetchall()]
+
+@router.post('/programs/{program_id}/enroll')
+def enroll_program(program_id:int,request:Request):
+    user=_auth(request,True); now=time.time()
+    if user['role'] not in {'STUDENT','ADMIN'}: raise HTTPException(403,'Student or administrator access required')
+    if user['role']=='STUDENT' and not user['email_verified']: raise HTTPException(401,'Verified Google Gmail identity required for program enrollment')
+    with closing(db()) as conn:
+        if not conn.execute("SELECT 1 FROM programs WHERE id=? AND status='ACTIVE'",(program_id,)).fetchone(): raise HTTPException(404,'Active program not found')
+        conn.execute("INSERT INTO program_enrollments(program_id,user_id,status,registered_at,created_at,updated_at,registration_source,created_by) VALUES(?,?,'ENROLLED',?,?,?,'PROGRAM',?) ON CONFLICT(program_id,user_id) DO UPDATE SET status='ENROLLED',cancelled_at=NULL,updated_at=excluded.updated_at",(program_id,user['id'],now,now,now,user['id']))
+        conn.commit()
+    return {'enrolled':True,'program_id':program_id}
 
 @router.post('/public/exams/{exam_id}/register')
 async def public_exam_registration(exam_id:int,request:Request,response:Response):
@@ -517,9 +537,15 @@ async def public_exam_registration(exam_id:int,request:Request,response:Response
 
 @router.get('/exams')
 def exams(request:Request):
-    user=_auth(request); where='' if user['role'] in {'ADMIN','PROCTOR'} else " WHERE e.status='OPEN'"
+    user=_auth(request)
+    if user['role'] in {'ADMIN','PROCTOR'}:
+        where=''
+    else:
+        # Learners see public/open exams or exams explicitly assigned to them.
+        # Draft and admin-only published papers never leak through this catalog.
+        where=" WHERE e.status='OPEN' AND (e.allow_self_registration=1 OR EXISTS (SELECT 1 FROM exam_enrollments er WHERE er.exam_id=e.id AND er.user_id=? AND er.status='ENROLLED') OR EXISTS (SELECT 1 FROM program_enrollments pe JOIN program_exam_jobs pj ON pj.program_id=pe.program_id WHERE pj.exam_id=e.id AND pe.user_id=? AND pe.status='ENROLLED') OR EXISTS (SELECT 1 FROM program_enrollments pe JOIN grand_tests gt ON gt.program_id=pe.program_id WHERE gt.exam_id=e.id AND pe.user_id=? AND pe.status='ENROLLED'))"
     with closing(db()) as conn:
-        rows=conn.execute(f'SELECT e.*,COUNT(eq.id) question_count FROM exams e LEFT JOIN exam_questions eq ON eq.exam_id=e.id{where} GROUP BY e.id ORDER BY e.created_at DESC').fetchall()
+        rows=conn.execute(f'SELECT e.*,COUNT(eq.id) question_count FROM exams e LEFT JOIN exam_questions eq ON eq.exam_id=e.id{where} GROUP BY e.id ORDER BY e.created_at DESC',() if user['role'] in {'ADMIN','PROCTOR'} else (user['id'],user['id'],user['id'])).fetchall()
         return exam_program_context(conn,[_exam(r,r['question_count']) for r in rows])
 @router.get('/exams/{exam_id}')
 def exam_detail(exam_id:int,request:Request):
@@ -527,12 +553,17 @@ def exam_detail(exam_id:int,request:Request):
     with closing(db()) as conn:
         row=conn.execute('SELECT e.*,COUNT(eq.id) question_count FROM exams e LEFT JOIN exam_questions eq ON eq.exam_id=e.id WHERE e.id=? GROUP BY e.id',(exam_id,)).fetchone()
         if row:row=exam_program_context(conn,[row])[0]
-    if not row or (user['role'] not in {'ADMIN','PROCTOR'} and row['status']!='OPEN'): raise HTTPException(404,'Exam not found')
+        enrolled=conn.execute("SELECT 1 FROM exam_enrollments WHERE exam_id=? AND user_id=? AND status='ENROLLED'",(exam_id,user['id'])).fetchone() if row else None
+        program_enrolled=conn.execute("SELECT 1 FROM program_enrollments pe WHERE pe.user_id=? AND pe.status='ENROLLED' AND (EXISTS (SELECT 1 FROM program_exam_jobs pj WHERE pj.program_id=pe.program_id AND pj.exam_id=?) OR EXISTS (SELECT 1 FROM grand_tests gt WHERE gt.program_id=pe.program_id AND gt.exam_id=?))",(user['id'],exam_id,exam_id)).fetchone() if row else None
+    visible = user['role'] in {'ADMIN','PROCTOR'} or (row and row['status']=='OPEN' and (row['allow_self_registration'] or enrolled or program_enrolled))
+    if not row or not visible: raise HTTPException(404,'Exam not found')
     return dict(row)
 @router.post('/admin/exams')
 async def create_exam(request:Request):
     user=require_admin(_auth(request,True)); data=ExamIn.model_validate(await request.json());now=time.time()
     if data.status not in {'DRAFT','PUBLISHED','OPEN','CLOSED','ARCHIVED'}: raise HTTPException(400,'Invalid status')
+    if data.exam_start_at is not None and data.exam_end_at is not None and data.exam_end_at <= data.exam_start_at: raise HTTPException(422,'Exam end time must be after start time')
+    if data.status in {'PUBLISHED','OPEN'} and data.exam_start_at is None: raise HTTPException(422,'Scheduled exams require a start time')
     if data.status in {'PUBLISHED','OPEN'} and not data.question_ids:raise HTTPException(409,'Add at least one question before publishing or opening an exam')
     with closing(db()) as conn:
         cur=conn.execute('INSERT INTO exams(name,description,exam_type,subject,level,instructions,duration_minutes,grace_period_minutes,section_timing_json,negative_marking,status,max_attempts,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',(*[getattr(data,k) for k in ('name','description','exam_type','subject','level','instructions','duration_minutes')],data.grace_period_minutes,json.dumps(data.section_timing),data.negative_marking,data.status,data.max_attempts,user['id'],now,now)); eid=cur.lastrowid
@@ -547,6 +578,8 @@ async def create_exam(request:Request):
 async def update_exam(exam_id:int,request:Request):
     require_admin(_auth(request,True));data=ExamIn.model_validate(await request.json());now=time.time()
     if data.status not in {'DRAFT','PUBLISHED','OPEN','CLOSED','ARCHIVED'}:raise HTTPException(400,'Invalid status')
+    if data.exam_start_at is not None and data.exam_end_at is not None and data.exam_end_at <= data.exam_start_at: raise HTTPException(422,'Exam end time must be after start time')
+    if data.status in {'PUBLISHED','OPEN'} and data.exam_start_at is None: raise HTTPException(422,'Scheduled exams require a start time')
     if data.status in {'PUBLISHED','OPEN'} and not data.question_ids:raise HTTPException(409,'Add at least one question before publishing or opening an exam')
     with closing(db()) as conn:
         if not conn.execute('SELECT 1 FROM exams WHERE id=?',(exam_id,)).fetchone():raise HTTPException(404,'Exam not found')
@@ -599,6 +632,11 @@ def my_exams(request:Request):
     user=_auth(request)
     with closing(db()) as conn:
         rows=conn.execute('SELECT e.*,(SELECT COUNT(*) FROM exam_questions eq WHERE eq.exam_id=e.id) question_count,r.id registration_id,r.registered_at,r.status registration_status,COALESCE(r.max_attempts_override,e.max_attempts) effective_max_attempts,CASE WHEN e.allow_retake=1 OR r.max_attempts_override IS NOT NULL THEN 1 ELSE 0 END student_allow_retake,(SELECT COUNT(*) FROM exam_sessions s WHERE s.exam_id=e.id AND s.user_id=?) attempts_used,(SELECT id FROM exam_sessions s WHERE s.exam_id=e.id AND s.user_id=? ORDER BY attempt_number DESC LIMIT 1) latest_session_id,(SELECT status FROM exam_sessions s WHERE s.exam_id=e.id AND s.user_id=? ORDER BY attempt_number DESC LIMIT 1) latest_session_status FROM exam_enrollments r JOIN exams e ON e.id=r.exam_id WHERE r.user_id=? ORDER BY r.registered_at DESC',(user['id'],user['id'],user['id'],user['id'])).fetchall()
+        known={r['id'] for r in rows}
+        linked=conn.execute("SELECT DISTINCT e.*,(SELECT COUNT(*) FROM exam_questions eq WHERE eq.exam_id=e.id) question_count FROM exams e JOIN (SELECT pj.exam_id FROM program_exam_jobs pj JOIN program_enrollments pe ON pe.program_id=pj.program_id WHERE pe.user_id=? AND pe.status='ENROLLED' UNION SELECT gt.exam_id FROM grand_tests gt JOIN program_enrollments pe ON pe.program_id=gt.program_id WHERE pe.user_id=? AND pe.status='ENROLLED') x ON x.exam_id=e.id WHERE e.status='OPEN'",(user['id'],user['id'])).fetchall()
+        for r in linked:
+            if r['id'] not in known:
+                item=dict(r); item.update(registration_id=None,registered_at=None,registration_status='PROGRAM',effective_max_attempts=r['max_attempts'],student_allow_retake=bool(r['allow_retake']),attempts_used=0,latest_session_id=None,latest_session_status=None); rows.append(item)
         return exam_program_context(conn,rows)
 
 def _session(conn,sid,uid):
@@ -632,6 +670,10 @@ async def start_exam(exam_id:int,request:Request):
     consent_metadata={key:str(raw.get(key,''))[:200] for key in ('user_agent','language','screen')}
     with closing(db()) as conn:
         reg=conn.execute("SELECT * FROM exam_enrollments WHERE exam_id=? AND user_id=? AND status='ENROLLED'",(exam_id,user['id'])).fetchone(); exam=conn.execute("SELECT * FROM exams WHERE id=? AND status IN ('PUBLISHED','OPEN')",(exam_id,)).fetchone()
+        if not reg and exam:
+            linked=conn.execute("SELECT 1 FROM program_enrollments pe WHERE pe.user_id=? AND pe.status='ENROLLED' AND (EXISTS (SELECT 1 FROM program_exam_jobs pj WHERE pj.program_id=pe.program_id AND pj.exam_id=?) OR EXISTS (SELECT 1 FROM grand_tests gt WHERE gt.program_id=pe.program_id AND gt.exam_id=?))",(user['id'],exam_id,exam_id)).fetchone()
+            if linked:
+                conn.execute("INSERT INTO exam_enrollments(exam_id,user_id,status,registered_at,created_at,updated_at,registered_email,registration_source,created_by) VALUES(?,?,'ENROLLED',?,?,?,?, 'PROGRAM',?)",(exam_id,user['id'],now,now,now,user.get('email',''),user['id'])); reg=conn.execute("SELECT * FROM exam_enrollments WHERE exam_id=? AND user_id=?",(exam_id,user['id'])).fetchone()
         if not reg or not exam: raise HTTPException(403,'Enrollment in a published exam is required')
         active=conn.execute("SELECT id FROM exam_sessions WHERE exam_id=? AND user_id=? AND status='IN_PROGRESS' AND expires_at>?",(exam_id,user['id'],now)).fetchone()
         if active:return {'session_id':active['id'],'resumed':True}
@@ -655,7 +697,13 @@ def get_session(sid:int,request:Request):
         s=_session(conn,sid,user['id']); exam=conn.execute('SELECT name,instructions,proctor_required FROM exams WHERE id=?',(s['exam_id'],)).fetchone()
         snapshot=json.loads(s['question_set_json'] or '[]') if 'question_set_json' in s.keys() else []
         if snapshot:
-            answers={r['question_id']:r for r in conn.execute('SELECT question_id,selected_answer,answer_payload_json,status FROM exam_answers WHERE session_id=?',(sid,)).fetchall()};questions=[{'id':q['id'],'number':q['display_order'],'statement':q['statement'],'options':q['options'],'marks':q['marks'],'section':q.get('section_name',''),'selected_answer':answers[q['id']]['selected_answer'] if q['id'] in answers else '','state':answers[q['id']]['status'] if q['id'] in answers else 'NOT_VISITED'} for q in snapshot]
+            answers={r['question_id']:r for r in conn.execute('SELECT question_id,selected_answer,answer_payload_json,status FROM exam_answers WHERE session_id=?',(sid,)).fetchall()};questions=[]
+            for q in snapshot:
+                options=q.get('options',[])
+                if isinstance(options,str):
+                    try: options=json.loads(options or '[]')
+                    except (TypeError,ValueError): options=[]
+                questions.append({'id':q['id'],'number':q['display_order'],'statement':q['statement'],'options':options,'visual_assets':q.get('visual_assets',[]),'marks':q['marks'],'section':q.get('section_name',''),'selected_answer':answers[q['id']]['selected_answer'] if q['id'] in answers else '','state':answers[q['id']]['status'] if q['id'] in answers else 'NOT_VISITED'})
         else:
             rows=conn.execute('SELECT q.id,q.statement,q.options,eq.display_order,eq.marks,a.selected_answer,a.answer_payload_json,a.status FROM exam_questions eq JOIN questions q ON q.id=eq.question_id LEFT JOIN exam_answers a ON a.session_id=? AND a.question_id=q.id WHERE eq.exam_id=? ORDER BY eq.display_order',(sid,s['exam_id'])).fetchall();questions=[{'id':r['id'],'number':r['display_order'],'statement':r['statement'],'options':json.loads(r['options'] or '[]'),'marks':r['marks'],'selected_answer':r['selected_answer'] or '','state':r['status'] or 'NOT_VISITED'} for r in rows]
         from correction_sync import annotate
@@ -819,7 +867,11 @@ def result_detail(sid:int,request:Request):
         questions=[]
         if released:
             for q in snapshot:
-                a=answers.get(q['id'],{});questions.append({'id':q['id'],'statement':q['statement'],'options':q['options'],'answer':q.get('answer',''),'solution':q.get('solution',''),'selected_answer':a.get('selected_answer',''),'is_correct':a.get('is_correct'),'marks_awarded':a.get('marks_awarded',0)})
+                a=answers.get(q['id'],{});options=q.get('options',[])
+                if isinstance(options,str):
+                    try: options=json.loads(options or '[]')
+                    except (TypeError,ValueError): options=[]
+                questions.append({'id':q['id'],'statement':q['statement'],'options':options,'visual_assets':q.get('visual_assets',[]),'answer':q.get('answer',''),'solution':q.get('solution',''),'selected_answer':a.get('selected_answer',''),'is_correct':a.get('is_correct'),'marks_awarded':a.get('marks_awarded',0)})
         from correction_sync import annotate
         annotate(conn,questions,snapshot,include_answers=True)
     return {'session':{**dict(s),'exam_name':exam['name'],'exam_type':exam['exam_type'],'subject':exam['subject'],'level':exam['level'],'student_name':student['display_name'],'student_email':student['email']},'released':released,'message':None if released else 'Exam submitted. Result pending.','questions':questions}

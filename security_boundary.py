@@ -108,13 +108,16 @@ def authorize(request):
             authorize_asset(path, user)
 
 def authorize_asset(path, user):
-    """Only scoped raster evidence is available outside the Admin library."""
+    """Allow only image assets referenced by this user's exam/workspace."""
     import json
     from platform_api import db
-    if not re.fullmatch(r'/uploads/[A-Za-z0-9_-]+\.(?:png|jpg|jpeg|webp)', path, re.I):
+    raster = re.fullmatch(r'/uploads/[A-Za-z0-9_-]+\.(?:png|jpg|jpeg|webp)', path, re.I)
+    generated_svg = re.fullmatch(r'/uploads/generated-visual-[a-f0-9]{16}(?:-[a-z]+)?\.svg', path)
+    if not (raster or generated_svg):
         raise HTTPException(403, 'Use the authorized document viewer')
     def references(value):
-        if isinstance(value, str):return value==path
+        if isinstance(value, str):
+            return value==path or any(url==path for url in re.findall(r'!\[[^\]]*\]\(([^\s)]+)\)', value))
         if isinstance(value, dict):return any(references(v) for v in value.values())
         if isinstance(value, list):return any(references(v) for v in value)
         return False

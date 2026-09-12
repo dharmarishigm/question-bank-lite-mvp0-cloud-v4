@@ -1,0 +1,6 @@
+.workspace-tabs { display:flex; flex-wrap:wrap; gap:.5rem; margin:1rem 0; }
+.workspace-tabs button[aria-pressed="true"], [data-program-tab][aria-current="true"] { background:#174b46; color:white; }
+.workspace-tabs button:focus-visible { outline:3px solid #389b91; outline-offset:3px; }
+#grand-tests-panel [hidden], #programs-panel [hidden] { display:none !important; }
+#gt-questions { max-height:70vh; overflow:auto; overscroll-behavior:contain; padding:.25rem; }
+@media(max-width:600px) { .workspace-tabs button { flex:1 1 40%; } }

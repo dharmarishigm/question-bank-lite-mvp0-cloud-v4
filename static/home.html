@@ -21,6 +21,7 @@
 <link href="/static/app.css" rel="stylesheet"/>
 <link href="/static/enterprise.css?v=20260909-web-fixes" rel="stylesheet"/>
 <link href="/static/public-site.css?v=20260910-markdown" rel="stylesheet"/><link rel="stylesheet" href="/static/workspace-density.css?v=20260909-conversations" />
+<style>.public-actions .public-login{display:inline-flex!important;min-height:44px;padding:8px 12px}</style>
 </head>
 <body>
 <div class="public-site" id="public-site">
@@ -30,7 +31,7 @@
 <nav aria-label="Public navigation" class="public-nav" id="public-nav"><a href="/enquiry">Enquire</a>
 <a href="/">Home</a><a href="/practice-exams">Explore Exams</a><a href="#exam-lifecycle">Exam Lifecycle</a><a href="#practice">Practice</a><a href="#solutions">Solutions</a><a href="/for-schools">For Schools</a><a href="/for-organizations">For Organizations</a><a href="#insights">Insights</a><a href="/about">About</a>
 </nav>
-<div class="public-actions"><button class="public-login" data-student-login="">Student Login</button><button class="public-admin-login" data-admin-login="">Admin Login</button><button class="public-cta" data-open-registration="">Register or Login</button></div>
+<div class="public-actions"><button class="public-login" data-login="">Login</button></div>
 </header>
 <main>
 <section class="public-hero" id="home">
@@ -82,9 +83,10 @@
 <p>AI-Powered Intelligence Platform</p>
 <div id="student-google-prompt" class="google-login-prompt"><strong>Register or login with Gmail</strong><span>Continue securely with your Google account.</span></div>
 <div id="google-signin"><span class="google-loading">Loading Google sign-in…</span></div>
+<div class="login-options" id="login-options"><button type="button" id="password-login-toggle">Login with username and password</button><button type="button" id="exam-registration-toggle">Register for an exam</button></div>
 <label id="mock-signin-email-wrap" hidden="">Development email<input id="mock-signin-email" type="email" value="student@example.test" autocomplete="email" /></label><button class="primary" hidden="" id="mock-signin">Development sign in</button>
 <button class="primary" hidden="" id="bootstrap-admin-toggle">Register first administrator</button>
-<button class="primary" id="admin-login-toggle">Administrator login</button>
+<button class="primary" hidden id="admin-login-toggle">Administrator login</button>
 <form class="bootstrap-form" hidden="" id="admin-login-form"><label>Administrator email<input autocomplete="username" id="admin-login-email" required="" type="email"/></label><label>Password<input autocomplete="current-password" id="admin-login-password" required="" type="password"/></label><button class="primary" type="submit">Sign in as administrator</button><button id="admin-login-cancel" type="button">Cancel</button></form>
 <form class="bootstrap-form" hidden="" id="bootstrap-admin-form">
 <label>Full name<input autocomplete="name" id="bootstrap-admin-name" maxlength="120" required=""/></label>
@@ -99,8 +101,8 @@
 <link rel="stylesheet" href="/static/participation.css?v=20260910" />
 <script src="/static/program-participation.js?v=20260910"></script>
 <script src="/static/public-markdown.js?v=20260910"></script>
-<script src="/static/public-site.js?v=20260910-markdown"></script>
-<script src="/static/public-auth.js?v=20260910-access-v3"></script>
+<script src="/static/public-site.js?v=20260912-unified-login"></script>
+<script src="/static/public-auth.js?v=20260912-unified-login"></script>
 <script src="/static/mentor.js?v=20260910-access-v3"></script>
 <script src="/static/public-account.js?v=20260909-web-fixes"></script>
 </body></html>

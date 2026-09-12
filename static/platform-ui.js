@@ -15,8 +15,14 @@ window.fetch = (url, options={}) => {
 async function api(url, options={}) {
   const headers={...(options.headers||{})};
   if (options.method && options.method !== 'GET') headers['X-CSRF-Token']=decodeURIComponent(csrf());
-  const response=await fetch(url,{...options,headers});
+  let response;
+  try { response=await fetch(url,{...options,headers}); }
+  catch { throw new Error('Connection lost. Check your internet connection and retry.'); }
   const data=await response.json().catch(()=>({}));
+  if(response.status>=500) {
+    const area=String(url).includes('/admin/prompts')?'Prompt Registry':String(url).includes('/exams')?'Examinations':String(url).includes('/grand-tests')?'DigitalQBank':String(url).includes('/programs')?'Programs':'This service';
+    throw new Error(`${area} is temporarily unavailable. Retry shortly. If this continues, contact support and mention ${url.split('?')[0]} (HTTP ${response.status}).`);
+  }
   if(!response.ok) throw new Error(Array.isArray(data.detail)?data.detail.map(item=>`${(item.loc||[]).slice(1).join(' / ')}: ${item.msg}`).join('\n'):typeof data.detail==='object'?(data.detail?.message||data.detail?.reason_code||`Request failed (${response.status})`):data.detail||`Request failed (${response.status})`);
   if (String(url).includes('/answers/')) { const status=document.getElementById('exam-save-status'); if(status) status.textContent='Saved'; }
   return data;
@@ -117,7 +123,7 @@ function enrolledExamAction(e){
 }
 async function loadAvailableExams(){
   const [rows,enrollments]=await Promise.all([api('/api/exams'),api('/api/my/exams')]);
-  const mine=new Map(enrollments.filter(e=>['ENROLLED','COMPLETED'].includes(e.registration_status)).map(e=>[e.id,e]));
+  const mine=new Map(enrollments.filter(e=>['ENROLLED','COMPLETED','PROGRAM'].includes(e.registration_status)).map(e=>[e.id,e]));
   $('available-exams-list').innerHTML=rows.filter(e=>['PUBLISHED','OPEN'].includes(e.status)).map(e=>{
     const enrolled=mine.get(e.id);
     const action=enrolled?`<span class="badge">Enrolled</span>${enrolledExamAction({...e,...enrolled})}`:(e.allow_self_registration||signedInUser?.role==='ADMIN')?`<button class="primary" data-enroll="${e.id}">Register / Enroll</button>`:'<p class="muted">Enrollment requires an invitation or administrator registration.</p>';

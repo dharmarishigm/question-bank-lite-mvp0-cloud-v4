@@ -1,0 +1,42 @@
+/* Shared visual language; exam focus mode retains its existing conduct UI. */
+body:not(.exam-focus) #main-content { --action-blue:#234fa4; --action-green:#17634b; --action-red:#a32a38; }
+body:not(.exam-focus) .tab-panel > .page-header { padding-bottom:12px; border-bottom:1px solid #dce3ed; margin-bottom:18px; }
+body:not(.exam-focus) .tab-panel .page-header p { max-width:75ch; line-height:1.5; }
+body:not(.exam-focus) .tab-panel .actions { gap:8px; flex-wrap:wrap; }
+body:not(.exam-focus) .tab-panel button { min-height:38px; border-radius:9px; }
+body:not(.exam-focus) .tab-panel button.primary { background:#234fa4; color:#fff; border:1px solid #234fa4; }
+body:not(.exam-focus) .tab-panel button.danger { background:#fff1f2; color:#a32a38; border:1px solid #d58b93; }
+body:not(.exam-focus) .tab-panel button[data-start-exam],
+body:not(.exam-focus) .tab-panel button[data-resume-session] { background:#17634b; color:white; border-color:#17634b; }
+body:not(.exam-focus) .tab-panel button[data-view-result] { background:#f2edff; color:#56328c; border:1px solid #b9a7dc; }
+body:not(.exam-focus) .tab-panel button:disabled { opacity:.5; cursor:not-allowed; }
+body:not(.exam-focus) :is(button,a,input,select,textarea,summary):focus-visible { outline:3px solid #245ab8; outline-offset:3px; }
+body:not(.exam-focus) .tab-panel :is(.table-wrap,.gt-table-wrap) { overflow:auto; max-width:100%; max-height:65vh; border:1px solid #dce3ed; border-radius:10px; }
+body:not(.exam-focus) .tab-panel :is(.table-wrap,.gt-table-wrap) thead th { position:sticky; top:0; z-index:1; background:#eef3fa; color:#233752; }
+body:not(.exam-focus) .tab-panel :is(.table-wrap,.gt-table-wrap) tbody tr:nth-child(even) { background:#f7f9fc; }
+body:not(.exam-focus) .tab-panel details > summary { padding:10px; background:#f1f5fa; border-radius:8px; cursor:pointer; }
+body:not(.exam-focus) .workspace-tabs { padding:8px; border:1px solid #dce3ed; border-radius:12px; background:#f8faff; }
+body:not(.exam-focus) .workspace-tabs button { --tab-ink:#234fa4; --tab-bg:#edf3ff; background:var(--tab-bg); color:var(--tab-ink); border:1px solid currentColor; }
+body:not(.exam-focus) .workspace-tabs button:nth-child(4n+2) { --tab-ink:#17634b; --tab-bg:#edf8f2; }
+body:not(.exam-focus) .workspace-tabs button:nth-child(4n+3) { --tab-ink:#663a90; --tab-bg:#f6effc; }
+body:not(.exam-focus) .workspace-tabs button:nth-child(4n+4) { --tab-ink:#805012; --tab-bg:#fff7e9; }
+body:not(.exam-focus) .workspace-tabs button:is([aria-pressed="true"],[aria-current="true"]) { background:var(--tab-ink); color:white; box-shadow:0 3px 0 #233752; }
+.sidebar nav button[data-view] { border-left:4px solid transparent; }
+.sidebar nav button:is([data-view="questions"],[data-view="ai-generate"],[data-view="upload-crop"],[data-view="grand-tests"]) { border-left-color:#47b88f; }
+.sidebar nav button:is([data-view="programs"],[data-view="admin-exams"],[data-view="available-exams"],[data-view="my-exams"]) { border-left-color:#81aaff; }
+.sidebar nav button:is([data-view="my-results"],[data-view="admin-results"],[data-view="student-analytics"]) { border-left-color:#be98e7; }
+.sidebar nav button[aria-current="page"] { font-weight:800; box-shadow:inset 0 0 0 2px currentColor; }
+.navigation-finder { padding:12px; border-bottom:1px solid #dce3ed; }
+.navigation-finder label { display:block; font-size:13px; font-weight:700; color:#dce9e6; }
+.navigation-finder input { width:100%; box-sizing:border-box; padding:9px; margin:5px 0; font:inherit; color:#233752; background:white; border:1px solid #b7c5d8; border-radius:8px; }
+.navigation-finder-results { display:grid; gap:5px; max-height:230px; overflow:auto; }
+.navigation-finder-results button { text-align:left; min-height:40px; background:#edf3ff; color:#234fa4; border:1px solid #a4bce3; border-radius:8px; }
+.navigation-finder [hidden] { display:none !important; }
+.exam-focus .navigation-finder { display:none; }
+.prompt-readable { max-height:55vh; overflow:auto; }
+@media(max-width:800px) {
+  body:not(.exam-focus) .tab-panel button { min-height:44px; }
+  body:not(.exam-focus) .tab-panel :is(input,select,textarea) { font-size:16px; max-width:100%; box-sizing:border-box; }
+  body:not(.exam-focus) .workspace-tabs button { flex:1 1 140px; }
+  body:not(.exam-focus) .tab-panel .page-header { flex-wrap:wrap; gap:10px; }
+}

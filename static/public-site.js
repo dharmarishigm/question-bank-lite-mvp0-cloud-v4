@@ -7,8 +7,7 @@
   document.addEventListener('click',event=>{
     const enroll=event.target.closest('[data-enroll-exam]');if(enroll){openRegistration(enroll.dataset.enrollExam);return;}
     if(event.target.closest('[data-open-registration]')){openRegistration();return;}
-    if(event.target.closest('[data-admin-login]')){openLogin('admin');return;}
-    if(event.target.closest('[data-student-login]')){location.assign('/app');}
+    if(event.target.closest('[data-login]')||event.target.closest('[data-student-login]')||event.target.closest('[data-admin-login]')){openLogin('student');return;}
   });
   document.getElementById('login-close')?.addEventListener('click',closeOverlays);
   document.getElementById('student-registration-close')?.addEventListener('click',closeOverlays);
@@ -19,7 +18,7 @@
   });
   document.getElementById('public-menu-toggle')?.addEventListener('click',event=>{const nav=document.getElementById('public-nav');const open=nav.classList.toggle('open');event.currentTarget.setAttribute('aria-expanded',String(open));});
   document.getElementById('public-nav')?.addEventListener('click',()=>document.getElementById('public-nav').classList.remove('open'));
-  window.showPublicSite=()=>{site.hidden=false;closeOverlays();};window.hidePublicSite=()=>{site.hidden=true;closeOverlays();};
+  window.showPublicSite=()=>{site.hidden=false;closeOverlays();};window.hidePublicSite=()=>{site.hidden=true;closeOverlays();};window.openPublicRegistration=()=>openRegistration();
   fetch('/api/public/exams',{cache:'no-store'}).then(r=>r.ok?r.json():[]).then(rows=>{
     exams=rows;const select=document.getElementById('public-registration-exam');rows.filter(e=>e.allow_self_registration).forEach(e=>select?.add(new Option(e.name,e.id)));
     const target=document.getElementById('public-exam-list');if(!target)return;

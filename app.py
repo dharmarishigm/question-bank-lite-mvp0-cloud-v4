@@ -328,6 +328,10 @@ from platform_api import init_platform, router as platform_router
 if os.getenv('QB_SCHEMA_MANAGED') != '1':
     init_platform()
 app.include_router(platform_router)
+from prompt_registry import init_prompt_registry, router as prompt_registry_router
+if os.getenv('QB_SCHEMA_MANAGED') != '1':
+    init_prompt_registry()
+app.include_router(prompt_registry_router)
 from security_mfa import router as security_mfa_router
 app.include_router(security_mfa_router)
 from blueprint_api import router as programs_router
@@ -890,6 +894,22 @@ def _record_run(source_document_id: str, provider: str, model: str, status: str,
     return run_id
 
 
+def _bind_extraction_prompts(run_id: str, data: dict, model: str) -> None:
+    llm = data.get('llm') or {}
+    if not llm.get('transcription_prompt_version_id'):
+        return
+    from prompt_registry import bind_prompt, resolve_active_prompt
+    with closing(connect()) as conn:
+        for key, prefix in (('DIGITIZE_TRANSCRIBE','transcription'),('DIGITIZE_VERIFY','verification')):
+            resolved=resolve_active_prompt(key,conn=conn)
+            expected=llm.get(f'{prefix}_prompt_version_id')
+            if resolved['id'] != expected:
+                row=conn.execute('SELECT v.*,d.prompt_key prompt_key FROM prompt_versions v JOIN prompt_definitions d ON d.id=v.prompt_definition_id WHERE v.id=?',(expected,)).fetchone()
+                if row:resolved={**dict(row),'key':row['prompt_key']}
+            bind_prompt(conn,run_type='EXTRACTION',run_id=run_id,resolved=resolved,model=model,parameters={'verification_enabled':bool(llm.get('verification'))})
+        conn.commit()
+
+
 def _decorate_drafts(data: dict, source: dict, run_id: str) -> dict:
     for q in data.get("questions", []):
         q["source_document_id"] = source["id"]
@@ -900,6 +920,8 @@ def _decorate_drafts(data: dict, source: dict, run_id: str) -> dict:
         q["extraction_run_id"] = run_id
         q.setdefault("extraction_provider", data.get("llm", {}).get("provider", "local"))
         q.setdefault("extraction_model", data.get("llm", {}).get("model", ""))
+        q["transcription_prompt_version_id"] = (data.get("llm") or {}).get("transcription_prompt_version_id")
+        q["verification_prompt_version_id"] = (data.get("llm") or {}).get("verification_prompt_version_id")
         q.setdefault("verification_status", "REVIEW" if data.get("llm") else "UNVERIFIED")
         q.setdefault("confidence", 0.0)
         q.setdefault("verification_issues", [])
@@ -1020,6 +1042,8 @@ def _generate_question_explanation(qid: int, language: str = 'en', student_user_
             location=os.getenv('GCP_REGION') or os.getenv('GOOGLE_CLOUD_REGION') or os.getenv('GOOGLE_CLOUD_LOCATION', 'asia-south1'),
             http_options=types.HttpOptions(api_version='v1', timeout=180000),
         )
+        from prompt_registry import resolve_active_prompt
+        explanation_prompt = resolve_active_prompt('QUESTION_EXPLANATION')
         response = client.models.generate_content(
             model=status.get('model', 'gemini-3.5-flash'),
             contents=[prompt],
@@ -1028,7 +1052,7 @@ def _generate_question_explanation(qid: int, language: str = 'en', student_user_
                 max_output_tokens=8192 if language=='te' else 5000,
                 response_mime_type='application/json',
                 response_schema=StructuredExplanation,
-                system_instruction='You are a patient, concept-focused tutor who teaches exam concepts deeply. Explain the underlying principle, connect it to the correct option and the distractors, add relevant background knowledge, and give cautious textbook/YouTube references only when they are broadly appropriate. Use bold emphasis for the key teaching points. Never invent exact URLs or false video claims.',
+                system_instruction=explanation_prompt['system_content'],
             ),
         )
 
@@ -1317,7 +1341,13 @@ def generate_ai_questions_core(payload: GenerationRequest):
             with closing(connect()) as conn: duplicate=conn.execute("SELECT 1 FROM questions WHERE generation_fingerprint=? OR lower(trim(statement))=lower(trim(?)) LIMIT 1",(fp,generated.statement)).fetchone()
             if duplicate or fp in seen: rejected+=1;continue
             seen.add(fp);item=generated.model_dump();item["review_index"]=len(review);item["fingerprint"]=fp;review.append(item)
-        with closing(connect()) as conn:conn.execute("UPDATE ai_generation_runs SET generated_count=?,rejected_count=?,model=?,output_json=?,usage_json=?,status='REVIEW_REQUIRED' WHERE id=?",(len(batch.questions),rejected,model,json.dumps({"questions":review},ensure_ascii=False),json.dumps(usage),run_id));conn.commit()
+        with closing(connect()) as conn:
+            prompt_version=f"QUESTION_GENERATE:v{usage.get('prompt_version_id','')}"
+            conn.execute("UPDATE ai_generation_runs SET generated_count=?,rejected_count=?,model=?,system_prompt_version=?,output_json=?,usage_json=?,status='REVIEW_REQUIRED' WHERE id=?",(len(batch.questions),rejected,model,prompt_version,json.dumps({"questions":review},ensure_ascii=False),json.dumps(usage),run_id))
+            from prompt_registry import bind_prompt
+            prompt_row=conn.execute('SELECT v.*,d.prompt_key FROM prompt_versions v JOIN prompt_definitions d ON d.id=v.prompt_definition_id WHERE v.id=?',(usage.get('prompt_version_id'),)).fetchone()
+            if prompt_row:bind_prompt(conn,run_type='QUESTION_GENERATION',run_id=run_id,resolved={**dict(prompt_row),'key':prompt_row['prompt_key']},model=model,parameters={'requested_count':payload.count})
+            conn.commit()
         return {"run_id":run_id,"exam":payload.exam_name,"subject":payload.subject,"requested":payload.count,"generated":len(batch.questions),"accepted":0,"rejected":rejected,"review_required":len(review),"model":model,"questions":review,"saved":False}
     except Exception as exc:
         with closing(connect()) as conn:conn.execute("UPDATE ai_generation_runs SET status='FAILED',error_message=? WHERE id=?",(str(exc)[:2000],run_id));conn.commit()
@@ -1778,6 +1808,7 @@ async def _parse_source(file: UploadFile, mode: str) -> dict:
                 model = data["llm"].get("model", "")
                 run_status = "AI_COMPLETE"
         run_id = _record_run(source["id"], provider, model, run_status, data.get("usage", {}), data.get("warnings", []))
+        _bind_extraction_prompts(run_id,data,model)
         return _decorate_drafts(data, source, run_id)
     except HTTPException:
         raise

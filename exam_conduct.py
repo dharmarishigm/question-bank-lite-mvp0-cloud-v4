@@ -70,6 +70,13 @@ def evaluate_exam_start_eligibility(conn,user,exam_id,code=""):
     if not exam:return {"eligible":False,"reason_code":"EXAM_NOT_FOUND","message":"Exam not found"}
     if user["status"]!="ACTIVE":return {"eligible":False,"reason_code":"ACCOUNT_DISABLED","message":"Account is not active"}
     reg=conn.execute("SELECT * FROM exam_enrollments WHERE exam_id=? AND user_id=?",(exam_id,user["id"])).fetchone()
+    # Program enrollment is the canonical learner registration. Materialize the
+    # exam enrollment lazily so attempt limits and audit history remain intact.
+    if not reg:
+        linked=conn.execute("SELECT 1 FROM program_enrollments pe WHERE pe.user_id=? AND pe.status='ENROLLED' AND (EXISTS (SELECT 1 FROM program_exam_jobs pj WHERE pj.program_id=pe.program_id AND pj.exam_id=?) OR EXISTS (SELECT 1 FROM grand_tests gt WHERE gt.program_id=pe.program_id AND gt.exam_id=?))",(user["id"],exam_id,exam_id)).fetchone()
+        if linked:
+            now=time.time(); conn.execute("INSERT INTO exam_enrollments(exam_id,user_id,status,registered_at,created_at,updated_at,registered_email,registration_source,created_by) VALUES(?,?,'ENROLLED',?,?,?,?, 'PROGRAM',?)",(exam_id,user["id"],now,now,now,user.get("email", ""),user["id"]))
+            reg=conn.execute("SELECT * FROM exam_enrollments WHERE exam_id=? AND user_id=?",(exam_id,user["id"])).fetchone()
     if not reg:return {"eligible":False,"reason_code":"NOT_REGISTERED","message":"Registration is required"}
     if reg["status"]=="BLOCKED":return {"eligible":False,"reason_code":"REGISTRATION_BLOCKED","message":"Registration is blocked"}
     if reg["status"] not in {"ENROLLED","COMPLETED"}:return {"eligible":False,"reason_code":"REGISTRATION_NOT_ACTIVE","message":"Registration is not active"}

@@ -126,7 +126,9 @@ def generate(message,context,history):
     from google.genai import types
     client = genai.Client(vertexai=True,project=gcp_project_id(),location=gcp_region(),http_options=types.HttpOptions(api_version='v1',timeout=30000))
     try:
-        response = client.models.generate_content(model=os.getenv('VERTEX_MODEL_TUTOR',os.getenv('VERTEX_MODEL_PRIMARY','gemini-2.5-flash')), contents=json.dumps({'trusted_metrics':context,'conversation':history,'learner_question':message}), config=types.GenerateContentConfig(system_instruction=SYSTEM_PROMPT,temperature=0.2,max_output_tokens=int(os.getenv('TUTOR_MAX_OUTPUT_TOKENS','900')),response_mime_type='application/json',response_schema={'type':'OBJECT','properties':{'message':{'type':'STRING'},'bullets':{'type':'ARRAY','items':{'type':'STRING'}},'follow_up':{'type':'STRING'},'suggested_replies':{'type':'ARRAY','items':{'type':'STRING'}}},'required':['message','bullets','follow_up','suggested_replies']}))
+        from prompt_registry import resolve_active_prompt
+        system_prompt=resolve_active_prompt('IQRA_MENTOR')
+        response = client.models.generate_content(model=os.getenv('VERTEX_MODEL_TUTOR',os.getenv('VERTEX_MODEL_PRIMARY','gemini-2.5-flash')), contents=json.dumps({'trusted_metrics':context,'conversation':history,'learner_question':message}), config=types.GenerateContentConfig(system_instruction=system_prompt['system_content'],temperature=0.2,max_output_tokens=int(os.getenv('TUTOR_MAX_OUTPUT_TOKENS','900')),response_mime_type='application/json',response_schema={'type':'OBJECT','properties':{'message':{'type':'STRING'},'bullets':{'type':'ARRAY','items':{'type':'STRING'}},'follow_up':{'type':'STRING'},'suggested_replies':{'type':'ARRAY','items':{'type':'STRING'}}},'required':['message','bullets','follow_up','suggested_replies']}))
         result=json.loads(response.text or '{}')
         return result if isinstance(result.get('message'),str) and result['message'].strip() else None
     finally:

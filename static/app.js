@@ -43,8 +43,13 @@ function escapeHtml(text) {
 }
 
 function safeUrl(value) {
-  const url = String(value || '');
-  return (/^\/uploads\/[a-z0-9_-]+(?:\.[a-z0-9]+)?$/i.test(url) || /^https?:\/\//i.test(url) || /^data:image\//i.test(url) || /^blob:/i.test(url)) ? escapeHtml(url) : '';
+  let url = String(value || '').trim();
+  if (/^uploads\//i.test(url)) url = `/${url}`;
+  if (/^\/uploads\//i.test(url) && window.MeritIQraNative?.assetBase) url = `${window.MeritIQraNative.assetBase}${url}`;
+  const upload = /^\/uploads\/[a-z0-9_./%~-]+(?:[?#][a-z0-9_./%=&?~#-]+)?$/i.test(url);
+  const external = /^https?:\/\//i.test(url);
+  const imageData = /^data:image\/(?:png|jpe?g|gif|webp|svg\+xml);base64,/i.test(url);
+  return (upload || external || imageData || /^blob:/i.test(url)) ? escapeHtml(url) : '';
 }
 
 function renderTables(lines) {
@@ -142,9 +147,9 @@ function toHtml(source) {
     return `\u0000${math.length - 1}\u0000`;
   });
   text = text
-    .replace(/!\[formula:(\d+(?:\.\d+)?)\]\((\/uploads\/[a-f0-9]+\.png)\)/g,
-      (_, height, url) => `<img class="inline-formula" src="${url}" alt="Formula from original PDF" style="height:${Math.min(12, Number(height))}em" />`)
-    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, alt, url) => safeUrl(url) ? `<img src="${url}" alt="${alt}" loading="lazy" />` : alt)
+    .replace(/!\[formula:(\d+(?:\.\d+)?)\]\(([^)\s]+)\)/g,
+      (_, height, url) => safeUrl(url) ? `<img class="inline-formula" src="${safeUrl(url)}" alt="Formula from original PDF" loading="lazy" style="height:${Math.min(12, Number(height))}em" />` : '')
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_, alt, url) => safeUrl(url) ? `<img src="${safeUrl(url)}" alt="${alt}" loading="lazy" decoding="async" />` : alt)
     .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_, label, url) => /^https?:\/\//i.test(url) ? `<a href="${url}" target="_blank" rel="noreferrer">${label}</a>` : label)
     .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     .replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>')
@@ -719,6 +724,7 @@ function openCompareModal(index) {
     const url = safeUrl(seg.image);
     return `<figure class="source-image"><figcaption>Page ${escapeHtml(seg.page || q.page || '')} · Original crop</figcaption><img src="${url}" alt="Complete original crop" /><button class="image-expand" data-view-image="${url}">Expand source</button></figure>`;
   }).join('') || '<p class="muted">No original image available.</p>';
+  if(window.QuestionSourceReview)QuestionSourceReview.renderEvidence($('compare-originals'),q);
   $('compare-score').textContent = `Verification confidence: ${Math.round(Number(q.confidence || 0) * 100)}%`;
   $('compare-score').className = `verify ${String(q.verification_status || 'UNVERIFIED').toLowerCase()}`;
   $('compare-transformed').innerHTML = transformed;

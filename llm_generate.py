@@ -206,17 +206,20 @@ def parse_generated_batch(response) -> GeneratedQuestionBatch:
 def generate_questions(request: GenerationRequest, client=None) -> tuple[GeneratedQuestionBatch, dict, str]:
     if not gcp_project_id(): raise RuntimeError("Vertex AI is unavailable. Configure GCP_PROJECT_ID and credentials.")
     model=configured_vertex_model()
+    from prompt_registry import resolve_active_prompt
+    system_prompt=resolve_active_prompt('QUESTION_GENERATE')
     if client is None:
         from google import genai
         from google.genai import types
         client=genai.Client(vertexai=True,project=gcp_project_id(),location=gcp_region(),http_options=types.HttpOptions(api_version="v1",timeout=180000))
     from google.genai import types
-    questions=[];usage={"prompt_token_count":0,"candidates_token_count":0,"total_token_count":0};batch_size=max(1,min(5,int(os.getenv("AI_GENERATION_BATCH_SIZE","5"))))
+    questions=[];usage={"prompt_token_count":0,"candidates_token_count":0,"total_token_count":0,
+        "prompt_version_id":system_prompt['id'],"prompt_content_hash":system_prompt['content_hash']};batch_size=max(1,min(5,int(os.getenv("AI_GENERATION_BATCH_SIZE","5"))))
 
     def account(response) -> None:
         usage_obj=getattr(response,"usage_metadata",None)
         if usage_obj:
-            for key in usage:usage[key]+=int(getattr(usage_obj,key,0) or 0)
+            for key in ("prompt_token_count","candidates_token_count","total_token_count"):usage[key]+=int(getattr(usage_obj,key,0) or 0)
 
     def generate_batch(batch_request: GenerationRequest, retries: int = 2) -> list[GeneratedQuestion]:
         last_error=None
@@ -224,7 +227,7 @@ def generate_questions(request: GenerationRequest, client=None) -> tuple[Generat
             prompt=public_prompt_preview(batch_request)
             if attempt:
                 prompt += "\n\nRETRY REQUIREMENT\nThe prior response was invalid or truncated. Return complete valid JSON. Keep statements, options, and solutions concise. Escape LaTeX backslashes and chemical notation correctly; do not put raw line breaks inside JSON strings."
-            response=client.models.generate_content(model=model,contents=prompt,config=types.GenerateContentConfig(system_instruction=SYSTEM_INSTRUCTION,temperature=0.25 if attempt else 0.4,automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),response_mime_type="application/json",response_schema=GeneratedQuestionBatch,max_output_tokens=int(os.getenv('AI_GENERATION_MAX_OUTPUT_TOKENS','12000'))))
+            response=client.models.generate_content(model=model,contents=prompt,config=types.GenerateContentConfig(system_instruction=system_prompt['system_content'],temperature=0.25 if attempt else 0.4,automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),response_mime_type="application/json",response_schema=GeneratedQuestionBatch,max_output_tokens=int(os.getenv('AI_GENERATION_MAX_OUTPUT_TOKENS','12000'))))
             account(response)
             try:
                 batch=parse_generated_batch(response)

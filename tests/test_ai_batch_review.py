@@ -13,6 +13,14 @@ def batch(admin,subject):
     return r.json()
 
 
+def test_generation_save_does_not_initialize_schema(clients):
+    admin,_,_=clients
+    with patch('prompt_registry.init_prompt_registry',side_effect=AssertionError('Runtime must not create tables')):
+        result=batch(admin,'Physics')
+    assert result['generated']==2
+    assert result['review_required']==2
+
+
 def test_bulk_save_atomic_indices_idempotency_and_partial_status(clients):
     admin,student,_=clients;a=batch(admin,'Physics');b=batch(admin,'Chemistry')
     payload={'batches':[{'run_id':a['run_id'],'indices':[0]},{'run_id':b['run_id'],'indices':[999]}],'reviewed':True}

@@ -150,6 +150,12 @@ Document AI evidence is secondary evidence: if it conflicts with the visible ima
 Return confidence 0..1 for exact transcription fidelity and concise issues. No corrected full answer.'''
 
 
+def _active_prompt(key: str) -> dict:
+    """Resolve at call time so an Admin activation applies without a restart."""
+    from prompt_registry import resolve_active_prompt
+    return resolve_active_prompt(key)
+
+
 def validate_extraction(result: Extraction, local: dict, page_count: int) -> None:
     """Structural safety checks only; local parser is evidence, not authority."""
     if not result.questions:
@@ -295,7 +301,7 @@ def _page_quality(docai: dict | None, page: int) -> float | None:
     return item.get('quality_score') if item else None
 
 
-def _verify_one(client, qdict: dict, image_paths: list[str], formulas: list[dict]) -> tuple[VerificationResult | None, dict]:
+def _verify_one(client, qdict: dict, image_paths: list[str], formulas: list[dict], system_instruction: str | None = None) -> tuple[VerificationResult | None, dict]:
     if not llm_status()['verification']:
         return None, {}
     from google.genai import types
@@ -310,7 +316,7 @@ def _verify_one(client, qdict: dict, image_paths: list[str], formulas: list[dict
             model=llm_status()['verifier_model'],
             parts=parts,
             schema=VerificationResult,
-            system_instruction=VERIFY_PROMPT,
+            system_instruction=system_instruction or _active_prompt('DIGITIZE_VERIFY')['system_content'],
             max_tokens=4000,
         )
         result = VerificationResult.model_validate_json(response.text or '')
@@ -404,6 +410,8 @@ def extract_source(source_bytes: bytes, mime_type: str, local: dict, upload_dir:
         raise ValueError(f'This local MVP is configured for at most {max_pages} pages per file; increase QB_MAX_PAGES if needed')
 
     docai, evidence_warnings = _docai_evidence(source_bytes, mime_type)
+    transcription_prompt = _active_prompt('DIGITIZE_TRANSCRIBE')
+    verification_prompt = _active_prompt('DIGITIZE_VERIFY')
     usage: dict = {'transcription': [], 'verification': []}
     with _client() as client:
         extracted: list[ExtractedQuestion] = []
@@ -416,7 +424,7 @@ def extract_source(source_bytes: bytes, mime_type: str, local: dict, upload_dir:
                     'Faithfully transcribe every complete printed question visible in this page batch. If a question is visibly cut off at a batch edge, still return the visible source region and mark the missing continuation as an uncertainty.',
                 ],
                 schema=Extraction,
-                system_instruction=TRANSCRIBE_PROMPT,
+                system_instruction=transcription_prompt['system_content'],
                 max_tokens=int(os.getenv('QB_GEMINI_MAX_OUTPUT_TOKENS', '12000')),
             )
             chunk_result = Extraction.model_validate_json(response.text or '')
@@ -483,7 +491,7 @@ def extract_source(source_bytes: bytes, mime_type: str, local: dict, upload_dir:
             image_paths = [str(Path(upload_dir) / Path(seg.get('image', '')).name) for seg in source_segments if seg.get('image')]
             if not image_paths:
                 image_paths = [str(Path(upload_dir) / Path(image).name)]
-            verifier, vusage = _verify_one(client, qbase, image_paths, formulas)
+            verifier, vusage = _verify_one(client, qbase, image_paths, formulas, verification_prompt['system_content'])
             if vusage:
                 usage['verification'].append(vusage)
             issues = d_issues + ([i.model_dump() for i in verifier.issues] if verifier else [])
@@ -523,7 +531,11 @@ def extract_source(source_bytes: bytes, mime_type: str, local: dict, upload_dir:
         'questions': questions,
         'warnings': all_warnings,
         'mostly_garbled': False,
-        'llm': llm_status(),
+        'llm': {**llm_status(),
+            'transcription_prompt_version_id': transcription_prompt['id'],
+            'transcription_prompt_hash': transcription_prompt['content_hash'],
+            'verification_prompt_version_id': verification_prompt['id'],
+            'verification_prompt_hash': verification_prompt['content_hash']},
         'document_ai': {'used': bool(docai), 'formula_count': len(docai.get('formulas', [])) if docai else 0},
         'usage': usage,
     }

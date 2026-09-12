@@ -8,4 +8,5 @@ COPY scripts/check_production_runtime.py /app/scripts/check_production_runtime.p
 COPY scripts/validate_release_migrations.py /app/scripts/validate_release_migrations.py
 ENV APP_ENV=production QB_SCHEMA_MANAGED=1 SECURITY_HARDENING=1 REQUIRE_STAFF_MFA=1 DB_POOL_ENABLED=1 DB_POOL_SIZE=5 EXPECTED_SCHEMA_REVISION=0020_dqb_document_controls PYTHONUNBUFFERED=1
 # No Alembic on web startup. Schema promotion is a separate, reviewed operation.
+ENTRYPOINT []
 CMD ["sh","-c","python scripts/check_production_runtime.py && exec python -m uvicorn app:app --host 0.0.0.0 --port ${PORT:-8080}"]

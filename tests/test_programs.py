@@ -18,6 +18,8 @@ def clients():
             conn.executescript(app.SCHEMA)
         with patch.object(app, 'DB_PATH', path), patch.dict(os.environ, {'APP_ENV':'test','AUTH_MODE':'mock','ADMIN_EMAILS':'admin@example.test'}):
             init_platform()
+            from prompt_registry import init_prompt_registry
+            init_prompt_registry()
             with TestClient(app.app) as admin, TestClient(app.app) as student, TestClient(app.app) as anonymous:
                 for client, email in [(admin,'admin@example.test'),(student,'student@example.test')]:
                     assert client.post('/api/auth/mock',json={'email':email}).status_code == 200
