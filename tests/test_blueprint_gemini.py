@@ -20,6 +20,6 @@ def test_vertex_timeout_retry_and_untrusted_input_boundary():
 
 def test_vertex_malformed_output_fails_closed():
     client=Mock();client.models.generate_content.return_value=SimpleNamespace(text='not json',usage_metadata=None)
-    with patch.dict(os.environ,{'BLUEPRINT_GEMINI_MODEL':'test-model'}),pytest.raises(ValueError):
+    with patch.dict(os.environ,{'BLUEPRINT_GEMINI_MODEL':'test-model','BLUEPRINT_MAX_RETRIES':'1'}),pytest.raises(ValueError):
         structured_call('BLUEPRINT_REFINEMENT','Review',{},Proposal,client)
-    assert client.models.generate_content.call_count==1
+    assert client.models.generate_content.call_count==2

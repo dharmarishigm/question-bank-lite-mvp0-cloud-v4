@@ -1,4 +1,5 @@
 import copy
+import json
 from unittest.mock import patch
 import app
 from tests.test_programs import clients
@@ -46,12 +47,37 @@ def test_edit_options_stale_write_and_saved_question_guard(clients):
     path=f'/api/ai/review/runs/{run["run_id"]}/questions/0'
     payload={'question':edited,'original_question':original}
     assert student.put(path,json=payload).status_code==403
-    assert admin.put(path,json=payload).status_code==200
+    response=admin.put(path,json=payload)
+    assert response.status_code==200
+    assert response.json()['explanation_en']=='' and response.json()['explanation_te']==''
     assert admin.put(path,json=payload).status_code==409
     saved=admin.post('/api/ai/review/save',json={'batches':[{'run_id':run['run_id'],'indices':[0]}],'reviewed':True}).json()
     question=admin.get('/api/questions/'+str(saved['items'][0]['question_id'])).json()
     assert question['options'][0]=='A corrected option'
+    with app.connect() as conn:
+        assert not conn.execute('SELECT 1 FROM question_explanation_translations WHERE question_id=?',(question['id'],)).fetchone()
     assert admin.put(path,json={'question':edited,'original_question':edited}).status_code==409
+
+
+def test_metadata_only_draft_edit_preserves_explanations_but_core_edit_clears_nested_cache(clients):
+    admin,_,_=clients;run=batch(admin,'Physics');q=run['questions'][0]
+    original={k:v for k,v in q.items() if k not in {'review_index','fingerprint'}}
+    original['metadata']['precomputed_explanations']={'en':'Old English','te':'పాత వివరణ'}
+    with app.connect() as conn:
+        output=json.loads(conn.execute('SELECT output_json FROM ai_generation_runs WHERE id=?',(run['run_id'],)).fetchone()['output_json'])
+        output['questions'][0]['metadata']=original['metadata']
+        conn.execute('UPDATE ai_generation_runs SET output_json=? WHERE id=?',(json.dumps(output),run['run_id']));conn.commit()
+    path=f'/api/ai/review/runs/{run["run_id"]}/questions/0'
+    tagged=copy.deepcopy(original);tagged['tags']=['reviewed']
+    result=admin.put(path,json={'question':tagged,'original_question':original})
+    assert result.status_code==200,result.text
+    assert result.json()['explanation_en']==original['explanation_en']
+    current={k:v for k,v in result.json().items() if k not in {'review_index','fingerprint'}}
+    changed=copy.deepcopy(current);changed['answer']='C'
+    result=admin.put(path,json={'question':changed,'original_question':current})
+    assert result.status_code==200,result.text
+    assert result.json()['explanation_en']=='' and result.json()['explanation_te']==''
+    assert 'precomputed_explanations' not in result.json()['metadata']
 
 
 def test_bank_correction_preserves_ai_origin_and_versions(clients):

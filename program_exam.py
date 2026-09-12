@@ -335,7 +335,8 @@ def scope_hash(pid, settings, section):
     return content_hash({'program_id': pid, 'subject': section.subject.casefold(),
         'level': settings.level, 'language': settings.language, 'curriculum': settings.curriculum,
         'topics': section.topics, 'difficulty': settings.difficulty, 'pattern': settings.pattern,
-        'prompt': settings.generation_prompt, 'instructions': settings.instructions})
+        'prompt': settings.generation_prompt, 'instructions': settings.instructions,
+        'additional_conditions': settings.additional_conditions})
 
 
 def question_scope(question):
@@ -400,9 +401,9 @@ def run_build(jid):
                 if not missing:
                     break
                 while missing:
-                    # Reduce provider round trips for ordinary practice papers,
-                    # while keeping structured output bounded and operator-tunable.
-                    batch_size=max(1,min(20,int(os.getenv('PROGRAM_EXAM_BATCH_SIZE','10'))))
+                    # Persist each normal provider-sized batch promptly instead
+                    # of waiting for several internal calls before checkpointing.
+                    batch_size=max(1,min(20,int(os.getenv('PROGRAM_EXAM_BATCH_SIZE','3'))))
                     count = min(missing, batch_size)
                     payload = GenerationRequest(exam_name=job['input']['program_name'], subject=section.subject,
                         level=settings.level, language=settings.language, count=count,

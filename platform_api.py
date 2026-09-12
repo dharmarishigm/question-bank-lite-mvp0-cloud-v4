@@ -879,23 +879,40 @@ def result_detail(sid:int,request:Request):
 @router.get('/student/results/{sid}/questions/{qid}/explain')
 def explain_attempt_question(sid:int,qid:int,request:Request,language:str='en'):
     user=_auth(request)
+    from performance_service import RELEASED
+    from tutor_agent import guard_active
     with closing(db()) as conn:
-        session=conn.execute("SELECT * FROM exam_sessions WHERE id=? AND user_id=? AND status IN ('SUBMITTED','AUTO_SUBMITTED')",(sid,user['id'])).fetchone()
-        if not session:raise HTTPException(404,'Completed attempt not found')
+        session=conn.execute(f"SELECT s.* FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.id=? AND s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') AND {RELEASED}",(sid,user['id'])).fetchone()
+        if not session:raise HTTPException(404,'Released attempt not found')
         snapshot=json.loads(session['question_set_json'] or '[]')
         if not any(int(q.get('id',0))==qid for q in snapshot):raise HTTPException(404,'Question not found in this attempt')
+        guard_active(conn,user['id'])
     from app import _generate_question_explanation
-    return _generate_question_explanation(qid,language,student_user_id=user['id'] if user['role']=='STUDENT' else None)
+    result=_generate_question_explanation(qid,language,student_user_id=user['id'] if user['role']=='STUDENT' else None)
+    with closing(db()) as conn:
+        guard_active(conn,user['id'])
+        if not conn.execute(f"SELECT s.id FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.id=? AND s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') AND {RELEASED}",(sid,user['id'])).fetchone():
+            raise HTTPException(404,'Released attempt not found')
+    return result
 
 @router.get('/student/questions/{qid}/explain')
 def explain_owned_attempt_question(qid:int,request:Request,language:str='en'):
     user=_auth(request)
+    from performance_service import RELEASED
+    from tutor_agent import guard_active
     with closing(db()) as conn:
-        rows=conn.execute("SELECT question_set_json FROM exam_sessions WHERE user_id=? AND status IN ('SUBMITTED','AUTO_SUBMITTED')",(user['id'],)).fetchall()
+        rows=conn.execute(f"SELECT s.question_set_json FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') AND {RELEASED}",(user['id'],)).fetchall()
         found=any(any(int(q.get('id',0))==qid for q in json.loads(row['question_set_json'] or '[]')) for row in rows)
-    if not found:raise HTTPException(404,'Question not found in your completed attempts')
+        if not found:raise HTTPException(404,'Question not found in your released attempts')
+        guard_active(conn,user['id'])
     from app import _generate_question_explanation
-    return _generate_question_explanation(qid,language,student_user_id=user['id'] if user['role']=='STUDENT' else None)
+    result=_generate_question_explanation(qid,language,student_user_id=user['id'] if user['role']=='STUDENT' else None)
+    with closing(db()) as conn:
+        guard_active(conn,user['id'])
+        rows=conn.execute(f"SELECT s.question_set_json FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') AND {RELEASED}",(user['id'],)).fetchall()
+        if not any(any(int(q.get('id',0))==qid for q in json.loads(row['question_set_json'] or '[]')) for row in rows):
+            raise HTTPException(404,'Question not found in your released attempts')
+    return result
 
 @router.get('/admin/results')
 def admin_results(request:Request):

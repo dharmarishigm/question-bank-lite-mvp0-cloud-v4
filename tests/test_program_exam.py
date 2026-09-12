@@ -161,7 +161,7 @@ def test_large_paper_batches_and_partial_failure_do_not_save_partial_bank(client
         admin.post(root+'/exam-papers',json={'request_key':'large-paper-key','settings':value})
     job=admin.get(root+'/exam-papers').json()[0]
     assert job['status']=='REVIEW_REQUIRED',job
-    assert calls==[10]*8 and job['result']['generated']==80
+    assert calls==[3]*26+[2] and job['result']['generated']==80
     before=admin.get('/api/questions').json()['total']
     def partial(request):
         if request.subject=='Language':raise RuntimeError('Second section unavailable')
@@ -207,19 +207,21 @@ def test_checkpoint_retry_keeps_completed_batches(clients):
     with patch('app.generate_questions',side_effect=interrupted),patch('program_exam.time.sleep'):
         admin.post(root+'/exam-papers',json={'request_key':'checkpoint-request','settings':settings(sections=[{'subject':'Arithmetic','count':13}])})
     job=admin.get(root+'/exam-papers').json()[0]
-    assert job['status']=='FAILED' and job['result']['progress']['completed']==10
+    assert job['status']=='FAILED' and job['result']['progress']['completed']==3
     assert admin.get('/api/questions').json()['total']==0
     stems=[x['question']['statement'] for x in job['result']['questions']]
     resumed=[]
     def remaining(request):
         resumed.append(request.count)
-        return author(request)
+        batch,usage,model=author(request)
+        for q in batch.questions:q.statement=f'Resumed batch {len(resumed)}: '+q.statement
+        return batch,usage,model
     with patch('app.generate_questions',side_effect=remaining):
         admin.post(root+f'/exam-papers/{job["id"]}/retry')
     job=admin.get(root+'/exam-papers').json()[0]
-    assert job['status']=='REVIEW_REQUIRED' and resumed==[3]
+    assert job['status']=='REVIEW_REQUIRED' and resumed==[3,3,3,1]
     assert len(job['result']['questions'])==13
-    assert [x['question']['statement'] for x in job['result']['questions'][:10]]==stems
+    assert [x['question']['statement'] for x in job['result']['questions'][:3]]==stems
     assert admin.get('/api/questions').json()['total']==13
 
 

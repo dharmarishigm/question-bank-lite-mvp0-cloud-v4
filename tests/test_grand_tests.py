@@ -63,13 +63,14 @@ def test_full_lifecycle_and_multiple_students(clients):
     code=r.json()['proctor_code']
     assert admin.put(path+'/schedule',json={**schedule,'revision':g['revision']+1}).status_code==409
     assert student.post(f'/api/exams/{eid}/enroll').status_code==200
-    assert student.post(f'/api/student/exams/{eid}/start',json={'proctor_code':code}).status_code==403
-    assert student.post(f'/api/exams/{eid}/sessions').status_code==403
+    assert student.post(f'/api/student/exams/{eid}/start',json={'proctor_code':code}).status_code==422
+    assert student.post(f'/api/student/exams/{eid}/start',json={'proctor_code':code,'consent':True}).status_code==403
+    assert student.post(f'/api/exams/{eid}/sessions',json={'consent':True}).status_code==403
     with app.connect() as conn:
         conn.execute('UPDATE exams SET exam_start_at=? WHERE id=?',(now-60,eid));conn.execute('UPDATE exam_proctor_codes SET valid_from=? WHERE exam_id=?',(now-60,eid));conn.commit()
-    assert student.post(f'/api/student/exams/{eid}/start',json={}).status_code==403
-    assert student.post(f'/api/student/exams/{eid}/start',json={'proctor_code':'WRONG'}).status_code==403
-    r=student.post(f'/api/student/exams/{eid}/start',json={'proctor_code':code});assert r.status_code==200,r.text
+    assert student.post(f'/api/student/exams/{eid}/start',json={'consent':True}).status_code==403
+    assert student.post(f'/api/student/exams/{eid}/start',json={'proctor_code':'WRONG','consent':True}).status_code==403
+    r=student.post(f'/api/student/exams/{eid}/start',json={'proctor_code':code,'consent':True});assert r.status_code==200,r.text
     sid=r.json()['session_id'];session=student.get(f'/api/sessions/{sid}').json()
     assert session['session']['expires_at']<=now+7200
     with app.connect() as conn:
@@ -79,7 +80,7 @@ def test_full_lifecycle_and_multiple_students(clients):
         assert second.post('/api/auth/mock',json={'email':'second@example.test'}).status_code==200
         second.headers['X-CSRF-Token']=second.cookies['qb_csrf']
         assert second.post(f'/api/exams/{eid}/enroll').status_code==200
-        assert second.post(f'/api/student/exams/{eid}/start',json={'proctor_code':code}).status_code==200
+        assert second.post(f'/api/student/exams/{eid}/start',json={'proctor_code':code,'consent':True}).status_code==200
 
 
 def test_operator_ownership_permissions_and_csrf(clients):

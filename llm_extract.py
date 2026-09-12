@@ -10,6 +10,7 @@ packages or credentials.
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -170,40 +171,64 @@ def validate_extraction(result: Extraction, local: dict, page_count: int) -> Non
             raise ValueError('Gemini returned an implausible option set')
 
 
-def _client():
+def _client(*, timeout_ms=90000):
     from google import genai
     from google.genai import types
     return genai.Client(
         vertexai=True,
         project=gcp_project_id(),
         location=gcp_region(),
-        http_options=types.HttpOptions(api_version='v1', timeout=180000),
+        http_options=types.HttpOptions(api_version='v1', timeout=timeout_ms,
+            retry_options=types.HttpRetryOptions(attempts=1)),
     )
 
 
 def _generate_structured(client, *, model: str, parts: list, schema, system_instruction: str, max_tokens: int):
     from google.genai import types
-    response = client.models.generate_content(
-        model=model,
-        contents=parts,
-        config=types.GenerateContentConfig(
-            system_instruction=system_instruction,
-            temperature=0,
-            automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-            max_output_tokens=max_tokens,
-            response_mime_type='application/json',
-            response_schema=schema,
-        ),
-    )
-    finish_reason = str(getattr((response.candidates or [{}])[0], 'finish_reason', '')) if getattr(response, 'candidates', None) else ''
-    text = getattr(response, 'text', '') or ''
-    if not response.candidates:
-        raise ValueError('Gemini did not finish the structured response')
-    if finish_reason in {'STOP', 'FinishReason.STOP'}:
-        return response
-    if text.strip().startswith('{') or text.strip().startswith('['):
-        return response
+    from ai_runtime import is_retryable, response_metadata, serving_schema, thinking_config
+    for attempt in range(2):
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=parts,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0,
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+                    thinking_config=thinking_config(model),
+                    max_output_tokens=max_tokens,
+                    response_mime_type='application/json',
+                    response_schema=serving_schema(schema),
+                ),
+            )
+        except Exception as exc:
+            if attempt or not is_retryable(exc):
+                raise
+            logging.getLogger(__name__).warning('Digitization provider retry error_type=%s', type(exc).__name__)
+            continue
+        candidates = getattr(response, 'candidates', None) or []
+        reason = str(getattr(candidates[0], 'finish_reason', '')) if candidates else ''
+        # Do not recover content the provider has explicitly withheld. Partial
+        # JSON from token exhaustion remains unusable until its schema validates.
+        if reason.rsplit('.', 1)[-1] in {'SAFETY', 'RECITATION', 'BLOCKLIST', 'PROHIBITED_CONTENT', 'SPII', 'IMAGE_SAFETY'}:
+            raise ValueError('Gemini withheld the structured transcription')
+        try:
+            _parse_structured_response(response, schema)
+            return response
+        except ValueError:
+            if attempt:
+                raise
+            logging.getLogger(__name__).warning('Digitization structured response retry metadata=%s', response_metadata(response))
+            if reason.rsplit('.', 1)[-1] == 'MAX_TOKENS':
+                max_tokens = max(max_tokens, min(24000, max_tokens * 2))
     raise ValueError('Gemini did not finish the structured response')
+
+
+def _parse_structured_response(response, schema):
+    # SDK-parsed output and candidate text parts are valid response sources even
+    # when Vertex leaves its response.text convenience property empty.
+    from ai_runtime import response_payload
+    return schema.model_validate(response_payload(response))
 
 
 def _render_page_image(source_bytes: bytes, mime_type: str, page: int, upload_dir: str) -> str:
@@ -319,7 +344,7 @@ def _verify_one(client, qdict: dict, image_paths: list[str], formulas: list[dict
             system_instruction=system_instruction or _active_prompt('DIGITIZE_VERIFY')['system_content'],
             max_tokens=4000,
         )
-        result = VerificationResult.model_validate_json(response.text or '')
+        result = _parse_structured_response(response, VerificationResult)
         usage = response.usage_metadata.model_dump() if response.usage_metadata else {}
         return result, usage
     except Exception as exc:
@@ -427,7 +452,7 @@ def extract_source(source_bytes: bytes, mime_type: str, local: dict, upload_dir:
                 system_instruction=transcription_prompt['system_content'],
                 max_tokens=int(os.getenv('QB_GEMINI_MAX_OUTPUT_TOKENS', '12000')),
             )
-            chunk_result = Extraction.model_validate_json(response.text or '')
+            chunk_result = _parse_structured_response(response, Extraction)
             validate_extraction(chunk_result, {}, chunk_page_count)
             _shift_pages(chunk_result, page_offset)
             extracted.extend(chunk_result.questions)

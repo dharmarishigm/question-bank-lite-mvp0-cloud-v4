@@ -81,11 +81,14 @@ def suggest(data: dict, request: Request):
     try:
         result,meta=structured_call('EPIDEMIOLOGY_INPUT_SUGGESTION',
             'You are an epidemiology and market access forecasting analyst. Populate all inputs for a patient-based product forecast for the named disease and geography. '
-            'Use plausible, internally consistent values and an uptake curve. Never present invented values as measured facts: mark ASSUMPTION_REQUIRED unless the user supplied a cited source. '
+            'Use plausible, internally consistent values and an uptake curve. This request contains no cited evidence: always mark ASSUMPTION_REQUIRED and never present suggested values as measured facts. '
             'Keep rates between 0 and 1, existing product shares at or below 1, and explain the assumptions, population unit and how to validate them. '
             'Product Y is a hypothetical new product; do not make patient-specific medical claims. Return only the requested structured fields.',
             {'disease':disease,'region':region},ForecastSuggestion)
         _clean(result)
+        # This endpoint accepts only disease and region, never supporting
+        # evidence. A model's self-reported confidence cannot establish a source.
+        result.evidence_status = 'ASSUMPTION_REQUIRED'
         output=result.model_dump();output['model']=meta.get('model','Vertex AI') if isinstance(meta,dict) else 'Vertex AI';return output
     except Exception as exc:
         import logging

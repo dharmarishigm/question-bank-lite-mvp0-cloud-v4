@@ -72,6 +72,13 @@ class ChatInput(BaseModel):
     page_content: str = Field(default='', max_length=4000)
 
 
+class TutorReply(BaseModel):
+    message: str = Field(min_length=1, max_length=4000)
+    bullets: list[str] = Field(default_factory=list, max_length=3)
+    follow_up: str = Field(default='', max_length=500)
+    suggested_replies: list[str] = Field(default_factory=list, max_length=3)
+
+
 def review(conn, uid, attempt_id, question_id):
     row = conn.execute(f"SELECT s.question_set_json,s.id FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.id=? AND s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') AND {RELEASED}", (attempt_id,uid)).fetchone()
     if not row: raise HTTPException(404, 'Released attempt not found')
@@ -80,7 +87,8 @@ def review(conn, uid, attempt_id, question_id):
         questions = [q for q in questions if q.get('id') == question_id]
         if not questions: raise HTTPException(404, 'Question not found in this released attempt')
     answers = {r['question_id']:dict(r) for r in conn.execute('SELECT question_id,selected_answer,is_correct FROM exam_answers WHERE session_id=?', (attempt_id,)).fetchall()}
-    return [{**{k:str(q.get(k,''))[:2500] for k in ('id','statement','answer','solution','topic')}, 'response':answers.get(q.get('id'),{})} for q in questions[:5]]
+    return [{**{k:str(q.get(k,''))[:2500] for k in ('id','statement','answer','solution','topic')},
+             'options':q.get('options', []), 'response':answers.get(q.get('id'),{})} for q in questions[:5]]
 
 
 @router.get('/insights')
@@ -124,13 +132,17 @@ def generate(message,context,history):
     if not gcp_project_id(): return None
     from google import genai
     from google.genai import types
-    client = genai.Client(vertexai=True,project=gcp_project_id(),location=gcp_region(),http_options=types.HttpOptions(api_version='v1',timeout=30000))
+    from ai_runtime import response_payload, serving_schema, thinking_config
+    model = os.getenv('VERTEX_MODEL_TUTOR',os.getenv('VERTEX_MODEL_PRIMARY','gemini-2.5-flash'))
+    client = genai.Client(vertexai=True,project=gcp_project_id(),location=gcp_region(),http_options=types.HttpOptions(api_version='v1',timeout=30000,retry_options=types.HttpRetryOptions(attempts=1)))
     try:
-        from prompt_registry import resolve_active_prompt
+        from prompt_registry import resolve_active_prompt, LATEX_SYSTEM_RULE
         system_prompt=resolve_active_prompt('IQRA_MENTOR')
-        response = client.models.generate_content(model=os.getenv('VERTEX_MODEL_TUTOR',os.getenv('VERTEX_MODEL_PRIMARY','gemini-2.5-flash')), contents=json.dumps({'trusted_metrics':context,'conversation':history,'learner_question':message}), config=types.GenerateContentConfig(system_instruction=system_prompt['system_content'],temperature=0.2,max_output_tokens=int(os.getenv('TUTOR_MAX_OUTPUT_TOKENS','900')),response_mime_type='application/json',response_schema={'type':'OBJECT','properties':{'message':{'type':'STRING'},'bullets':{'type':'ARRAY','items':{'type':'STRING'}},'follow_up':{'type':'STRING'},'suggested_replies':{'type':'ARRAY','items':{'type':'STRING'}}},'required':['message','bullets','follow_up','suggested_replies']}))
-        result=json.loads(response.text or '{}')
-        return result if isinstance(result.get('message'),str) and result['message'].strip() else None
+        system_content=system_prompt['system_content']
+        if LATEX_SYSTEM_RULE not in system_content:system_content+='\n'+LATEX_SYSTEM_RULE
+        response = client.models.generate_content(model=model, contents=json.dumps({'trusted_metrics':context,'conversation':history,'learner_question':message},ensure_ascii=False), config=types.GenerateContentConfig(system_instruction=system_content,temperature=0.2,max_output_tokens=max(2048,int(os.getenv('TUTOR_MAX_OUTPUT_TOKENS','2048'))),thinking_config=thinking_config(model,512),response_mime_type='application/json',response_schema=serving_schema(TutorReply),automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)))
+        result=TutorReply.model_validate(response_payload(response))
+        return result.model_dump() if result.message.strip() else None
     finally:
         client.close()
 

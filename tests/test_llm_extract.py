@@ -1,6 +1,7 @@
 import os
 import unittest
 from io import BytesIO
+from types import SimpleNamespace
 from unittest import mock
 
 from fastapi import UploadFile
@@ -11,6 +12,7 @@ from llm_extract import (
     Extraction,
     ExtractedQuestion,
     _generate_structured,
+    _parse_structured_response,
     _merge_local_question_fields,
     gcp_project_id,
     gcp_region,
@@ -68,15 +70,72 @@ class LlmExtractionTests(unittest.TestCase):
 
     def test_accepts_structured_json_even_when_finish_reason_is_not_stop(self):
         response = mock.Mock()
-        response.candidates = [mock.Mock(finish_reason='MAX_TOKENS')]
+        response.candidates = [SimpleNamespace(finish_reason='MAX_TOKENS')]
         response.text = '{"questions": [{"number": 1, "page": 1, "statement": "Find x.", "options": ["1", "2"], "answer": "A", "solution": ""}]}'
         response.usage_metadata = None
+        response.parsed = None
         client = mock.Mock()
         client.models.generate_content.return_value = response
 
         out = _generate_structured(client, model='gemini-test', parts=['x'], schema=Extraction, system_instruction='prompt', max_tokens=128)
 
         self.assertIs(out, response)
+
+    def test_reads_candidate_parts_when_transcription_text_is_empty(self):
+        expected = Extraction(questions=[self.question()])
+        response = SimpleNamespace(text='', parsed=None, candidates=[SimpleNamespace(
+            finish_reason='STOP', content=SimpleNamespace(parts=[
+                SimpleNamespace(text=expected.model_dump_json(), thought=False)]))])
+        client = mock.Mock()
+        client.models.generate_content.return_value = response
+        out = _generate_structured(client, model='gemini-test', parts=['source'],
+            schema=Extraction, system_instruction='Transcribe faithfully', max_tokens=12000)
+        self.assertEqual(_parse_structured_response(out, Extraction), expected)
+        self.assertEqual(client.models.generate_content.call_count, 1)
+
+    def test_retries_truncated_json_once_with_larger_output_budget(self):
+        expected = Extraction(questions=[self.question()])
+        truncated = SimpleNamespace(text='{"questions":[', parsed=None,
+            candidates=[SimpleNamespace(finish_reason='MAX_TOKENS')])
+        complete = SimpleNamespace(text='', parsed=expected,
+            candidates=[SimpleNamespace(finish_reason='STOP')])
+        client = mock.Mock()
+        client.models.generate_content.side_effect = [truncated, complete]
+        out = _generate_structured(client, model='gemini-test', parts=['source'],
+            schema=Extraction, system_instruction='Transcribe faithfully', max_tokens=12000)
+        self.assertEqual(_parse_structured_response(out, Extraction), expected)
+        calls = client.models.generate_content.call_args_list
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[1].kwargs['config'].max_output_tokens, 24000)
+        self.assertEqual(calls[1].kwargs['contents'], ['source'])
+
+    def test_invalid_schema_still_fails_after_bounded_recovery(self):
+        response = SimpleNamespace(text='{"questions":[{"statement":"missing page and number"}]}',
+            parsed=None, candidates=[SimpleNamespace(finish_reason='STOP')])
+        client = mock.Mock()
+        client.models.generate_content.return_value = response
+        with self.assertRaises(ValueError):
+            _generate_structured(client, model='gemini-test', parts=['source'],
+                schema=Extraction, system_instruction='Transcribe faithfully', max_tokens=12000)
+        self.assertEqual(client.models.generate_content.call_count, 2)
+
+    def test_withheld_transcription_is_not_retried_or_imported(self):
+        response = SimpleNamespace(text=Extraction(questions=[self.question()]).model_dump_json(),
+            parsed=None, candidates=[SimpleNamespace(finish_reason='SAFETY')])
+        client = mock.Mock()
+        client.models.generate_content.return_value = response
+        with self.assertRaisesRegex(ValueError, 'withheld'):
+            _generate_structured(client, model='gemini-test', parts=['source'],
+                schema=Extraction, system_instruction='Transcribe faithfully', max_tokens=12000)
+        self.assertEqual(client.models.generate_content.call_count, 1)
+
+    def test_explicit_timeout_budget_disables_hidden_sdk_retries(self):
+        from llm_extract import _client
+        with mock.patch('google.genai.Client') as client:
+            _client(timeout_ms=60000)
+        options = client.call_args.kwargs['http_options']
+        self.assertEqual(options.timeout, 60000)
+        self.assertEqual(options.retry_options.attempts, 1)
 
 
 class PdfUploadFallbackTests(unittest.IsolatedAsyncioTestCase):

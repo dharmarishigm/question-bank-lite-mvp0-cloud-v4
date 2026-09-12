@@ -4,6 +4,20 @@ from blueprint_domain import content_hash
 from multimodal import statement_with_question_figures
 
 
+def invalidate_generated_explanations(item):
+    """Remove text derived from a previous question, including nested caches."""
+    for field in ('explanation_en','explanation_te'):
+        if field in item:item[field]=''
+    def clear(value):
+        if not isinstance(value,dict):return
+        value.pop('precomputed_explanations',None)
+        value.pop('explanation_en',None);value.pop('explanation_te',None)
+        for child in value.values():
+            if isinstance(child,dict):clear(child)
+    clear(item.get('metadata'))
+    clear(item.get('generation_metadata'))
+
+
 def prepare(conn,qid):
     from exam_conduct import _snapshot
     plans=[]
@@ -22,6 +36,10 @@ def propagate(conn,old,updated,user_id,plans):
     from program_exam import snapshot
     from exam_conduct import _snapshot,audit
     qid=updated['id'];now=time.time()
+    content_changed=any(old.get(key)!=updated.get(key) for key in ('statement','options','answer','solution'))
+    if content_changed:
+        invalidate_generated_explanations(updated)
+        conn.execute('UPDATE questions SET generation_metadata=? WHERE id=?',(json.dumps(updated.get('generation_metadata',{}),ensure_ascii=False),qid))
     for job,result,draft,valid in plans:
         for item in result.get('questions',[]):
             if item.get('question',{}).get('id')==qid:item['question']=snapshot(updated)
@@ -35,6 +53,7 @@ def propagate(conn,old,updated,user_id,plans):
         for q in output.get('questions',[]):
             own=row['id']==old.get('generation_run_id') and q.get('statement')==old.get('statement')
             if q.get('saved_question_id')==qid or own:
+                if content_changed:invalidate_generated_explanations(q)
                 q.update(statement=updated['statement'],options=[{'label':chr(65+i),'text':text} for i,text in enumerate(updated['options'])],answer=updated['answer'],solution=updated['solution'],saved_question_id=qid,fingerprint=updated.get('generation_fingerprint',''));changed=True
         if changed:conn.execute('UPDATE ai_generation_runs SET output_json=? WHERE id=?',(json.dumps(output,ensure_ascii=False),row['id']))
     # Copy the currently published version, changing ONLY the reviewed question.
@@ -89,4 +108,10 @@ def hydrate_run(conn,run):
     for item in items:
         matches=statements.get(item.get('statement'),set());qid=item.get('saved_question_id') or (next(iter(matches)) if len(matches)==1 else None)
         if qid in bank:
-            q=bank[qid];item.update(saved_question_id=qid,statement=q['statement'],options=[{'label':chr(65+i),'text':o} for i,o in enumerate(q['options'])],answer=q['answer'],solution=q['solution'])
+            q=bank[qid]
+            # Legacy blobs may already contain corrected core fields but stale
+            # explanations. The live cache is authoritative for saved questions.
+            invalidate_generated_explanations(item)
+            for cached in conn.execute("SELECT language,explanation FROM question_explanation_translations WHERE question_id=? AND language IN ('en','te')",(qid,)).fetchall():
+                item['explanation_'+cached['language']]=cached['explanation']
+            item.update(saved_question_id=qid,statement=q['statement'],options=[{'label':chr(65+i),'text':o} for i,o in enumerate(q['options'])],answer=q['answer'],solution=q['solution'])

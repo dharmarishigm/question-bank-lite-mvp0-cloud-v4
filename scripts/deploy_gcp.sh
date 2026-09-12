@@ -61,6 +61,14 @@ fi
 CANDIDATE_URL="$(gcloud run services describe "$SERVICE" --project="$PROJECT_ID" --region="$REGION" --format=json | .venv/bin/python -c 'import json,sys; print(next(t["url"] for t in json.load(sys.stdin)["status"]["traffic"] if t.get("tag")=="release-check"))')"
 curl --fail --silent --show-error --retry 3 --max-time 30 "${CANDIDATE_URL}/api/health"
 
+# Allow application smoke checks before explicitly promoting a candidate.
+if [ "${PROMOTE_TRAFFIC:-1}" = 0 ]; then
+  echo
+  echo "Candidate ready; production traffic unchanged: $SERVICE-$REVISION_SUFFIX"
+  echo "Candidate URL: $CANDIDATE_URL"
+  exit 0
+fi
+
 gcloud run services update-traffic "$SERVICE" \
   --project="$PROJECT_ID" \
   --region="$REGION" \

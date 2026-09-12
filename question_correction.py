@@ -1,6 +1,6 @@
 """Admin-reviewed question corrections; suggestions never persist themselves."""
 from contextlib import closing
-import json,logging,secrets,time
+import json,logging,re,secrets,time
 from typing import Literal
 from fastapi import APIRouter,HTTPException,Request
 from pydantic import Field,model_validator
@@ -13,29 +13,83 @@ class Content(Contract):
     options:list[str]=Field(default_factory=list,max_length=26)
     answer:str=Field(default='',max_length=1000)
     solution:str=Field(default='',max_length=30000)
-    @model_validator(mode='before')
-    @classmethod
-    def normalize_provider_content(cls,value):
-        if not isinstance(value,dict):return value
-        result=dict(value)
-        for alias,target in (('question','statement'),('question_text','statement'),('correct_answer','answer'),('explanation','solution')):
-            if target not in result and alias in result:result[target]=result[alias]
-        options=[]
-        raw=result.get('options') or []
-        if isinstance(raw,dict):raw=list(raw.values())
-        for option in raw:
-            if isinstance(option,dict):option=option.get('text') or option.get('value') or option.get('content') or ''
-            options.append(str(option))
-        result['options']=options
-        for key in ('statement','answer','solution'):
-            if isinstance(result.get(key),dict):result[key]=str(result[key].get('text') or result[key].get('value') or result[key].get('content') or '')
-            elif isinstance(result.get(key),list):result[key]='\n\n'.join(str(item) for item in result[key])
-        return {key:result.get(key,'' if key!='options' else []) for key in cls.model_fields}
     @model_validator(mode='after')
     def valid(self):
         if not self.statement.strip():raise ValueError('Question text is required')
         if any(not o.strip() or len(o)>15000 for o in self.options):raise ValueError('Options must contain text and fit within 15000 characters')
         return self
+
+
+def provider_text(value, *, keys=('text','value','content'), paragraphs=False):
+    """Accept known text containers without stringifying or discarding data."""
+    if isinstance(value,str):return value
+    if isinstance(value,dict) and value and set(value)<=set(keys):
+        values=list(value.values())
+        if all(item==values[0] for item in values):
+            return provider_text(values[0],paragraphs=paragraphs)
+    if paragraphs and isinstance(value,list) and all(isinstance(item,str) for item in value):
+        return '\n\n'.join(value)
+    raise ValueError('Invalid provider text container')
+
+
+def option_label(value):
+    if not isinstance(value,str):raise ValueError('Option labels must be letters')
+    label=value.strip().upper()
+    match=re.fullmatch(r'(?:OPTION\s+)?\(?([A-Z])\)?[.:]?',label)
+    if not match:raise ValueError('Unknown option label')
+    return match.group(1)
+
+
+def provider_question(value):
+    if isinstance(value,Content):return value
+    if not isinstance(value,dict):return value
+    result=dict(value)
+    for alias,target in (('question','statement'),('question_text','statement'),('correct_answer','answer'),('explanation','solution')):
+        if alias in result:
+            if target in result and result[target]!=result[alias]:raise ValueError('Conflicting provider fields')
+            result[target]=result.pop(alias)
+    for key in ('statement','solution'):
+        if key in result:result[key]=provider_text(result[key],paragraphs=key=='solution')
+    raw=result.get('options',[])
+    labelled=[]
+    if isinstance(raw,dict):
+        labelled=[(option_label(label),provider_text(text)) for label,text in raw.items()]
+    elif isinstance(raw,list):
+        has_labels=any(isinstance(item,dict) and 'label' in item for item in raw)
+        if has_labels:
+            for item in raw:
+                if not isinstance(item,dict) or 'label' not in item:raise ValueError('Mixed labelled and unlabelled options')
+                labelled.append((option_label(item['label']),provider_text({k:v for k,v in item.items() if k!='label'})))
+        else:result['options']=[provider_text(item) for item in raw]
+    else:raise ValueError('Options must be an array or labelled object')
+    if labelled:
+        labelled.sort(key=lambda item:item[0])
+        if [label for label,_ in labelled]!=list('ABCDEFGHIJKLMNOPQRSTUVWXYZ'[:len(labelled)]):
+            raise ValueError('Option labels must be unique and consecutive from A')
+        result['options']=[text for _,text in labelled]
+    elif isinstance(raw,dict):result['options']=[]
+    options=result.get('options',[])
+    answer=result.get('answer','')
+    if isinstance(answer,dict):
+        values=list(answer.values())
+        if not answer or not set(answer)<={'text','value','content','label','option'} or any(item!=values[0] for item in values):
+            raise ValueError('Invalid provider answer container')
+        answer=values[0]
+    if isinstance(answer,bool) or not isinstance(answer,(str,int)):raise ValueError('Invalid provider answer')
+    answer=str(answer).strip()
+    if options and answer:
+        candidates={chr(65+i) for i,text in enumerate(options) if text.strip()==answer}
+        try:
+            label=option_label(answer)
+            if label in 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'[:len(options)]:candidates.add(label)
+        except ValueError:pass
+        if answer.isdigit() and 1<=int(answer)<=len(options):candidates.add(chr(64+int(answer)))
+        if len(candidates)!=1:raise ValueError('Answer must unambiguously identify one displayed option')
+        answer=candidates.pop()
+    result['answer']=answer
+    return result
+
+
 class Suggestion(Contract):
     question:Content
     changes:list[str]=Field(default_factory=list,max_length=30)
@@ -48,13 +102,15 @@ class Suggestion(Contract):
         # Some valid Gemini responses flatten the question despite the response
         # schema, or omit optional review notes. Normalize only those safe shape
         # differences; Content still validates the actual replacement strictly.
-        if 'question' not in result and 'statement' in result:
+        if ('question' not in result and any(key in result for key in ('statement','question_text'))) or isinstance(result.get('question'),str):
             result['question']={key:value for key,value in result.items() if key not in {'changes','uncertainties'}}
             result={key:value for key,value in result.items() if key in {'question','changes','uncertainties'}}
+        if 'question' in result:result['question']=provider_question(result['question'])
         for key in ('changes','uncertainties'):
             note=result.get(key,[])
-            note=[note] if isinstance(note,(str,dict)) else (note or [])
-            result[key]=[str(item.get('text') or item.get('change') or item.get('reason') or item.get('description') or '') if isinstance(item,dict) else str(item) for item in note]
+            note=[note] if isinstance(note,(str,dict)) else ([] if note is None else note)
+            if not isinstance(note,list):raise ValueError('Review notes must be text or a list')
+            result[key]=[provider_text(item,keys=('text','change','reason','description')) for item in note]
         return result
 class SuggestInput(Contract):
     mode:Literal['correct','regenerate','replace_from_paper']='correct'

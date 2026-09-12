@@ -28,6 +28,7 @@ ENTRYPOINT []
 CMD ["sh","-c","python scripts/check_production_runtime.py && exec python -m uvicorn app:app --host 0.0.0.0 --port ${PORT:-8080}"]
 ''')
 validation = f'''set -eu
+docker run --rm --entrypoint python {image} -c 'from google.genai import types; from ai_runtime import thinking_config; options=types.HttpOptions(api_version="v1", timeout=60000, retry_options=types.HttpRetryOptions(attempts=1)); types.GenerateContentConfig(http_options=options, thinking_config=thinking_config("gemini-2.5-flash")); print("AI runtime configuration validated")'
 docker run -d --name qb-migration-db --network cloudbuild -e POSTGRES_DB=qb_migration_test -e POSTGRES_PASSWORD=disposable-test-only postgres:16
 trap 'docker rm -f qb-migration-db' EXIT
 for attempt in $(seq 1 60); do

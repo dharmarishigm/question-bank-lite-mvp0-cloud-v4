@@ -1,4 +1,6 @@
 import copy,json,time
+import pytest
+from pydantic import ValidationError
 from contextlib import closing
 from unittest.mock import patch
 import app
@@ -36,6 +38,48 @@ def test_suggestion_normalizes_safe_provider_shape_variations():
  proposal=Suggestion.model_validate(flat)
  assert proposal.question.options==['$x=2$','$x=3$'] and proposal.question.answer=='A'
  assert proposal.question.solution=='Square both sides.\n\n$x=2$.' and proposal.changes==['Replaced question'] and proposal.uncertainties==[]
+ for alias in ['question','question_text']:
+  flat[alias]=flat.pop('statement') if 'statement' in flat else flat.pop('question')
+  assert Suggestion.model_validate(flat).question.statement=='Replacement $x^2$ question'
+
+@pytest.mark.parametrize('options,answer,expected',[
+ ({'C':'six','A':'two','B':'four'},2,'B'),
+ ({'C':'six','A':'two','B':'four'},'four','B'),
+ ([{'label':'C','text':'six'},{'label':'A','text':'two'},{'label':'B','text':'four'}],{'value':2},'B'),
+ ({'B':'four','A':'two','C':'six'},'Option C','C'),
+])
+def test_provider_options_canonical_order_preserves_answer_identity(options,answer,expected):
+ proposal=Suggestion.model_validate({'question':{'statement':'Compute the value.','options':options,'answer':answer}})
+ assert proposal.question.options==['two','four','six']
+ assert proposal.question.answer==expected
+
+@pytest.mark.parametrize('question',[
+ {'statement':'Question','options':{'A':'two','C':'six'},'answer':'A'},
+ {'statement':'Question','options':[{'label':'A','text':'two'},{'label':'A','text':'four'}],'answer':'A'},
+ {'statement':'Question','options':['two',None],'answer':'A'},
+ {'statement':'Question','options':[{'text':'two','unexpected':'do not discard'},'four'],'answer':'A'},
+ {'statement':'Question','options':['two','four'],'answer':'unknown'},
+ {'statement':'Question','options':['2','3'],'answer':'2'},
+ {'statement':'Question','options':['two','four'],'answer':True},
+ {'statement':'Question','options':['two','four'],'answer':{'label':'A','text':'B'}},
+ {'statement':'Question','options':['two','four'],'answer':'A','unexpected':'do not discard'},
+ {'statement':'Question','options':['two','four'],'answer':'A','solution':[{'unrecognized':'steps'}]},
+])
+def test_malformed_or_ambiguous_provider_values_are_rejected(question):
+ with pytest.raises(ValidationError):Suggestion.model_validate({'question':question})
+
+def test_provider_normalization_does_not_relax_client_contract(clients):
+ admin,_,_=clients
+ for question in [
+  {'statement':'Question','options':{'B':'four','A':'two'},'answer':2},
+  {'question_text':'Question','options':['two','four'],'correct_answer':'A'},
+  {'statement':'Question','options':['two','four'],'answer':'A','unexpected':True},
+ ]:
+  with patch('question_correction.structured_call') as llm:
+   r=admin.post('/api/admin/question-corrections/suggest',json={'question':question})
+   assert r.status_code==422,r.text
+   llm.assert_not_called()
+  with pytest.raises(ValidationError):Content.model_validate(question)
 
 def test_paper_syllabus_replacement_uses_server_frozen_context(clients):
  admin,_,_=clients;q=question(admin)

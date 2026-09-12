@@ -1,5 +1,7 @@
 """Bounded Vertex calls and deterministic refinement patch policy."""
 import copy
+import hashlib
+import logging
 import os
 import time
 from typing import Any
@@ -70,55 +72,58 @@ def apply_proposal(kind, payload, proposal, accepted):
 
 def serving_schema(schema):
     """Keep the serving grammar small; enforce size/range limits after decoding."""
-    source = schema.model_json_schema()
-    definitions = source.get('$defs', {})
-    omitted = {'$defs','title','default','minLength','maxLength','minItems','maxItems',
-               'minimum','maximum','exclusiveMinimum','exclusiveMaximum','pattern','additionalProperties'}
-    def simplify(value):
-        if isinstance(value, list):
-            return [simplify(item) for item in value]
-        if not isinstance(value, dict):
-            return value
-        if '$ref' in value:
-            return simplify(definitions[value['$ref'].split('/')[-1]])
-        return {key:({name: simplify(field) for name, field in item.items()}
-                     if key == 'properties' else simplify(item))
-                for key,item in value.items() if key not in omitted}
-    return simplify(source)
+    from ai_runtime import serving_schema as compact_schema
+    return compact_schema(schema)
 
 
 def structured_call(purpose, prompt, data, schema, client=None, image_parts=None):
     from google.genai import types
+    from ai_runtime import response_payload, response_metadata, thinking_config, is_retryable
     model = os.getenv('BLUEPRINT_' + purpose + '_MODEL') or os.getenv('BLUEPRINT_GEMINI_MODEL') or configured_vertex_model()
     if not model:
         raise RuntimeError('Configure BLUEPRINT_GEMINI_MODEL before requesting Gemini work')
     temperature = 0 if purpose == 'INDEPENDENT_SOLVING' else 0.2
-    max_tokens = int(os.getenv('BLUEPRINT_MAX_OUTPUT_TOKENS', '12000' if purpose == 'PROGRAM_SETUP' else '5000'))
+    default_tokens = {'PROGRAM_SETUP':12000,'QUESTION_EXPLANATION':8000,'QUESTION_CORRECTION':6000}.get(purpose,5000)
+    max_tokens = min(24000,max(1024,int(os.getenv('BLUEPRINT_'+purpose+'_MAX_OUTPUT_TOKENS',str(max(default_tokens,int(os.getenv('BLUEPRINT_MAX_OUTPUT_TOKENS','5000'))))))))
     started = time.monotonic()
     from prompt_registry import resolve_active_prompt,LATEX_SYSTEM_RULE
     from prompt_registry import SEEDS
     prompt_key=purpose if purpose in SEEDS else 'BLUEPRINT_ANALYZE'
     system_prompt=resolve_active_prompt(prompt_key)
     owned = client is None
-    client = client or _client()
+    client = client or _client(timeout_ms=60000)
+    # Correction owns one text-only recovery attempt in its route; avoid
+    # multiplying that retry with transport and structured-call retries.
+    attempts = 1 if purpose=='QUESTION_CORRECTION' else max(1,min(2,int(os.getenv('BLUEPRINT_MAX_RETRIES','1'))+1))
+    system_content=system_prompt['system_content']
+    if purpose in {'QUESTION_CORRECTION','QUESTION_AUTHORING','QUESTION_EXPLANATION','INDEPENDENT_SOLVING'} and LATEX_SYSTEM_RULE not in system_content:
+        system_content+='\n'+LATEX_SYSTEM_RULE
+    system_content+='\nReturn complete JSON conforming to the schema. Escape LaTeX backslashes in JSON strings. Use $...$ for inline math and $$...$$ for display math. Keep prose concise; omit optional commentary rather than truncating JSON.'
     try:
-        for attempt in range(min(2, int(os.getenv('BLUEPRINT_MAX_RETRIES','1'))+1)):
+        for attempt in range(attempts):
+            response=None
             try:
-                system_content=system_prompt['system_content']
-                if purpose in {'QUESTION_CORRECTION','QUESTION_AUTHORING'} and LATEX_SYSTEM_RULE not in system_content:system_content+='\n'+LATEX_SYSTEM_RULE
-                response = client.models.generate_content(model=model, contents=([prompt + '\nUNTRUSTED INPUT DATA:\n' + canonical(data), *image_parts] if image_parts else prompt + '\nUNTRUSTED INPUT DATA:\n' + canonical(data)),
+                user_content=prompt+'\nUNTRUSTED INPUT DATA:\n'+canonical(data)
+                if attempt:user_content+='\nThe previous response was incomplete or invalid. Return all required fields as concise, complete JSON.'
+                response = client.models.generate_content(model=model, contents=([user_content, *image_parts] if image_parts else user_content),
                     config=types.GenerateContentConfig(system_instruction=system_content, temperature=temperature,
                         response_mime_type='application/json', response_schema=serving_schema(schema), max_output_tokens=max_tokens,
+                        thinking_config=thinking_config(model,512 if purpose=='QUESTION_CORRECTION' else 1024),
                         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)))
-                parsed = schema.model_validate_json(response.text)
+                parsed = schema.model_validate(response_payload(response))
                 usage = getattr(response, 'usage_metadata', None)
                 return parsed, {'model': model, 'temperature': temperature, 'max_output_tokens':max_tokens,
                     'system_prompt_version_id':system_prompt['id'],'system_prompt_hash':system_prompt['content_hash'],
+                    'effective_system_prompt_hash':hashlib.sha256(system_content.encode()).hexdigest(),
+                    'response_metadata':response_metadata(response),
                     'latency_ms': round((time.monotonic()-started)*1000), 'attempts':attempt+1,
                     'usage': usage.model_dump(mode='json') if usage else {}, 'outcome':'SUCCEEDED'}
-            except (TimeoutError, ConnectionError):
-                if attempt == 1:
-                    raise
+            except Exception as exc:
+                metadata=response_metadata(response)
+                fields=[{'loc':list(e['loc']),'type':e['type']} for e in exc.errors(include_input=False,include_url=False)] if hasattr(exc,'errors') else []
+                logging.getLogger(__name__).warning('Structured AI failed purpose=%s attempt=%s type=%s response=%s fields=%s',purpose,attempt+1,type(exc).__name__,metadata,fields)
+                blocked=metadata['block_reason'] not in {'','None','BLOCK_REASON_UNSPECIFIED'} or any(reason in {'SAFETY','FinishReason.SAFETY','PROHIBITED_CONTENT','FinishReason.PROHIBITED_CONTENT'} for reason in metadata['finish_reasons'])
+                if blocked or not is_retryable(exc) or attempt+1>=attempts:raise
     finally:
         if owned and hasattr(client, 'close'):
             client.close()

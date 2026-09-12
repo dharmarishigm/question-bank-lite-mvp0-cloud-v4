@@ -1,6 +1,7 @@
 """Exercise real authentication, exam submission, result release and tutor isolation."""
 import json
 import os
+import time
 import unittest
 from unittest.mock import patch
 import app
@@ -16,10 +17,10 @@ class TutorTests(unittest.TestCase):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):
             questions=[app.create_question(app.Question(subject='Science',chapter='Plants',topic='Photosynthesis',difficulty='medium',statement=f'Plant {i}?',options=['Wrong','Right'],answer='B',solution='Plants use light.',marks='2')) for i in range(count)]
-        exam=self.post(admin,'/api/admin/exams',json={'name':'Science Practice','status':'OPEN','question_ids':[q['id'] for q in questions],'result_release_mode':release}).json()
+        exam=self.post(admin,'/api/admin/exams',json={'name':'Science Practice','status':'OPEN','question_ids':[q['id'] for q in questions],'result_release_mode':release,'exam_start_at':time.time()-60}).json()
         student,identity=self.login('learner@example.test')
         self.post(student,f'/api/exams/{exam["id"]}/enroll')
-        sid=self.post(student,f'/api/exams/{exam["id"]}/sessions').json()['session_id']
+        sid=self.post(student,f'/api/exams/{exam["id"]}/sessions',json={'consent':True}).json()['session_id']
         for q in questions:
             student.put(f'/api/sessions/{sid}/answers/{q["id"]}',headers={'X-CSRF-Token':self.csrf(student)},json={'selected_answer':'A'})
         if submit:self.post(student,f'/api/sessions/{sid}/submit')
@@ -75,6 +76,7 @@ class TutorTests(unittest.TestCase):
             r=self.post(c,'/api/tutor/chat',json={'message':'Explain','attempt_id':sid,'question_id':qs[0]['id']})
             self.assertEqual(r.status_code,200,r.text)
             self.assertEqual(generate.call_args.args[1]['question_review'][0]['answer'],'B')
+            self.assertEqual(generate.call_args.args[1]['question_review'][0]['options'],['Wrong','Right'])
         self.assertEqual(self.chat(c,attempt_id=sid,question_id=999999).status_code,404)
 
     def test_cross_user_and_admin_assist_is_allowed(self):
@@ -139,3 +141,19 @@ class TutorTests(unittest.TestCase):
         with app.connect() as real:
             latest=dict(real.execute('SELECT * FROM exam_sessions WHERE id=?',(sid,)).fetchone())
             self.assertEqual(benchmark(real,1,exam['id'],latest)['cohort_size'],1)
+
+    def test_provider_candidate_json_and_malformed_reply(self):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+        from tutor_agent import generate
+        c,_=self.login('a@example.test')
+        provider=MagicMock()
+        payload={'message':'Study addition.', 'bullets':[], 'follow_up':'', 'suggested_replies':[]}
+        provider.models.generate_content.return_value=SimpleNamespace(parsed=None,text='',candidates=[SimpleNamespace(content=SimpleNamespace(parts=[SimpleNamespace(text=json.dumps(payload),thought=False)]))])
+        with patch('llm_generate.gcp_project_id',return_value='project'),patch('google.genai.Client',return_value=provider):
+            self.assertEqual(generate('Hello',{},[]),payload)
+            provider.close.assert_called_once()
+            provider.models.generate_content.return_value=SimpleNamespace(parsed={'message':'Hello','bullets':None},text='',candidates=[])
+            response=self.post(c,'/api/tutor/chat',json={'message':'Hi'})
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertEqual(response.json()['mode'],'evidence_summary')

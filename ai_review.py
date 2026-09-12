@@ -101,6 +101,11 @@ def edit_draft(rid:str,index:int,data:DraftEdit,request:Request):
         if old.get('saved_question_id') or conn.execute('SELECT 1 FROM questions WHERE generation_fingerprint=?',(fingerprint(old['statement']),)).fetchone():raise HTTPException(409,'This question is already saved. Edit it in the question bank.')
         if GeneratedQuestion.model_validate({k:v for k,v in old.items() if k not in INTERNAL}).model_dump()!=data.original_question.model_dump():raise HTTPException(409,'Question changed. Reopen the batch before editing.')
         from multimodal import build_content_blocks
+        if any(getattr(data.question,key)!=getattr(data.original_question,key) for key in ('statement','options','answer','solution')):
+            from correction_sync import invalidate_generated_explanations
+            edited=data.question.model_dump()
+            invalidate_generated_explanations(edited)
+            data.question=GeneratedQuestion.model_validate(edited)
         data.question.content_blocks=build_content_blocks(data.question.statement,data.question.visual_assets)
         items[index]={**data.question.model_dump(),'review_index':index,'fingerprint':fingerprint(data.question.statement)}
         conn.execute('UPDATE ai_generation_runs SET output_json=? WHERE id=?',(json.dumps(output,ensure_ascii=False),rid));conn.commit()

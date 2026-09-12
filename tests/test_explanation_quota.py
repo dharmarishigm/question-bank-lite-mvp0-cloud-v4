@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+import time
 from unittest.mock import patch
 import pytest
 from fastapi import HTTPException
@@ -28,12 +29,12 @@ def test_student_routes_share_quota_and_cache_is_free(clients):
     admin,student,other=clients
     other.post("/api/auth/mock",json={"email":"other-quota@example.test","name":"Other"})
     q=admin.post('/api/questions',json={'statement':'2+2?','options':['3','4'],'answer':'B'}).json()
-    exam=admin.post('/api/admin/exams',json={'name':'Quota Exam','status':'OPEN','question_ids':[q['id']]}).json()
+    exam=admin.post('/api/admin/exams',json={'name':'Quota Exam','status':'OPEN','question_ids':[q['id']],'exam_start_at':time.time()-60}).json()
     student.post(f'/api/exams/{exam["id"]}/enroll')
-    sid=student.post(f'/api/exams/{exam["id"]}/sessions').json()['session_id']
+    sid=student.post(f'/api/exams/{exam["id"]}/sessions',json={'consent':True}).json()['session_id']
     student.post(f'/api/sessions/{sid}/submit')
     paths=[f'/api/student/questions/{q["id"]}/explain',f'/api/student/results/{sid}/questions/{q["id"]}/explain']
-    with patch('app.get_cached_question_explanation',return_value=None),patch('app.llm_status',return_value={'available':True}),patch('google.genai.Client',side_effect=RuntimeError('Provider failure')) as model:
+    with patch('app.get_cached_question_explanation',return_value=None),patch('app.llm_status',return_value={'available':True}),patch('blueprint_gemini.structured_call',side_effect=RuntimeError('Provider failure')) as model:
         for i in range(10):assert student.get(paths[i%2]).status_code==502
         limited=student.get(paths[0]);assert limited.status_code==429 and int(limited.headers['Retry-After'])>0
         assert student.get(paths[1]+'?language=te').status_code==429
