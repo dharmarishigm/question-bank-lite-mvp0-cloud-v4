@@ -1146,7 +1146,7 @@ def list_ai_generation_runs(request: Request, response: Response, q: str = Query
                             offset: int = Query(0, ge=0), limit: int = Query(100, ge=1, le=100)):
     from platform_api import _auth, require_admin
     require_admin(_auth(request))
-    clauses, params = [], []
+    clauses, params = ["status!='DELETED'"], []
     if q.strip():
         clauses.append("(LOWER(exam_name) LIKE ? OR LOWER(subject) LIKE ? OR LOWER(topic) LIKE ? OR LOWER(chapter) LIKE ?)")
         params.extend(['%'+q.strip().lower()+'%']*4)
@@ -1193,12 +1193,20 @@ def generate_ai_questions_core(payload: GenerationRequest):
         from llm_generate import PartialGenerationError
         failures=[]
         def collect_generation(request):
+            from generation_control import pause_check
+            def paused():
+                with closing(connect()) as control_conn:
+                    row=control_conn.execute('SELECT status FROM ai_generation_runs WHERE id=?',(run_id,)).fetchone()
+                return not row or row['status'] in {'PAUSING','DELETED'}
+            token=pause_check.set(paused)
             try:
                 return generate_questions(request),None
             except PartialGenerationError as exc:
                 return (exc.batch,exc.usage,exc.model),exc
             except Exception as exc:
                 return None,exc
+            finally:
+                pause_check.reset(token)
         manual_batch_size=max(1,min(10,int(os.getenv('AI_INTERACTIVE_BATCH_SIZE','5'))))
         if payload.count>manual_batch_size and not payload.extra_metadata.get('program_exam_job_id'):
             from concurrent.futures import ThreadPoolExecutor
@@ -1240,7 +1248,7 @@ def generate_ai_questions_core(payload: GenerationRequest):
             seen.add(fp);item=generated.model_dump();item["review_index"]=len(review);item["fingerprint"]=fp;review.append(item)
         with closing(connect()) as conn:
             prompt_version=f"QUESTION_GENERATE:v{usage.get('prompt_version_id','')}"
-            conn.execute("UPDATE ai_generation_runs SET generated_count=?,rejected_count=?,model=?,system_prompt_version=?,output_json=?,usage_json=?,error_message=?,status='REVIEW_REQUIRED' WHERE id=?",(len(batch.questions),rejected,model,prompt_version,json.dumps({"questions":review},ensure_ascii=False),json.dumps(usage),warning,run_id))
+            conn.execute("UPDATE ai_generation_runs SET generated_count=?,rejected_count=?,model=?,system_prompt_version=?,output_json=?,usage_json=?,error_message=?,status=CASE WHEN status='PAUSING' THEN 'PAUSED' ELSE 'REVIEW_REQUIRED' END WHERE id=? AND status!='DELETED'",(len(batch.questions),rejected,model,prompt_version,json.dumps({"questions":review},ensure_ascii=False),json.dumps(usage),warning,run_id))
             from prompt_registry import bind_prompt
             prompt_row=(conn.execute('SELECT v.*,d.prompt_key FROM prompt_versions v JOIN prompt_definitions d ON d.id=v.prompt_definition_id WHERE v.id=?',(usage.get('prompt_version_id'),)).fetchone()
                         if usage.get('prompt_version_id') else None)
@@ -1250,7 +1258,7 @@ def generate_ai_questions_core(payload: GenerationRequest):
     except Exception as exc:
         import logging
         logging.getLogger(__name__).exception('Question generation run %s failed type=%s',run_id,type(exc).__name__)
-        with closing(connect()) as conn:conn.execute("UPDATE ai_generation_runs SET status='FAILED',error_message=? WHERE id=?",(str(exc)[:2000],run_id));conn.commit()
+        with closing(connect()) as conn:conn.execute("UPDATE ai_generation_runs SET status=CASE WHEN status='PAUSING' THEN 'PAUSED' ELSE 'FAILED' END,error_message=? WHERE id=? AND status!='DELETED'",(str(exc)[:2000],run_id));conn.commit()
         if isinstance(exc,(ValueError,RuntimeError)): raise HTTPException(422,str(exc)) from exc
         raise HTTPException(502,"Question generation failed") from exc
 
@@ -1259,11 +1267,65 @@ def generate_ai_questions_core(payload: GenerationRequest):
 def regenerate_ai_generation_run(run_id: str, request: Request):
     from platform_api import _auth, require_admin
     require_admin(_auth(request, True))
-    with closing(connect()) as conn: row=conn.execute("SELECT request_json FROM ai_generation_runs WHERE id=?",(run_id,)).fetchone()
+    with closing(connect()) as conn: row=conn.execute("SELECT request_json,status FROM ai_generation_runs WHERE id=?",(run_id,)).fetchone()
     if not row: raise HTTPException(404,"Generation run not found")
+    if row['status'] in {'RUNNING','PAUSING','DELETED'}:raise HTTPException(409,'This generation cannot be regenerated in its current state')
     try: payload=GenerationRequest.model_validate_json(row["request_json"])
     except Exception as exc: raise HTTPException(409,"Stored generation request is invalid") from exc
     return generate_ai_questions(payload,request)
+
+
+@app.post('/api/ai/runs/{run_id}/pause')
+def pause_ai_generation_run(run_id: str, request: Request):
+    from platform_api import _auth, require_admin
+    require_admin(_auth(request, True))
+    with closing(connect()) as conn:
+        row=conn.execute('SELECT status,request_json,created_at FROM ai_generation_runs WHERE id=?',(run_id,)).fetchone()
+        if not row:raise HTTPException(404,'Generation run not found')
+        if json.loads(row['request_json'] or '{}').get('extra_metadata',{}).get('program_exam_job_id'):raise HTTPException(409,'Manage this generation from its program exam job')
+        if row['status'] not in {'RUNNING','PAUSING','PAUSED'}:raise HTTPException(409,'This generation is no longer running')
+        # Interactive provider work has a <=180s deadline. A 15-minute-old
+        # request is interrupted, not live work; make its checkpoint recoverable.
+        if row['created_at']<time.time()-900:
+            conn.execute("UPDATE ai_generation_runs SET status='PAUSED' WHERE id=? AND status IN ('RUNNING','PAUSING')",(run_id,))
+        else:
+            conn.execute("UPDATE ai_generation_runs SET status='PAUSING' WHERE id=? AND status='RUNNING'",(run_id,))
+        conn.commit()
+    return {'message':'Pause requested. In-flight AI calls may finish; completed questions will be preserved.'}
+
+
+@app.post('/api/ai/runs/{run_id}/resume')
+def resume_ai_generation_run(run_id: str, request: Request):
+    from platform_api import _auth, require_admin
+    require_admin(_auth(request, True))
+    with closing(connect()) as conn:
+        row=conn.execute('SELECT * FROM ai_generation_runs WHERE id=?',(run_id,)).fetchone()
+    if not row:raise HTTPException(404,'Generation run not found')
+    if row['status'] not in {'PAUSED','FAILED','REVIEW_REQUIRED','SAVED'}:raise HTTPException(409,'Only stopped or incomplete generations can be continued')
+    remaining=row['requested_count']-row['generated_count']
+    if remaining<=0:raise HTTPException(409,'All requested questions are ready; review this generation')
+    payload=GenerationRequest.model_validate_json(row['request_json'])
+    if payload.extra_metadata.get('program_exam_job_id'):raise HTTPException(409,'Resume this generation from its program exam job')
+    prior=json.loads(row['output_json'] or '{}').get('questions',[])
+    payload=payload.model_copy(update={'count':remaining,'generation_prompt':payload.generation_prompt+'\nContinue the remaining questions in a new batch. Do not repeat these completed questions or their concepts:\n'+'\n'.join(q['statement'] for q in prior)})
+    with closing(connect()) as conn:
+        claimed=conn.execute("UPDATE ai_generation_runs SET status='CONTINUED' WHERE id=? AND status=?",(run_id,row['status'])).rowcount
+        conn.commit()
+    if not claimed:raise HTTPException(409,'This paused generation has already been continued')
+    return generate_ai_questions_core(payload)
+
+
+@app.delete('/api/ai/runs/{run_id}')
+def delete_ai_generation_run(run_id: str, request: Request):
+    from platform_api import _auth, require_admin
+    require_admin(_auth(request, True))
+    # Retain provenance and foreign-key references for bank questions and papers.
+    with closing(connect()) as conn:
+        row=conn.execute('SELECT status FROM ai_generation_runs WHERE id=?',(run_id,)).fetchone()
+        if not row:raise HTTPException(404,'Generation run not found')
+        if row['status'] in {'RUNNING','PAUSING'}:raise HTTPException(409,'Pause generation and wait for in-flight calls to finish before deleting')
+        conn.execute("UPDATE ai_generation_runs SET status='DELETED' WHERE id=?",(run_id,));conn.commit()
+    return {'message':'Saved generation removed from the list. Bank questions and exam papers are unchanged.'}
 
 
 @app.post("/api/ai/runs/{run_id}/save")

@@ -1976,8 +1976,37 @@ async function loadAiGenerationRuns() {
     $('ai-run-summary').textContent=total?`${aiRunOffset+1}–${aiRunOffset+runs.length} of ${total} matching runs · Select up to 20 batches on this page`:'No runs match these filters.';
     $('ai-runs-prev').disabled=aiRunOffset===0;$('ai-runs-next').disabled=aiRunOffset+runs.length>=total;
     target.innerHTML=runs.length?`<div class="actions"><button data-ai-select-all-batches>Select ready batches on this page</button><button data-ai-clear-batches>Clear selection</button><button class="primary" data-ai-review-selected-batches>Review selected batches together</button></div><table><thead><tr><th>Select batch</th><th>Created</th><th>Exam and subject</th><th>Questions</th><th>Status</th><th>Model</th><th>Actions</th></tr></thead><tbody>${runs.map(run=>`<tr><td><input type="checkbox" data-ai-select-run="${run.id}" aria-label="Select batch ${escapeHtml(run.exam_name)} ${escapeHtml(run.subject)}" ${['REVIEW_REQUIRED','SAVED'].includes(run.status)?'':'disabled'}></td><td>${new Date(run.created_at*1000).toLocaleString()}</td><td><strong>${escapeHtml(run.exam_name)}</strong><small>${escapeHtml(run.subject)}${run.topic?` · ${escapeHtml(run.topic)}`:''}</small></td><td>${run.accepted_count} saved / ${run.generated_count} generated</td><td><span class="badge">${escapeHtml(statusLabels[run.status]||run.status)}</span>${run.error_message?`<small>${escapeHtml(run.error_message)}</small>`:''}</td><td>${escapeHtml(run.model||'—')}</td><td><div class="actions"><button type="button" data-ai-review-run="${run.id}">Review</button><button type="button" data-ai-reuse-run="${run.id}">Reuse inputs</button><button type="button" class="primary" data-ai-regenerate-run="${run.id}" ${run.status==='RUNNING'?'disabled':''}>Regenerate</button></div></td></tr>`).join('')}</tbody></table>`:'<p class="empty-state">No saved generation runs match. Change or clear the filters.</p>';
+    for(const run of runs){
+      const actions=target.querySelector(`[data-ai-review-run="${run.id}"]`)?.parentElement;if(!actions)continue;
+      if(['PAUSED','CONTINUED'].includes(run.status)){const select=target.querySelector(`[data-ai-select-run="${run.id}"]`);if(select)select.disabled=false;}
+      if(run.status==='PAUSING')actions.querySelector('[data-ai-regenerate-run]').disabled=true;
+      const add=(label,action,color)=>{const button=document.createElement('button');button.type='button';button.textContent=label;button.dataset.aiRunControl=action;button.dataset.runId=run.id;button.style.background=color;button.style.color='#fff';actions.append(button);};
+      const stalled=['RUNNING','PAUSING'].includes(run.status)&&Date.now()/1000-run.created_at>900;
+      if(stalled)add('Recover interrupted generation','pause','#92400e');
+      else if(run.status==='RUNNING')add('Pause / stop','pause','#92400e');
+      else if(run.status==='PAUSING'){const note=document.createElement('small');note.textContent='Stopping after in-flight calls finish…';actions.append(note);}
+      else {add('Delete saved generation','delete','#b91c1c');if(['PAUSED','FAILED','REVIEW_REQUIRED','SAVED'].includes(run.status)&&run.generated_count<run.requested_count)add('Continue remaining in new batch','resume','#047857');}
+    }
   } catch(err) { if(requestVersion!==aiRunRequest)return;target.innerHTML=`<p class="empty-state">${escapeHtml(err.message)}</p>`;$('ai-run-summary').textContent='';$('ai-runs-prev').disabled=true;$('ai-runs-next').disabled=true; }
 }
+
+$('ai-run-list')?.addEventListener('click',async event=>{
+  const button=event.target.closest('[data-ai-run-control]');if(!button)return;
+  const action=button.dataset.aiRunControl,runId=button.dataset.runId;
+  if(action==='delete'&&!confirm('Remove this saved generation from the list? Questions already saved to the bank and exam papers will remain unchanged.'))return;
+  button.disabled=true;
+  try{
+    const result=await api(`/api/ai/runs/${runId}${action==='delete'?'':'/'+action}`,{method:action==='delete'?'DELETE':'POST'});
+    if(action==='resume'){switchAiTab('new');renderAiGenerationResults(result);}
+    else notify(result.message);
+    if(action==='delete'&&$('ai-generation-results').dataset.runId===runId){$('ai-generation-results').hidden=true;$('ai-generation-results').innerHTML='';}
+    await loadAiGenerationRuns();
+  }catch(err){notify(err.message);}finally{button.disabled=false;}
+});
+
+// Keep running/pausing controls current even while the generation POST is pending.
+setInterval(()=>{const pane=$('ai-saved-pane');if(pane&&!pane.hidden&&document.visibilityState==='visible'&&!document.querySelector('[data-ai-select-run]:checked'))loadAiGenerationRuns();},10000);
+for(const [value,label] of [['PAUSED','Paused'],['PAUSING','Pause requested']]){const select=$('ai-run-filters')?.elements.namedItem('status');if(select)select.add(new Option(label,value));}
 
 async function reuseAiGenerationRun(runId) {
   const run=await api(`/api/ai/runs/${runId}`);const values=run.request||{};const form=$('ai-generation-form');

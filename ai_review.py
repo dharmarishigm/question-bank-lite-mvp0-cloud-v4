@@ -46,7 +46,7 @@ def save_batches(data):
             conn.execute('UPDATE ai_generation_runs SET accepted_count=accepted_count WHERE id=?',(batch.run_id,))
             row=conn.execute('SELECT * FROM ai_generation_runs WHERE id=?',(batch.run_id,)).fetchone()
             if not row:raise HTTPException(404,'Generation batch not found')
-            if row['status'] not in {'REVIEW_REQUIRED','SAVED'}:raise HTTPException(409,'Only completed batches can be reviewed')
+            if row['status'] not in {'REVIEW_REQUIRED','SAVED','PAUSED','CONTINUED'}:raise HTTPException(409,'Only completed batches can be reviewed')
             output=json.loads(row['output_json'] or '{}');items=output.get('questions',[])
             if any(i>=len(items) for i in batch.indices):raise HTTPException(422,'A selected question no longer exists')
             for i in batch.indices:
@@ -70,7 +70,7 @@ def save_batches(data):
             results.append({'run_id':row['id'],'index':index,'question_id':qid,'status':status})
         for rid,output in outputs.items():
             complete=all(q.get('saved_question_id') for q in output['questions'])
-            conn.execute('UPDATE ai_generation_runs SET output_json=?,accepted_count=accepted_count+?,status=? WHERE id=?',(json.dumps(output,ensure_ascii=False),counts.get(rid,0),'SAVED' if complete else 'REVIEW_REQUIRED',rid))
+            conn.execute("UPDATE ai_generation_runs SET output_json=?,accepted_count=accepted_count+?,status=CASE WHEN status IN ('PAUSED','CONTINUED') THEN status ELSE ? END WHERE id=?",(json.dumps(output,ensure_ascii=False),counts.get(rid,0),'SAVED' if complete else 'REVIEW_REQUIRED',rid))
         conn.commit()
     return {'saved_count':saved,'already_saved_count':len(results)-saved,'items':results}
 
@@ -94,7 +94,7 @@ def edit_draft(rid:str,index:int,data:DraftEdit,request:Request):
         conn.execute('UPDATE ai_generation_runs SET accepted_count=accepted_count WHERE id=?',(rid,))
         row=conn.execute('SELECT * FROM ai_generation_runs WHERE id=?',(rid,)).fetchone()
         if not row:raise HTTPException(404,'Batch not found')
-        if row['status'] not in {'REVIEW_REQUIRED','SAVED'}:raise HTTPException(409,'Batch is not ready for review')
+        if row['status'] not in {'REVIEW_REQUIRED','SAVED','PAUSED','CONTINUED'}:raise HTTPException(409,'Batch is not ready for review')
         output=json.loads(row['output_json'] or '{}');items=output.get('questions',[])
         if index<0 or index>=len(items):raise HTTPException(404,'Question not found')
         old=items[index]

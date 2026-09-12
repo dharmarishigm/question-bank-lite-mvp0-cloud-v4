@@ -122,6 +122,7 @@
       <p class="muted">Questions, answers and worked solutions are generated first. English and Telugu teaching explanations are prepared separately by a scheduled batch job after saving.</p>
     </form>
     <section id="ai-prompt-preview" class="ai-prompt-preview" hidden><div class="section-heading"><h3>Effective prompt preview</h3><button id="ai-close-preview" type="button">Close</button></div><pre></pre></section>
+    <p class="muted">To pause or stop generation, open Saved generation runs and choose Pause / stop. In-flight AI calls finish before pausing; completed questions are kept for review. Continue remaining questions in a new batch, or delete the saved run without removing bank questions.</p>
     <section id="ai-generation-results" class="ai-generation-results" hidden></section>
     <details class="panel"><summary>Scheduled explanation jobs</summary><p>Explanation preparation does not block exam review or publication.</p><button id="explanation-jobs-refresh" type="button">Refresh job status</button><div id="explanation-jobs-status" role="status"></div></details>
     </div>
@@ -515,7 +516,7 @@
 <div id="notification" class="notification" role="status" aria-live="polite" hidden></div>
 <link rel="stylesheet" href="/static/participation.css?v=20260910" />
 <script src="/static/program-participation.js?v=20260910"></script>
-<script src="/static/app.js?v=20260912-current-question-v2"></script>
+<script src="/static/app.js?v=20260912-generation-controls-v1"></script>
 <script src="/static/pdf-viewer.js?v=20260911-validated"></script>
 <script src="/static/registration-flow.js?v=20260910-access-v3"></script>
 <script src="/static/workspace-tabs.js?v=20260912-sections"></script>

@@ -41,6 +41,20 @@ class PromptGenerationTests(unittest.TestCase):
         self.assertIn("line one\nline two",preview);self.assertIn(request.generation_prompt,preview)
         self.assertIn('"calculator_allowed": false',preview)
 
+    def test_pause_prevents_next_provider_call_and_keeps_completed_question(self):
+        from generation_control import pause_check
+        from llm_generate import PartialGenerationError
+        client=self.client(self.response('First completed question'))
+        token=pause_check.set(lambda:bool(client.models.calls))
+        try:
+            with patch('llm_generate.gcp_project_id',return_value='test-project'),patch.dict('os.environ',{'AI_GENERATION_BATCH_SIZE':'1'}):
+                with self.assertRaises(PartialGenerationError) as caught:
+                    generate_questions(self.request(count=2),client=client)
+            self.assertEqual(len(client.models.calls),1)
+            self.assertEqual(caught.exception.questions[0].statement,'First completed question')
+        finally:
+            pause_check.reset(token)
+
     def test_required_fields_and_structural_validation(self):
         for field in ("exam_name","subject","generation_prompt"):
             with self.assertRaises(ValueError):self.request(**{field:""})
@@ -80,6 +94,9 @@ class PromptGenerationTests(unittest.TestCase):
             _,usage,_=generate_questions(self.request(),client=client)
         config=client.models.calls[0]['config']
         self.assertIn(CORE_GENERATION_RULE,config.system_instruction)
+        from prompt_registry import GENERATION_SCOPE_RULE,LATEX_SYSTEM_RULE
+        self.assertIn(GENERATION_SCOPE_RULE,config.system_instruction)
+        self.assertIn(LATEX_SYSTEM_RULE,config.system_instruction)
         self.assertEqual(config.thinking_config.thinking_budget,1024)
         self.assertFalse(config.thinking_config.include_thoughts)
         schema=config.response_schema
@@ -108,7 +125,36 @@ class PromptGenerationTests(unittest.TestCase):
         self.assertEqual(len(batch.questions),3)
         self.assertEqual(len(client.models.calls),3)
         self.assertTrue(all('Question Count: 1' in call['contents'] for call in client.models.calls))
-        self.assertTrue(all(call['config'].response_schema['properties']['questions']['maxItems']==1 for call in client.models.calls))
+        self.assertTrue(all('maxItems' not in call['config'].response_schema['properties']['questions'] for call in client.models.calls))
+        self.assertTrue(all('Return exactly 1 question(s)' in call['contents'] for call in client.models.calls))
+
+    def test_schema_rejection_recovers_through_validated_generation(self):
+        error=RuntimeError('The specified schema produces a constraint that has too many states for serving')
+        error.code=400
+        client=self.client(error,self.response('Recovered after schema rejection'))
+        with patch('llm_generate.gcp_project_id',return_value='test-project'):
+            batch,_,_=generate_questions(self.request(),client=client)
+        self.assertEqual(len(batch.questions),1)
+        self.assertEqual(batch.questions[0].statement,'Recovered after schema rejection')
+        self.assertEqual(len(client.models.calls),2)
+        self.assertIsNone(client.models.calls[1]['config'].response_schema)
+
+    def test_validation_failure_is_fed_back_to_retry(self):
+        invalid=self.response('Missing solution')
+        invalid.parsed['questions'][0]['solution']=''
+        client=self.client(invalid,self.response('Corrected question'))
+        with patch('llm_generate.gcp_project_id',return_value='test-project'):
+            batch,_,_=generate_questions(self.request(),client=client)
+        self.assertEqual(len(batch.questions),1)
+        self.assertIn('A worked solution is required',client.models.calls[1]['contents'])
+
+    def test_exhausted_validation_reports_actual_reason(self):
+        invalid=self.response('Invalid options')
+        invalid.parsed['questions'][0]['options']=['Same','Same']
+        client=self.client(invalid,invalid)
+        with patch('llm_generate.gcp_project_id',return_value='test-project'):
+            with self.assertRaisesRegex(ValueError,'options must be non-empty and unique'):
+                generate_questions(self.request(),client=client)
 
     def test_completed_internal_batches_survive_later_provider_failure(self):
         client=self.client(self.response('First','Second','Third'),TimeoutError('provider timed out'))

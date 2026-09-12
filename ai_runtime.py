@@ -1,6 +1,8 @@
 """Shared response decoding and bounded model settings for Vertex workflows."""
 import json
 import re
+import time
+import logging
 
 from pydantic import BaseModel
 
@@ -73,7 +75,8 @@ def serving_schema(schema):
     source = schema.model_json_schema()
     definitions = source.get('$defs', {})
     omitted = {'$defs','title','default','minLength','maxLength','minItems','maxItems',
-               'minimum','maximum','exclusiveMinimum','exclusiveMaximum','pattern','additionalProperties'}
+               'minimum','maximum','exclusiveMinimum','exclusiveMaximum','pattern','additionalProperties',
+               'format','multipleOf','minProperties','maxProperties','uniqueItems','description','examples'}
     def simplify(value):
         if isinstance(value, list):
             return [simplify(item) for item in value]
@@ -84,3 +87,40 @@ def serving_schema(schema):
         return {key: ({name: simplify(field) for name, field in item.items()} if key == 'properties' else simplify(item))
                 for key, item in value.items() if key not in omitted}
     return simplify(source)
+
+
+def generate_content(client, **kwargs):
+    """Retry only a rejected serving grammar once, retaining JSON + local validation.
+
+    A schema rejection occurs before inference. Other 400 errors must propagate;
+    silently retrying them would hide configuration or input errors.
+    """
+    started=time.monotonic()
+    try:
+        return client.models.generate_content(**kwargs)
+    except Exception as exc:
+        message=str(exc).lower()
+        if str(getattr(exc,'code',''))!='400' or not (
+            'too many states for serving' in message or
+            ('schema' in message and 'constraint' in message and 'too many states' in message)
+        ):
+            raise
+        config=kwargs.get('config')
+        schema=getattr(config,'response_schema',None)
+        if schema is None:raise
+        if hasattr(schema,'model_dump'):schema=schema.model_dump(exclude_none=True)
+        contract=json.dumps(schema,ensure_ascii=False,default=str,separators=(',',':'))
+        fallback=config.model_copy(update={
+            'response_schema':None,
+            'response_mime_type':'application/json',
+            'system_instruction':str(config.system_instruction or '')+'\nReturn one complete JSON value matching this output contract. No Markdown fences. Constraints are validated by the application:\n'+contract,
+        })
+        http_options=getattr(config,'http_options',None)
+        timeout=getattr(http_options,'timeout',None)
+        if timeout:
+            remaining=int(timeout-(time.monotonic()-started)*1000)
+            if remaining<=0:raise TimeoutError('AI request deadline reached during schema validation') from exc
+            fallback.http_options=http_options.model_copy(update={'timeout':remaining})
+        logging.getLogger(__name__).warning('Gemini rejected serving schema complexity; using one JSON-contract fallback')
+        # No recursive fallback and no retry of unrelated INVALID_ARGUMENT errors.
+        return client.models.generate_content(**{**kwargs,'config':fallback})

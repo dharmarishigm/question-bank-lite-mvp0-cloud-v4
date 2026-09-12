@@ -78,7 +78,7 @@ def serving_schema(schema):
 
 def structured_call(purpose, prompt, data, schema, client=None, image_parts=None):
     from google.genai import types
-    from ai_runtime import response_payload, response_metadata, thinking_config, is_retryable
+    from ai_runtime import response_payload, response_metadata, thinking_config, is_retryable, generate_content
     model = os.getenv('BLUEPRINT_' + purpose + '_MODEL') or os.getenv('BLUEPRINT_GEMINI_MODEL') or configured_vertex_model()
     if not model:
         raise RuntimeError('Configure BLUEPRINT_GEMINI_MODEL before requesting Gemini work')
@@ -86,7 +86,7 @@ def structured_call(purpose, prompt, data, schema, client=None, image_parts=None
     default_tokens = {'PROGRAM_SETUP':12000,'QUESTION_EXPLANATION':8000,'QUESTION_CORRECTION':6000}.get(purpose,5000)
     max_tokens = min(24000,max(1024,int(os.getenv('BLUEPRINT_'+purpose+'_MAX_OUTPUT_TOKENS',str(max(default_tokens,int(os.getenv('BLUEPRINT_MAX_OUTPUT_TOKENS','5000'))))))))
     started = time.monotonic()
-    from prompt_registry import resolve_active_prompt,LATEX_SYSTEM_RULE
+    from prompt_registry import resolve_active_prompt,apply_system_rules
     from prompt_registry import SEEDS
     prompt_key=purpose if purpose in SEEDS else 'BLUEPRINT_ANALYZE'
     system_prompt=resolve_active_prompt(prompt_key)
@@ -95,9 +95,7 @@ def structured_call(purpose, prompt, data, schema, client=None, image_parts=None
     # Correction owns one text-only recovery attempt in its route; avoid
     # multiplying that retry with transport and structured-call retries.
     attempts = 1 if purpose=='QUESTION_CORRECTION' else max(1,min(2,int(os.getenv('BLUEPRINT_MAX_RETRIES','1'))+1))
-    system_content=system_prompt['system_content']
-    if purpose in {'QUESTION_CORRECTION','QUESTION_AUTHORING','QUESTION_EXPLANATION','INDEPENDENT_SOLVING'} and LATEX_SYSTEM_RULE not in system_content:
-        system_content+='\n'+LATEX_SYSTEM_RULE
+    system_content=apply_system_rules(system_prompt['system_content'],purpose)
     system_content+='\nReturn complete JSON conforming to the schema. Escape LaTeX backslashes in JSON strings. Use $...$ for inline math and $$...$$ for display math. Keep prose concise; omit optional commentary rather than truncating JSON.'
     try:
         for attempt in range(attempts):
@@ -105,7 +103,7 @@ def structured_call(purpose, prompt, data, schema, client=None, image_parts=None
             try:
                 user_content=prompt+'\nUNTRUSTED INPUT DATA:\n'+canonical(data)
                 if attempt:user_content+='\nThe previous response was incomplete or invalid. Return all required fields as concise, complete JSON.'
-                response = client.models.generate_content(model=model, contents=([user_content, *image_parts] if image_parts else user_content),
+                response = generate_content(client, model=model, contents=([user_content, *image_parts] if image_parts else user_content),
                     config=types.GenerateContentConfig(system_instruction=system_content, temperature=temperature,
                         response_mime_type='application/json', response_schema=serving_schema(schema), max_output_tokens=max_tokens,
                         thinking_config=thinking_config(model,512 if purpose=='QUESTION_CORRECTION' else 1024),

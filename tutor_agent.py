@@ -148,7 +148,7 @@ def generate(message,context,history):
     if not gcp_project_id(): return None
     from google import genai
     from google.genai import types
-    from ai_runtime import response_payload, serving_schema, thinking_config
+    from ai_runtime import response_payload, serving_schema, thinking_config, generate_content
     model = os.getenv('VERTEX_MODEL_TUTOR',os.getenv('VERTEX_MODEL_PRIMARY','gemini-2.5-flash'))
     client = genai.Client(vertexai=True,project=gcp_project_id(),location=gcp_region(),http_options=types.HttpOptions(api_version='v1',timeout=30000,retry_options=types.HttpRetryOptions(attempts=1)))
     try:
@@ -157,7 +157,7 @@ def generate(message,context,history):
         system_content=system_prompt['system_content']
         if LATEX_SYSTEM_RULE not in system_content:system_content+='\n'+LATEX_SYSTEM_RULE
         system_content+='\nQuestion review uses the latest approved question and solution. If corrected is true, response and recorded_grade describe the original attempt, not the corrected option order. Teach the current corrected content, distinguish any recorded grading discrepancy, and never recalculate or claim a change to the recorded score.'
-        response = client.models.generate_content(model=model, contents=json.dumps({'trusted_metrics':context,'conversation':history,'learner_question':message},ensure_ascii=False), config=types.GenerateContentConfig(system_instruction=system_content,temperature=0.2,max_output_tokens=max(2048,int(os.getenv('TUTOR_MAX_OUTPUT_TOKENS','2048'))),thinking_config=thinking_config(model,512),response_mime_type='application/json',response_schema=serving_schema(TutorReply),automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)))
+        response = generate_content(client, model=model, contents=json.dumps({'trusted_metrics':context,'conversation':history,'learner_question':message},ensure_ascii=False), config=types.GenerateContentConfig(system_instruction=system_content,temperature=0.2,max_output_tokens=max(2048,int(os.getenv('TUTOR_MAX_OUTPUT_TOKENS','2048'))),thinking_config=thinking_config(model,512),response_mime_type='application/json',response_schema=serving_schema(TutorReply),automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)))
         result=TutorReply.model_validate(response_payload(response))
         return result.model_dump() if result.message.strip() else None
     finally:

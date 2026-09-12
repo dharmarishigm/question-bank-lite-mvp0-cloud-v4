@@ -8,6 +8,45 @@ from ai_runtime import response_payload, response_metadata
 from blueprint_gemini import Proposal, structured_call
 
 
+def test_schema_complexity_falls_back_once_without_mutating_config():
+    from google.genai import types
+    from ai_runtime import generate_content
+    error=RuntimeError('The specified schema produces a constraint that has too many states for serving')
+    error.code=400
+    config=types.GenerateContentConfig(system_instruction='Preserve LaTeX.',response_mime_type='application/json',response_schema={'type':'OBJECT','properties':{'answer':{'type':'STRING'}}},max_output_tokens=1000)
+    client=Mock();client.models.generate_content.side_effect=[error,NS(text='{"answer":"ok"}')]
+    assert generate_content(client,model='test',contents='question',config=config).text=='{"answer":"ok"}'
+    fallback=client.models.generate_content.call_args.kwargs['config']
+    assert fallback.response_schema is None
+    assert fallback.response_mime_type=='application/json'
+    assert 'answer' in fallback.system_instruction and 'Preserve LaTeX' in fallback.system_instruction
+    assert config.response_schema is not None
+    assert fallback.max_output_tokens==1000
+    client.models.generate_content.side_effect=[error,error]
+    with pytest.raises(RuntimeError):generate_content(client,model='test',contents='question',config=config)
+    assert client.models.generate_content.call_count==4
+
+
+def test_unrelated_400_is_never_retried():
+    from ai_runtime import generate_content
+    error=RuntimeError('INVALID_ARGUMENT: invalid model');error.code=400
+    client=Mock();client.models.generate_content.side_effect=error
+    with pytest.raises(RuntimeError):generate_content(client,model='test',config=None)
+    assert client.models.generate_content.call_count==1
+
+
+def test_serving_schema_removes_nested_bounds_but_local_validation_remains():
+    from pydantic import BaseModel,Field,ValidationError
+    from ai_runtime import serving_schema
+    class Item(BaseModel):
+        number:int=Field(ge=1,le=5)
+    class Batch(BaseModel):
+        items:list[Item]=Field(min_length=1,max_length=100)
+    schema=serving_schema(Batch)
+    assert 'maxItems' not in json.dumps(schema) and 'maximum' not in json.dumps(schema)
+    with pytest.raises(ValidationError):Batch.model_validate({'items':[{'number':10}]})
+
+
 def test_candidate_parts_exclude_thoughts_and_do_not_join_candidates():
     response=NS(candidates=[
         NS(content=NS(parts=[NS(text='private reasoning',thought=True),NS(text='{"patches":',thought=False)])),

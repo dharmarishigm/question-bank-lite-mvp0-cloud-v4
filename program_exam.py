@@ -178,7 +178,8 @@ def effective_prompt(program, settings):
               '', '## Output requirements', '',
               '- Create original single-correct MCQs (`mcq_single`) with four distinct options A–D.',
               '- Supply one unambiguous correct answer and a worked solution for every question.',
-              '- Cover the specified curriculum without duplicate stems.',
+              '- Spread the paper across the applicable syllabus chapters and concepts; follow supplied coverage allocations and prioritize concepts not yet represented.',
+              '- Avoid repeated reasoning tasks: changing only numbers, names or wording is not concept variety. A short paper is a syllabus sample, not exhaustive coverage.',
               '- Return the application question schema; leave questions pending review.',
               '- This is an original practice paper, not an official examination paper.']
     return '\n'.join(lines)

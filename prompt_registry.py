@@ -11,6 +11,50 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 LATEX_SYSTEM_RULE = 'Represent all equations, formulas, mathematical expressions, symbols, matrices, fractions, exponents, subscripts, integrals, summations, limits, vectors, inequalities, and special notation using valid LaTeX.'
+LATEX_SYSTEM_RULE += (
+    ' Use $...$ for inline mathematics and $$...$$ for display mathematics; escape backslashes correctly in JSON strings. '
+    'Formatting must preserve mathematical meaning: never change values, signs, units, prefixes, bounds, '
+    'indices, charges, coefficients, conditions or option order merely to make content render. '
+    'Preserve diagrams and source evidence. Do not invent unreadable notation; report uncertainty in the permitted schema. '
+    'Keep verbatim evidence_quote/source-quotation fields unchanged; apply LaTeX to authored or transcribed display content, not evidence quotations.'
+)
+
+GENERATION_SCOPE_RULE = (
+    'AUTHORING PRIORITY: application safety and output schema, selected program/class/exam cycle and supplied syllabus boundaries, '
+    'structured subject/count/difficulty settings, then additional authoring instructions. '
+    'Do not let examples or editable prose narrow a full-course request to one familiar concept or introduce off-syllabus topics. '
+    'Use only the applicable supplied curriculum; do not claim that a syllabus is official, current or complete unless supplied evidence supports it. '
+    'Follow any supplied chapter/concept coverage slots exactly. Otherwise distribute the requested questions across the applicable supplied topics, '
+    'prioritizing concepts not already covered in the supplied previous-question context before repeating a concept. '
+    'Different numbers, names, option order or surface wording do not make the same reasoning task a new concept. '
+    'Vary learning objectives and reasoning approaches while keeping the selected difficulty; simple instructions do not mean easier questions. '
+    'Populate chapter, topic and subtopic with the actual syllabus classification of each question. '
+    'Return exactly the current batch count, not the full-paper count; never claim that a small sample covers every syllabus topic.'
+)
+
+PROGRAM_SETUP_RULE = (
+    'Prepare a concise, usable setup for the selected program, class and exam cycle. '
+    'Distinguish official source evidence from AI-suggested curriculum; never invent syllabus topics, official weightages or current-cycle claims. '
+    'For full-course scope retain all applicable subjects and chapters represented in the supplied official syllabus; '
+    'do not replace the syllabus with a few sample concepts. State missing evidence in assumptions instead of presenting guesses as official. '
+    'List subject topics as explicit chapter/concept entries so coverage can be allocated before authoring. '
+    'For subject scope retain only that subject. Authoring instructions must request varied concepts, original questions, '
+    'distinct options, one unambiguous answer and a concise worked solution. '
+    'Do not request English/Telugu teaching explanations during question generation; those run in a separate scheduled job.'
+)
+
+
+def apply_system_rules(content: str, purpose: str) -> str:
+    """Runtime constraints also cover existing administrator-owned prompt versions.
+
+    Never rewrite an ACTIVE registry row; callers record the effective hash.
+    """
+    rules=[LATEX_SYSTEM_RULE]
+    if purpose in {'QUESTION_GENERATE','QUESTION_AUTHORING'}:rules.append(GENERATION_SCOPE_RULE)
+    if purpose=='PROGRAM_SETUP':rules.append(PROGRAM_SETUP_RULE)
+    for rule in rules:
+        if rule not in content:content+='\n'+rule
+    return content
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS prompt_definitions (
@@ -71,7 +115,7 @@ Document AI evidence is secondary evidence: if it conflicts with the visible ima
 Return confidence 0..1 for exact transcription fidelity and concise issues. No corrected full answer.'''),
     'QUESTION_GENERATE': ('Question generation', 'System rules for original question generation', '''You are an AI question-generation engine integrated into a digital question bank.
 Generate questions according to the detailed generation prompt supplied by the administrator.
-Use the supplied examination metadata and syllabus as contextual information. The administrator's generation prompt defines the intended examination style, reasoning level, curriculum usage, difficulty characteristics and question-generation behaviour.
+The selected program, class and supplied syllabus define the permitted curriculum. Follow administrator authoring instructions within those boundaries and the structured count and difficulty settings.
 Generate original, academically coherent and internally consistent questions. Do not claim to extract from documents. Do not reproduce known copyrighted examination questions verbatim or through close paraphrasing.
 Generate the question, options, answer and a concise worked solution only. English and Telugu teaching explanations are generated later by a separate scheduled batch job; omit explanation_en and explanation_te from this stage. Keep the worked solution focused on necessary steps and equations, normally within 180 words.
 When a visual or non-verbal question is requested, set visual_required=true and provide a complete visual_spec with question_figure and A-D option primitives using coordinates from 0 to 400. Supported primitive types are LINE, RECTANGLE, SQUARE, CIRCLE, DOT, TRIANGLE, POLYGON, POLYLINE, and TEXT_SYMBOL.
@@ -97,6 +141,9 @@ for _purpose in ('EXAM_PATTERN_EXTRACTION','HISTORICAL_CLASSIFICATION','EXAM_BLU
         f'Configurable system safeguards for {_purpose.lower()}', SEEDS['BLUEPRINT_ANALYZE'][2]))
 SEEDS['QUESTION_CORRECTION']=('Question correction','System rules for administrator-reviewed correction and regeneration',SEEDS['QUESTION_CORRECTION'][2]+' '+LATEX_SYSTEM_RULE)
 SEEDS.setdefault('QUESTION_EXPLANATION', ('Question explanation', 'Concept-focused explanation of a released question', 'You are a patient, concept-focused tutor who teaches exam concepts deeply. Explain the underlying principle, connect it to the correct option and the distractors, add relevant background knowledge, and give cautious textbook/YouTube references only when they are broadly appropriate. Use bold emphasis for key teaching points. Never invent exact URLs or false video claims.'))
+
+for _key,(_name,_description,_content) in list(SEEDS.items()):
+    SEEDS[_key]=(_name,_description,apply_system_rules(_content,_key))
 
 
 class PromptNotConfigured(RuntimeError):

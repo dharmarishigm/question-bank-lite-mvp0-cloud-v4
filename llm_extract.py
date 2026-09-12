@@ -185,10 +185,10 @@ def _client(*, timeout_ms=90000):
 
 def _generate_structured(client, *, model: str, parts: list, schema, system_instruction: str, max_tokens: int):
     from google.genai import types
-    from ai_runtime import is_retryable, response_metadata, serving_schema, thinking_config
+    from ai_runtime import is_retryable, response_metadata, serving_schema, thinking_config, generate_content
     for attempt in range(2):
         try:
-            response = client.models.generate_content(
+            response = generate_content(client,
                 model=model,
                 contents=parts,
                 config=types.GenerateContentConfig(
