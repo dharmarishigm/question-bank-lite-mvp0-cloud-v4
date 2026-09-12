@@ -23,10 +23,12 @@ class Suggestion(Contract):
     changes:list[str]=Field(default_factory=list,max_length=30)
     uncertainties:list[str]=Field(default_factory=list,max_length=30)
 class SuggestInput(Contract):
-    mode:Literal['correct','regenerate']='correct'
+    mode:Literal['correct','regenerate','replace_from_paper']='correct'
     source_image:str=Field(default='',max_length=1000)
     question:Content
     instructions:str=Field(default='',max_length=3000)
+    program_paper_id:int|None=None
+    question_id:int|None=None
 class SaveInput(Contract):
     question:Content
     original:Content
@@ -35,11 +37,32 @@ class SaveInput(Contract):
 
 def content(q):return Content.model_validate({k:q.get(k,'' if k!='options' else []) for k in Content.model_fields})
 
+def paper_replacement_context(data):
+    if not data.program_paper_id or not data.question_id:
+        raise HTTPException(422,'Paper and question are required for a syllabus-based replacement')
+    from app import connect
+    with closing(connect()) as conn:
+        job=conn.execute('SELECT id,status,input_json,result_json FROM program_exam_jobs WHERE id=?',(data.program_paper_id,)).fetchone()
+    if not job:raise HTTPException(404,'Program paper not found')
+    if job['status'] not in {'REVIEW_REQUIRED','DRAFT','PUBLISHED'}:raise HTTPException(409,'Paper is not ready for question replacement')
+    frozen=json.loads(job['input_json'] or '{}');result=json.loads(job['result_json'] or '{}')
+    item=next((i for i in result.get('questions',[]) if i.get('question',{}).get('id')==data.question_id),None)
+    if not item:raise HTTPException(409,'Question is not part of this paper')
+    settings=frozen.get('settings',{})
+    return {
+        'paper_id':job['id'],
+        'effective_prompt':frozen.get('effective_prompt',''),
+        'paper_settings':settings,
+        'question_slot':item.get('section',{}),
+        'other_question_stems':[i.get('question',{}).get('statement','')[:500] for i in result.get('questions',[]) if i is not item][:30],
+    }
+
 @router.post('/suggest')
 def suggest(data:SuggestInput,request:Request):
     require_admin(_auth(request,True))
+    replacement_context=paper_replacement_context(data) if data.mode=='replace_from_paper' else None
     parts=[]
-    if data.source_image:
+    if data.source_image and data.mode!='replace_from_paper':
         from pathlib import Path
         from urllib.parse import urlsplit,unquote
         from app import UPLOAD_DIR
@@ -50,16 +73,22 @@ def suggest(data:SuggestInput,request:Request):
             if path.is_relative_to(root) and path.is_file() and path.stat().st_size<=4*1024*1024:
                 mime={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp'}.get(path.suffix.lower())
                 if mime:parts=[types.Part.from_bytes(data=path.read_bytes(),mime_type=mime)]
-    prompt=(('Regenerate an original replacement question testing the same concept, subject, difficulty and language. Preserve the number and ordering of options. Supply a correct answer and worked solution. Do not reuse image references as evidence for newly invented visual details. ' if data.mode=='regenerate' else 'Review this existing question, not a new question. ')+ 'Correct transcription, Markdown/LaTeX, equations, wording, options, answer and worked solution only where justified. Preserve intent, difficulty, language, option ordering and image references. Do not invent missing visual evidence: use attached source pixels when present; otherwise only the transcribed text is available. Explicitly list uncertainties about unreadable or missing source information. Solve independently to check the answer. Return the corrected question, a concise change list and uncertainties for an administrator to review. Never assert guaranteed correctness.')
+    if data.mode=='replace_from_paper':
+        prompt='Create a completely new, original replacement for this exact question-paper slot. Use the server-provided frozen paper prompt, syllabus, subject, topics, difficulty, language, exam pattern and section constraints as authoritative. Replace the stem, every option/distractor, answer and worked solution; do not merely paraphrase the old question. Preserve the option count and avoid duplicating other paper questions. Solve independently. Return the replacement, a concise change list and uncertainties for administrator review. Never assert guaranteed correctness.'
+    else:
+        prompt=(('Regenerate an original replacement question testing the same concept, subject, difficulty and language. Preserve the number and ordering of options. Supply a correct answer and worked solution. Do not reuse image references as evidence for newly invented visual details. ' if data.mode=='regenerate' else 'Review this existing question, not a new question. ')+ 'Correct transcription, Markdown/LaTeX, equations, wording, options, answer and worked solution only where justified. Preserve intent, difficulty, language, option ordering and image references. Do not invent missing visual evidence: use attached source pixels when present; otherwise only the transcribed text is available. Explicitly list uncertainties about unreadable or missing source information. Solve independently to check the answer. Return the corrected question, a concise change list and uncertainties for an administrator to review. Never assert guaranteed correctness.')
+    request_payload={'mode':data.mode,'question':data.question.model_dump(),'instructions':data.instructions}
+    if replacement_context:request_payload['paper_context']=replacement_context
+    elif data.source_image:request_payload['source_image']=data.source_image
     reference=secrets.token_hex(6)
     try:
-        proposal,meta=structured_call('QUESTION_CORRECTION',prompt,data.model_dump(),Suggestion,image_parts=parts)
+        proposal,meta=structured_call('QUESTION_CORRECTION',prompt,request_payload,Suggestion,image_parts=parts)
     except Exception as first:
         # Image parsing and strict structured responses can fail transiently even
         # when the text is usable. Make one bounded text-only recovery attempt;
         # suggestions still require explicit administrator review before saving.
         logging.getLogger(__name__).warning('AI correction first attempt failed reference=%s type=%s image=%s',reference,type(first).__name__,bool(parts))
-        fallback={"mode":data.mode,"question":data.question.model_dump(),"instructions":data.instructions,
+        fallback={**request_payload,
                   "source_context":"Source pixels were unavailable in the recovery attempt; list any visual dependency as uncertain."}
         try:
             proposal,meta=structured_call('QUESTION_CORRECTION',prompt,fallback,Suggestion,image_parts=[])

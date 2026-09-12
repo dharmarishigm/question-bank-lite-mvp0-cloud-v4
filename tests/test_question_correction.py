@@ -31,6 +31,30 @@ def test_suggestion_recovers_with_text_when_first_provider_attempt_fails(clients
  assert r.status_code==200,r.text
  assert llm.call_count==2 and r.json()['saved'] is False
 
+def test_paper_syllabus_replacement_uses_server_frozen_context(clients):
+ admin,_,_=clients;q=question(admin)
+ p=admin.post('/api/programs',json={'code':'REPLACE','name':'Replacement','status':'ACTIVE'}).json();uid=admin.get('/api/auth/me').json()['id']
+ frozen={'settings':{'name':'JEE paper','difficulty':'VERY_HARD','language':'English','curriculum':'NCERT','sections':[{'subject':'Chemistry','topics':['Electrochemistry'],'count':1}]},'effective_prompt':'FROZEN SERVER SYLLABUS PROMPT'}
+ item={'question':{**q},'origin':'BANK','section':{'subject':'Chemistry','topics':['Electrochemistry'],'marks':4,'negative_marks':1}}
+ with closing(app.connect()) as conn:
+  jid=conn.execute("INSERT INTO program_exam_jobs(program_id,request_key,input_json,result_json,status,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",(p['id'],'replace-test',json.dumps(frozen),json.dumps({'questions':[item]}),'REVIEW_REQUIRED',uid,time.time(),time.time())).lastrowid;conn.commit()
+ replacement=fields(q);replacement.update(statement='Which new electrochemical statement is correct?',options=['New A','New B'],answer='A',solution='New solution')
+ proposal=Suggestion(question=Content(**replacement),changes=['Replaced the complete question'],uncertainties=[])
+ payload={'mode':'replace_from_paper','question':fields(q),'question_id':q['id'],'program_paper_id':jid,'instructions':'client text'}
+ with patch('question_correction.structured_call',return_value=(proposal,{'model':'test-model'})) as llm:
+  r=admin.post('/api/admin/question-corrections/suggest',json=payload)
+ assert r.status_code==200,r.text
+ sent=llm.call_args.args[2]
+ assert sent['paper_context']['effective_prompt']=='FROZEN SERVER SYLLABUS PROMPT'
+ assert sent['paper_context']['question_slot']['subject']=='Chemistry'
+ assert sent['paper_context']['paper_settings']['difficulty']=='VERY_HARD'
+ assert 'paper_context' in sent and 'source_image' not in sent
+ assert admin.get(f'/api/questions/{q["id"]}').json()['statement']==q['statement']
+ bad={**payload,'question_id':q['id']+999}
+ with patch('question_correction.structured_call') as llm:
+  assert admin.post('/api/admin/question-corrections/suggest',json=bad).status_code==409
+  llm.assert_not_called()
+
 def test_review_stale_write_versions_and_explanation_invalidation(clients):
  admin,student,_=clients;q=question(admin);v=fields(q);v['options']=['4','5'];v['answer']='A'
  payload={'question':v,'original':fields(q),'reviewed':False};url=f'/api/admin/question-corrections/{q["id"]}'
