@@ -52,6 +52,7 @@ class PromptGenerationTests(unittest.TestCase):
             batch,_,_=generate_questions(self.request(),client=client)
         self.assertEqual(len(batch.questions),1);self.assertEqual(batch.questions[0].answer,'B');self.assertEqual(len(client.models.calls),2)
         self.assertIn('prior response was invalid or truncated',client.models.calls[1]['contents'])
+        self.assertIn('Represent all equations',client.models.calls[0]['config'].system_instruction)
 
     def test_gemini_can_draft_syllabus_and_generation_prompt_from_minimal_metadata(self):
         response=type('Response',(),{'parsed':None,'text':'{"syllabus":"Grade 4 matter, materials, observable properties, mixtures, and changes.","generation_prompt":"Generate age-appropriate reasoning MCQs with four distinct options, one valid answer, and concise explanations."}'})()

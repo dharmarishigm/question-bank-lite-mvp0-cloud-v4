@@ -13,6 +13,24 @@ class Content(Contract):
     options:list[str]=Field(default_factory=list,max_length=26)
     answer:str=Field(default='',max_length=1000)
     solution:str=Field(default='',max_length=30000)
+    @model_validator(mode='before')
+    @classmethod
+    def normalize_provider_content(cls,value):
+        if not isinstance(value,dict):return value
+        result=dict(value)
+        for alias,target in (('question','statement'),('question_text','statement'),('correct_answer','answer'),('explanation','solution')):
+            if target not in result and alias in result:result[target]=result[alias]
+        options=[]
+        raw=result.get('options') or []
+        if isinstance(raw,dict):raw=list(raw.values())
+        for option in raw:
+            if isinstance(option,dict):option=option.get('text') or option.get('value') or option.get('content') or ''
+            options.append(str(option))
+        result['options']=options
+        for key in ('statement','answer','solution'):
+            if isinstance(result.get(key),dict):result[key]=str(result[key].get('text') or result[key].get('value') or result[key].get('content') or '')
+            elif isinstance(result.get(key),list):result[key]='\n\n'.join(str(item) for item in result[key])
+        return {key:result.get(key,'' if key!='options' else []) for key in cls.model_fields}
     @model_validator(mode='after')
     def valid(self):
         if not self.statement.strip():raise ValueError('Question text is required')
@@ -31,11 +49,12 @@ class Suggestion(Contract):
         # schema, or omit optional review notes. Normalize only those safe shape
         # differences; Content still validates the actual replacement strictly.
         if 'question' not in result and 'statement' in result:
-            result['question']={key:result.get(key,'' if key!='options' else []) for key in Content.model_fields}
-            for key in Content.model_fields:result.pop(key,None)
+            result['question']={key:value for key,value in result.items() if key not in {'changes','uncertainties'}}
+            result={key:value for key,value in result.items() if key in {'question','changes','uncertainties'}}
         for key in ('changes','uncertainties'):
             note=result.get(key,[])
-            result[key]=[note] if isinstance(note,str) and note.strip() else (note or [])
+            note=[note] if isinstance(note,(str,dict)) else (note or [])
+            result[key]=[str(item.get('text') or item.get('change') or item.get('reason') or item.get('description') or '') if isinstance(item,dict) else str(item) for item in note]
         return result
 class SuggestInput(Contract):
     mode:Literal['correct','regenerate','replace_from_paper']='correct'

@@ -32,9 +32,10 @@ def test_suggestion_recovers_with_text_when_first_provider_attempt_fails(clients
  assert llm.call_count==2 and r.json()['saved'] is False
 
 def test_suggestion_normalizes_safe_provider_shape_variations():
- flat={'statement':'Replacement question','options':['A','B'],'answer':'A','solution':'Because A.','changes':'Replaced question'}
+ flat={'statement':'Replacement $x^2$ question','options':[{'label':'A','text':'$x=2$'},{'label':'B','value':'$x=3$'}],'correct_answer':{'text':'A'},'explanation':['Square both sides.','$x=2$.'],'changes':{'reason':'Replaced question'}}
  proposal=Suggestion.model_validate(flat)
- assert proposal.question.statement=='Replacement question' and proposal.changes==['Replaced question'] and proposal.uncertainties==[]
+ assert proposal.question.options==['$x=2$','$x=3$'] and proposal.question.answer=='A'
+ assert proposal.question.solution=='Square both sides.\n\n$x=2$.' and proposal.changes==['Replaced question'] and proposal.uncertainties==[]
 
 def test_paper_syllabus_replacement_uses_server_frozen_context(clients):
  admin,_,_=clients;q=question(admin)
