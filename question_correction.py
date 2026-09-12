@@ -1,6 +1,6 @@
 """Admin-reviewed question corrections; suggestions never persist themselves."""
 from contextlib import closing
-import json,time
+import json,logging,secrets,time
 from typing import Literal
 from fastapi import APIRouter,HTTPException,Request
 from pydantic import Field,model_validator
@@ -50,10 +50,23 @@ def suggest(data:SuggestInput,request:Request):
             if path.is_relative_to(root) and path.is_file() and path.stat().st_size<=4*1024*1024:
                 mime={'.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp'}.get(path.suffix.lower())
                 if mime:parts=[types.Part.from_bytes(data=path.read_bytes(),mime_type=mime)]
+    prompt=(('Regenerate an original replacement question testing the same concept, subject, difficulty and language. Preserve the number and ordering of options. Supply a correct answer and worked solution. Do not reuse image references as evidence for newly invented visual details. ' if data.mode=='regenerate' else 'Review this existing question, not a new question. ')+ 'Correct transcription, Markdown/LaTeX, equations, wording, options, answer and worked solution only where justified. Preserve intent, difficulty, language, option ordering and image references. Do not invent missing visual evidence: use attached source pixels when present; otherwise only the transcribed text is available. Explicitly list uncertainties about unreadable or missing source information. Solve independently to check the answer. Return the corrected question, a concise change list and uncertainties for an administrator to review. Never assert guaranteed correctness.')
+    reference=secrets.token_hex(6)
     try:
-        proposal,meta=structured_call('QUESTION_CORRECTION',
-            ('Regenerate an original replacement question testing the same concept, subject, difficulty and language. Preserve the number and ordering of options. Supply a correct answer and worked solution. Do not reuse image references as evidence for newly invented visual details. ' if data.mode=='regenerate' else 'Review this existing question, not a new question. ')+ 'Correct transcription, Markdown/LaTeX, equations, wording, options, answer and worked solution only where justified. Preserve intent, difficulty, language, option ordering and image references. Do not invent missing visual evidence: use attached source pixels when present; otherwise only the transcribed text is available. Explicitly list uncertainties about unreadable or missing source information. Solve independently to check the answer. Return the corrected question, a concise change list and uncertainties for an administrator to review. Never assert guaranteed correctness.',data.model_dump(),Suggestion,image_parts=parts)
-    except Exception as exc:raise HTTPException(502,'AI correction could not be completed. Your question has not changed; retry or edit manually.') from exc
+        proposal,meta=structured_call('QUESTION_CORRECTION',prompt,data.model_dump(),Suggestion,image_parts=parts)
+    except Exception as first:
+        # Image parsing and strict structured responses can fail transiently even
+        # when the text is usable. Make one bounded text-only recovery attempt;
+        # suggestions still require explicit administrator review before saving.
+        logging.getLogger(__name__).warning('AI correction first attempt failed reference=%s type=%s image=%s',reference,type(first).__name__,bool(parts))
+        fallback={"mode":data.mode,"question":data.question.model_dump(),"instructions":data.instructions,
+                  "source_context":"Source pixels were unavailable in the recovery attempt; list any visual dependency as uncertain."}
+        try:
+            proposal,meta=structured_call('QUESTION_CORRECTION',prompt,fallback,Suggestion,image_parts=[])
+            meta={**meta,'recovered_without_image':True,'reference':reference}
+        except Exception as exc:
+            logging.getLogger(__name__).exception('AI correction failed reference=%s type=%s',reference,type(exc).__name__)
+            raise HTTPException(502,f'AI correction could not be completed. Your question has not changed; retry or edit manually. Reference: {reference}') from exc
     return {**proposal.model_dump(),'model':meta['model'],'saved':False}
 
 @router.put('/{qid}')

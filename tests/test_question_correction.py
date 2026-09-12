@@ -22,7 +22,14 @@ def test_suggestions_admin_only_and_never_save(clients):
    assert admin.get(f'/api/questions/{q["id"]}').json()['solution']==q['solution']
  with patch('question_correction.structured_call',side_effect=RuntimeError('provider secret')):
   r=admin.post('/api/admin/question-corrections/suggest',json={'question':fields(q)})
-  assert r.status_code==502 and 'provider secret' not in r.text
+  assert r.status_code==502 and 'provider secret' not in r.text and 'Reference:' in r.text
+
+def test_suggestion_recovers_with_text_when_first_provider_attempt_fails(clients):
+ admin,_,_=clients;q=question(admin);proposal=Suggestion(question=Content(**fields(q)),changes=[],uncertainties=['Source pixels unavailable'])
+ with patch('question_correction.structured_call',side_effect=[RuntimeError('image decoding failed'),(proposal,{'model':'test-model'})]) as llm:
+  r=admin.post('/api/admin/question-corrections/suggest',json={'question':fields(q),'source_image':'/uploads/missing.png'})
+ assert r.status_code==200,r.text
+ assert llm.call_count==2 and r.json()['saved'] is False
 
 def test_review_stale_write_versions_and_explanation_invalidation(clients):
  admin,student,_=clients;q=question(admin);v=fields(q);v['options']=['4','5'];v['answer']='A'
