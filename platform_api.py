@@ -125,6 +125,9 @@ def init_platform():
     from result_features_schema import SCHEMA as RESULT_SCHEMA
     with closing(db()) as conn:
         conn.executescript(RESULT_SCHEMA); conn.commit()
+    from commerce_schema import SCHEMA as COMMERCE_SCHEMA
+    with closing(db()) as conn:
+        conn.executescript(COMMERCE_SCHEMA); conn.commit()
 
 def _hash(value: str) -> str: return hashlib.sha256(value.encode()).hexdigest()
 def _admins(): return {x.strip().lower() for x in os.getenv('ADMIN_EMAILS','').split(',') if x.strip()}
@@ -501,9 +504,12 @@ def my_programs(request:Request):
 def enroll_program(program_id:int,request:Request):
     user=_auth(request,True); now=time.time()
     if user['role'] not in {'STUDENT','ADMIN'}: raise HTTPException(403,'Student or administrator access required')
-    if user['role']=='STUDENT' and not user['email_verified']: raise HTTPException(401,'Verified Google Gmail identity required for program enrollment')
     with closing(db()) as conn:
+        from commerce_service import authorize,verified_student_identity
+        if user['role']=='STUDENT' and not verified_student_identity(conn,user): raise HTTPException(401,'A verified email or mobile identity is required for program enrollment')
         if not conn.execute("SELECT 1 FROM programs WHERE id=? AND status='ACTIVE'",(program_id,)).fetchone(): raise HTTPException(404,'Active program not found')
+        decision=authorize(conn,user['id'],'ENROLL_PROGRAM',program_id=program_id)
+        if user['role']!='ADMIN' and not decision.allowed:raise HTTPException(403,detail={'reason_code':decision.reason_code,'message':'Trial or Premium program access is required'})
         conn.execute("INSERT INTO program_enrollments(program_id,user_id,status,registered_at,created_at,updated_at,registration_source,created_by) VALUES(?,?,'ENROLLED',?,?,?,'PROGRAM',?) ON CONFLICT(program_id,user_id) DO UPDATE SET status='ENROLLED',cancelled_at=NULL,updated_at=excluded.updated_at",(program_id,user['id'],now,now,now,user['id']))
         conn.commit()
     return {'enrolled':True,'program_id':program_id}
@@ -617,10 +623,13 @@ def delete_exam(exam_id:int,request:Request):
 def enroll(exam_id:int,request:Request):
     user=_auth(request,True);now=time.time()
     if user['role'] not in {'STUDENT','ADMIN'}:raise HTTPException(403,'Student or administrator access required for exam enrollment')
-    if user['role']=='STUDENT' and not user['email_verified']:raise HTTPException(401,'Verified Google Gmail identity required for exam enrollment')
     with closing(db()) as conn:
+        from commerce_service import authorize_exam,verified_student_identity
+        if user['role']=='STUDENT' and not verified_student_identity(conn,user):raise HTTPException(401,'A verified email or mobile identity is required for exam enrollment')
         exam=conn.execute("SELECT * FROM exams WHERE id=? AND status IN ('PUBLISHED','OPEN')",(exam_id,)).fetchone()
         if not exam: raise HTTPException(404,'Available exam not found')
+        decision=authorize_exam(conn,user['id'],exam_id,'ENROLL_EXAM')
+        if user['role']!='ADMIN' and not decision.allowed:raise HTTPException(403,detail={'reason_code':decision.reason_code,'message':'An active Trial, Premium, or grand-test entitlement is required'})
         if user['role']!='ADMIN' and not exam['allow_self_registration']:raise HTTPException(403,'This exam requires a registration link or administrator registration')
         if user['role']!='ADMIN' and ((exam['registration_start_at'] and now<exam['registration_start_at']) or (exam['registration_end_at'] and now>exam['registration_end_at'])):raise HTTPException(403,'Registration window is closed')
         conn.execute("INSERT INTO exam_enrollments(exam_id,user_id,status,registered_at,created_at,updated_at,registered_email,registration_source,created_by) VALUES(?,?,'ENROLLED',?,?,?,?, 'SELF',?) ON CONFLICT(exam_id,user_id) DO UPDATE SET status='ENROLLED',cancelled_at=NULL,updated_at=excluded.updated_at",(exam_id,user['id'],now,now,now,user['email'],user['id']));
@@ -669,6 +678,9 @@ async def start_exam(exam_id:int,request:Request):
     raw=body.get('consent_client') if isinstance(body.get('consent_client'),dict) else {}
     consent_metadata={key:str(raw.get(key,''))[:200] for key in ('user_agent','language','screen')}
     with closing(db()) as conn:
+        from commerce_service import authorize_exam
+        decision=authorize_exam(conn,user['id'],exam_id)
+        if user['role']!='ADMIN' and not decision.allowed:raise HTTPException(403,detail={'reason_code':decision.reason_code,'message':'An active Trial, Premium, or grand-test entitlement is required'})
         reg=conn.execute("SELECT * FROM exam_enrollments WHERE exam_id=? AND user_id=? AND status='ENROLLED'",(exam_id,user['id'])).fetchone(); exam=conn.execute("SELECT * FROM exams WHERE id=? AND status IN ('PUBLISHED','OPEN')",(exam_id,)).fetchone()
         if not reg and exam:
             linked=conn.execute("SELECT 1 FROM program_enrollments pe WHERE pe.user_id=? AND pe.status='ENROLLED' AND (EXISTS (SELECT 1 FROM program_exam_jobs pj WHERE pj.program_id=pe.program_id AND pj.exam_id=?) OR EXISTS (SELECT 1 FROM grand_tests gt WHERE gt.program_id=pe.program_id AND gt.exam_id=?))",(user['id'],exam_id,exam_id)).fetchone()
@@ -760,7 +772,10 @@ def submit(sid:int,request:Request,background_tasks:BackgroundTasks):
 @router.get('/my/results')
 def results(request:Request):
     user=_auth(request)
-    with closing(db()) as conn:rows=conn.execute("SELECT s.*,e.name exam_name,e.exam_type,e.subject,e.level FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') ORDER BY s.submitted_at DESC",(user['id'],)).fetchall()
+    with closing(db()) as conn:
+        from admin_settings import get_setting
+        release_join=" JOIN result_release_recipients rr ON rr.session_id=s.id AND rr.user_id=s.user_id AND rr.status='PUBLISHED'" if get_setting('results.release_gate',conn=conn) else ""
+        rows=conn.execute("SELECT s.*,e.name exam_name,e.exam_type,e.subject,e.level FROM exam_sessions s JOIN exams e ON e.id=s.exam_id"+release_join+" WHERE s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') ORDER BY s.submitted_at DESC",(user['id'],)).fetchall()
     return [dict(r) for r in rows]
 
 def _student_analytics_user(request:Request):
@@ -862,6 +877,8 @@ def result_detail(sid:int,request:Request):
         s=_session(conn,sid,user['id'])
         if s['status'] not in {'SUBMITTED','AUTO_SUBMITTED'}:raise HTTPException(409,'Result unavailable while exam is active')
         exam=conn.execute('SELECT id,name,exam_type,subject,level,status,result_release_mode FROM exams WHERE id=?',(s['exam_id'],)).fetchone();released=exam['result_release_mode']=='IMMEDIATE' or (exam['result_release_mode']=='AFTER_EXAM_CLOSE' and exam['status']=='CLOSED')
+        from admin_settings import get_setting
+        if get_setting('results.release_gate',conn=conn):released=bool(conn.execute("SELECT 1 FROM result_release_recipients WHERE session_id=? AND user_id=? AND status='PUBLISHED'",(sid,user['id'])).fetchone())
         student=conn.execute('SELECT id,email,display_name FROM users WHERE id=?',(user['id'],)).fetchone()
         snapshot=json.loads(s['question_set_json'] or '[]');answers={r['question_id']:dict(r) for r in conn.execute('SELECT question_id,selected_answer,is_correct,marks_awarded FROM exam_answers WHERE session_id=?',(sid,)).fetchall()}
         questions=[]

@@ -110,7 +110,11 @@ async def start(exam_id:int,request:Request):
     consent_metadata={key:str(raw_metadata.get(key,""))[:200] for key in ("user_agent","language","screen")}
     with closing(db()) as conn:
         try:
-            conn.execute("BEGIN IMMEDIATE");result=evaluate_exam_start_eligibility(conn,user,exam_id,str(body.get("proctor_code","")))
+            conn.execute("BEGIN IMMEDIATE")
+            from commerce_service import authorize_exam
+            access=authorize_exam(conn,user['id'],exam_id)
+            if user['role']!='ADMIN' and not access.allowed:raise HTTPException(403,detail={"reason_code":access.reason_code,"message":"An active Trial, Premium, or grand-test entitlement is required"})
+            result=evaluate_exam_start_eligibility(conn,user,exam_id,str(body.get("proctor_code","")))
             if not result["eligible"]:
                 audit(conn,"START_DENIED",exam_id=exam_id,user_id=user["id"],metadata={"reason":result["reason_code"]});conn.commit();raise HTTPException(403,detail={"reason_code":result["reason_code"],"message":result["message"]})
             if result.get("existing_session_id"):

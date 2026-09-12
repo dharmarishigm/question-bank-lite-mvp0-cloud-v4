@@ -361,6 +361,32 @@ from flag_api import router as flag_router
 app.include_router(flag_router)
 from engagement import router as engagement_router
 app.include_router(engagement_router)
+from admin_settings import router as admin_settings_router
+app.include_router(admin_settings_router)
+from commerce_api import router as commerce_router
+app.include_router(commerce_router)
+from payment_api import router as payment_router
+app.include_router(payment_router)
+from identity_verification import router as identity_verification_router
+app.include_router(identity_verification_router)
+from result_publication import router as result_publication_router
+app.include_router(result_publication_router)
+from communication_api import router as communication_router
+app.include_router(communication_router)
+from commerce_jobs import router as commerce_jobs_router
+app.include_router(commerce_jobs_router)
+
+@app.get('/admin/commerce',include_in_schema=False)
+def commerce_admin_ui():
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).parent/'static/commerce-admin.html',headers={'Cache-Control':'no-store'})
+
+@app.get('/pricing',include_in_schema=False)
+def pricing_ui():
+    from pathlib import Path
+    from fastapi.responses import FileResponse
+    return FileResponse(Path(__file__).parent/'static/pricing.html',headers={'Cache-Control':'no-store'})
 from marketing_pdf import router as marketing_pdf_router
 app.include_router(marketing_pdf_router)
 from epidemiology_model import router as epidemiology_router

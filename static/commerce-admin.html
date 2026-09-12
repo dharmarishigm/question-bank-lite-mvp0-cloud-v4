@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Commerce administration · MeritIQra</title><link rel="stylesheet" href="/static/commerce-admin.css"></head>
+<body><header><a href="/app">← Workspace</a><div><strong>MeritIQra</strong><span>Commerce administration</span></div><button id="refresh">Refresh</button></header>
+<main>
+  <p id="status" role="status" aria-live="polite"></p>
+  <section><h1>Integration readiness</h1><div id="readiness" class="cards"></div></section>
+  <section><h2>Safe runtime configuration</h2><p>Provider credentials remain in Secret Manager/environment variables. These controls manage non-secret business behavior.</p><div id="settings"></div></section>
+  <section><h2>Create product</h2><form id="product-form" class="form-grid">
+    <label>Code<input name="code" required pattern="[A-Z0-9][A-Z0-9_-]{2,63}"></label><label>Name<input name="name" required></label>
+    <label>Type<select name="product_type"><option>PROGRAM_TRIAL</option><option>PROGRAM_PREMIUM</option><option>GRAND_TEST_SINGLE</option><option>GRAND_TEST_CREDIT_PACK</option><option>GRAND_TEST_PASS</option><option>ORGANIZATION_PLAN</option></select></label>
+    <label>Entitlement<select name="entitlement_kind"><option>PROGRAM_ACCESS</option><option>GRAND_TEST_ACCESS</option><option>GRAND_TEST_CREDITS</option><option>GRAND_TEST_PASS</option><option>ORGANIZATION_ACCESS</option></select></label>
+    <label>Program ID<input name="program_id" type="number" min="1"></label><label>Grand test ID<input name="grand_test_id" type="number" min="1"></label>
+    <label>Term days<input name="term_days" type="number" min="1"></label><label>Credits<input name="credit_quantity" type="number" min="1"></label>
+    <label>Status<select name="status"><option>DRAFT</option><option>ACTIVE</option></select></label><label class="wide">Description<textarea name="description"></textarea></label><button>Create product</button>
+  </form><div id="products" class="table-wrap"></div></section>
+  <section><h2>Create price version</h2><form id="price-form" class="form-grid"><label>Product ID<input name="product_id" type="number" required min="1"></label><label>List price ₹<input name="list" type="number" required min="0" step="0.01"></label><label>Sale price ₹<input name="sale" type="number" required min="0" step="0.01"></label><label>Tax rate %<input name="tax" type="number" min="0" max="100" step="0.01" value="0"></label><label>Status<select name="status"><option>DRAFT</option><option>ACTIVE</option></select></label><button>Create price</button></form></section>
+  <section><h2>Notification outbox</h2><button id="dispatch">Dispatch due messages</button><div id="outbox" class="table-wrap"></div></section>
+</main><script src="/static/commerce-admin.js"></script></body></html>

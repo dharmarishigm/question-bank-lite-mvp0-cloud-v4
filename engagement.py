@@ -40,7 +40,7 @@ class Enquiry(Contract):
     name:str=Field(min_length=2,max_length=100)
     email:str=Field(min_length=3,max_length=254)
     phone:str=Field(default='',max_length=40)
-    interest:Literal['FLAG','EXAMS','GENERAL']='GENERAL'
+    interest:Literal['FLAG','EXAMS','ORGANIZATION','GENERAL']='GENERAL'
     message:str=Field(min_length=5,max_length=3000)
     source:str=Field(default='website',max_length=100)
     consent:Literal[True]
@@ -69,7 +69,7 @@ def submit(data:Enquiry,request:Request):
     return {'reference':eid,'message':'Your enquiry has been received. Our team will review your request and contact you using the details provided.'}
 
 @router.get('/api/admin/enquiries')
-def enquiries(request:Request,status:Literal['','NEW','CONTACTED','RESOLVED']='',interest:Literal['','FLAG','EXAMS','GENERAL']='',offset:int=Query(default=0,ge=0)):
+def enquiries(request:Request,status:Literal['','NEW','CONTACTED','RESOLVED']='',interest:Literal['','FLAG','EXAMS','ORGANIZATION','GENERAL']='',offset:int=Query(default=0,ge=0)):
     require_admin(_auth(request))
     with closing(db()) as conn:
         clauses=[];params=[]

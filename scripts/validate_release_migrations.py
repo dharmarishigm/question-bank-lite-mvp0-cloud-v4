@@ -28,7 +28,7 @@ print('Security schema expansion preserves legacy Alembic marker')
 command.upgrade(config, 'head')
 command.upgrade(config, 'head')
 with engine.connect() as conn:
-    assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar() == '0024_program_enrollments'
+    assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar() == '0025_commerce_communications'
     for table in ('program_document_audit','grand_test_page_status','grand_test_page_status_audit'):
         columns = {c['name']: c for c in inspect(conn).get_columns(table)}
         assert 'nextval' in columns['id']['default'], (table, columns['id'])

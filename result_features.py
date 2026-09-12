@@ -65,6 +65,9 @@ def owned_result(conn,sid,user,require_release=True):
     if not row or (user['role']!='ADMIN' and row['user_id']!=user['id']):raise HTTPException(404,'Attempt not found')
     if row['status'] not in COMPLETE:raise HTTPException(409,'Result unavailable while exam is active')
     if require_release and not released({'status':row['exam_status'],'result_release_mode':row['result_release_mode']}):raise HTTPException(403,'Results have not been released')
+    if require_release:
+        from admin_settings import get_setting
+        if get_setting('results.release_gate',conn=conn) and not conn.execute("SELECT 1 FROM result_release_recipients WHERE session_id=? AND user_id=? AND status='PUBLISHED'",(sid,user['id'])).fetchone():raise HTTPException(403,'Results have not been published')
     return dict(row)
 
 

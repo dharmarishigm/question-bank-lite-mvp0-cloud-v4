@@ -29,10 +29,11 @@ def main():
         if conn.execute("SELECT rolsuper OR rolcreatedb OR rolcreaterole FROM pg_roles WHERE rolname=current_user").fetchone()[0]:raise RuntimeError('Runtime role is privileged')
         if conn.execute("SELECT has_schema_privilege(current_user,'public','CREATE')").fetchone()[0]:raise RuntimeError('Runtime must not own schema creation')
         if conn.execute("SELECT has_table_privilege(current_user,'alembic_version','UPDATE')").fetchone()[0]:raise RuntimeError('Runtime must not migrate')
-        expected=os.environ.get('EXPECTED_SCHEMA_REVISION','0020_dqb_document_controls')
-        if expected not in {'0020_dqb_document_controls','0022_security_sessions'}:raise RuntimeError('Unreviewed schema version')
+        expected=os.environ.get('EXPECTED_SCHEMA_REVISION','0025_commerce_communications')
+        if expected not in {'0020_dqb_document_controls','0022_security_sessions','0025_commerce_communications'}:raise RuntimeError('Unreviewed schema version')
         if conn.execute('SELECT version_num FROM alembic_version').fetchone()!=(expected,):raise RuntimeError('Reviewed schema version required')
-        required_tables = ('security_mfa','security_session_state','security_rate_limits','prompt_definitions','prompt_versions','prompt_run_bindings','prompt_audit','program_enrollments')
+        required_tables = ['security_mfa','security_session_state','security_rate_limits','prompt_definitions','prompt_versions','prompt_run_bindings','prompt_audit','program_enrollments']
+        if expected=='0025_commerce_communications':required_tables.extend(('products','prices','orders','payment_attempts','entitlements','verification_challenges','notification_outbox','result_releases'))
         for table in required_tables:
             if not conn.execute('SELECT to_regclass(%s)',(table,)).fetchone()[0]:
                 raise RuntimeError('Missing required production table: '+table)
