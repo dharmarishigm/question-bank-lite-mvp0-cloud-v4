@@ -1012,17 +1012,34 @@ def _generate_question_explanation(qid: int, language: str = 'en', student_user_
 @app.post("/api/questions/{qid}/explain/like")
 async def like_question_explanation(qid: int, request: Request):
     data = await request.json()
-    text = str(data.get('explanation') or '').strip()
-    structured = data.get('structured')
+    if not isinstance(data,dict):
+        raise HTTPException(400, 'Expected an explanation acknowledgement.')
     language = normalize_explanation_language(str(data.get('language') or 'en'))
-    if not text:
-        raise HTTPException(400, 'An explanation is required before it can be saved.')
+    # Explanations are authored and cached by the scheduled worker. This legacy
+    # action may acknowledge a current cache entry, but never accept browser text
+    # as new cache content (including a pending message or a stale open dialog).
     with closing(connect()) as conn:
-        row = conn.execute("SELECT id FROM questions WHERE id = ?", (qid,)).fetchone()
-    if row is None:
-        raise HTTPException(404, 'question not found')
-    saved = save_question_explanation(qid, text, language=language, liked=True, structured=structured)
-    return {"saved": True, "question_id": qid, "language": language, "explanation": saved['explanation'], "structured": saved.get('structured')}
+        if not conn.execute('UPDATE questions SET id=id WHERE id=?',(qid,)).rowcount:
+            raise HTTPException(404, 'question not found')
+        table='question_explanation_translations'
+        row=conn.execute('SELECT explanation,liked FROM question_explanation_translations WHERE question_id=? AND language=?',(qid,language)).fetchone()
+        if row is None and language=='en':
+            table='question_explanations'
+            row=conn.execute('SELECT explanation,liked FROM question_explanations WHERE question_id=?',(qid,)).fetchone()
+        if row is None or not row['explanation'].strip():
+            raise HTTPException(409, 'The explanation is still being prepared. Reload when the cached explanation is ready.')
+        explanation,structured=decode_explanation(row['explanation'])
+        if 'explanation' in data and (not isinstance(data['explanation'],str) or data['explanation'].strip()!=explanation.strip()):
+            raise HTTPException(409, 'This explanation has changed. Reload the current cached explanation.')
+        if data.get('structured') is not None and data['structured']!=structured:
+            raise HTTPException(409, 'This explanation has changed. Reload the current cached explanation.')
+        if not row['liked']:
+            if table=='question_explanation_translations':
+                conn.execute('UPDATE question_explanation_translations SET liked=1,updated_at=? WHERE question_id=? AND language=?',(time.time(),qid,language))
+            else:
+                conn.execute('UPDATE question_explanations SET liked=1,updated_at=? WHERE question_id=?',(time.time(),qid))
+        conn.commit()
+    return {"saved": True, "cached": True, "question_id": qid, "language": language, "explanation": explanation, "structured": structured}
 
 
 @app.get("/api/questions/{qid}/versions")

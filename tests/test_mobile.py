@@ -1,4 +1,4 @@
-import base64,hashlib,json,unittest
+import base64,hashlib,json,time,unittest
 import test_platform
 
 class MobileTests(unittest.TestCase):
@@ -40,9 +40,9 @@ class MobileTests(unittest.TestCase):
     def test_background_is_signal_and_expired_answer_rejected(self):
         admin,_=self.login('admin@example.test');student,_=self.login('student@example.test')
         q=self.post(admin,'/api/questions',json={'statement':'2 + 2?','options':['3','4'],'answer':'B'}).json()
-        e=self.post(admin,'/api/admin/exams',json={'name':'Mobile expiry','status':'OPEN','question_ids':[q['id']],'proctor_required':False}).json()
+        e=self.post(admin,'/api/admin/exams',json={'name':'Mobile expiry','status':'OPEN','exam_start_at':time.time()-60,'question_ids':[q['id']],'proctor_required':False}).json()
         self.post(student,f'/api/exams/{e["id"]}/enroll')
-        sid=self.post(student,f'/api/exams/{e["id"]}/sessions').json()['session_id']
+        sid=self.post(student,f'/api/exams/{e["id"]}/sessions',json={'consent':True}).json()['session_id']
         for _ in range(4):
             r=self.post(student,f'/api/sessions/{sid}/security-events',json={'event_type':'APP_BACKGROUND'});self.assertTrue(r.json()['signal_only'])
         self.assertEqual(student.get(f'/api/sessions/{sid}').json()['session']['status'],'IN_PROGRESS')

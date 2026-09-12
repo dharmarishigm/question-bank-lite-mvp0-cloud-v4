@@ -400,11 +400,16 @@ def exam_results(exam_id:int,request:Request):
 
 @router.put("/student/sessions/{sid}/questions/{qid}/review")
 async def mark_review(sid:int,qid:int,request:Request):
-    from platform_api import _auth,_session
+    from platform_api import _auth,_session,_validate_answer_revision
     user=_auth(request,True);body=await request.json();now=time.time()
     with closing(db()) as conn:
         session=_session(conn,sid,user["id"])
         if session["status"]!="IN_PROGRESS":raise HTTPException(409,"Submitted exams cannot be modified")
+        snapshot=json.loads(session['question_set_json'] or '[]')
+        question=next((q for q in snapshot if int(q.get('id',0))==qid),None)
+        if not question and (snapshot or not conn.execute('SELECT 1 FROM exam_questions WHERE exam_id=? AND question_id=?',(session['exam_id'],qid)).fetchone()):
+            raise HTTPException(404,'Question not in this exam')
+        if question:_validate_answer_revision(conn,session,question,body)
         current=conn.execute("SELECT selected_answer FROM exam_answers WHERE session_id=? AND question_id=?",(sid,qid)).fetchone();answered=bool(current and current["selected_answer"]);marked=bool(body.get("marked",True));status="ANSWERED_AND_MARKED" if answered and marked else "MARKED_FOR_REVIEW" if marked else "ANSWERED" if answered else "VISITED"
         conn.execute("INSERT INTO exam_answers(session_id,question_id,status,updated_at) VALUES(?,?,?,?) ON CONFLICT(session_id,question_id) DO UPDATE SET status=excluded.status,updated_at=excluded.updated_at",(sid,qid,status,now));conn.commit()
     return {"status":status}

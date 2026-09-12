@@ -40,12 +40,13 @@ def test_corrected_versions_future_attempts_and_historical_notices(clients):
         assert conn.execute('SELECT question_snapshot_json FROM exam_versions WHERE id=?',(before['id'],)).fetchone()['question_snapshot_json']==before['question_snapshot_json']
         assert conn.execute('SELECT question_set_json FROM exam_sessions WHERE id=?',(sid,)).fetchone()['question_set_json']==original
     active=student.get(f'/api/sessions/{sid}').json()['questions'][0]
-    assert active['options']==['3','4'] and active['selected_answer']=='B'
-    assert active['correction']['options']==['4','5']
-    assert 'answer' not in active['correction'] and 'solution' not in active['correction']
-    student.post(f'/api/sessions/{sid}/submit')
+    assert active['options']==['4','5'] and active['selected_answer']==''
+    assert active['content_corrected'] and active['response_review_required']
+    assert 'answer' not in active and 'solution' not in active
+    assert student.put(f'/api/sessions/{sid}/answers/{q["id"]}',json={'selected_answer':'A','content_revision':active['content_revision']}).status_code==200
+    assert student.post(f'/api/sessions/{sid}/submit').status_code==200
     report=student.get(f'/api/my/results/{sid}').json()
-    assert report['questions'][0]['is_correct'] and report['questions'][0]['correction']['answer']=='A'
+    assert report['questions'][0]['is_correct'] and report['questions'][0]['answer']=='A'
     assert admin.post(f'/api/exams/{e["id"]}/enroll').status_code==200
     fresh=admin.post(f'/api/student/exams/{e["id"]}/start',json={'consent':True}).json()['session_id']
     assert admin.get(f'/api/sessions/{fresh}').json()['questions'][0]['options']==['4','5']

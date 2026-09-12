@@ -86,9 +86,25 @@ def review(conn, uid, attempt_id, question_id):
     if question_id:
         questions = [q for q in questions if q.get('id') == question_id]
         if not questions: raise HTTPException(404, 'Question not found in this released attempt')
-    answers = {r['question_id']:dict(r) for r in conn.execute('SELECT question_id,selected_answer,is_correct FROM exam_answers WHERE session_id=?', (attempt_id,)).fetchall()}
-    return [{**{k:str(q.get(k,''))[:2500] for k in ('id','statement','answer','solution','topic')},
-             'options':q.get('options', []), 'response':answers.get(q.get('id'),{})} for q in questions[:5]]
+    questions=questions[:5]
+    from correction_sync import current_corrections
+    corrections=current_corrections(conn,questions)
+    answers = {r['question_id']:dict(r) for r in conn.execute('SELECT question_id,selected_answer,is_correct,marks_awarded FROM exam_answers WHERE session_id=?', (attempt_id,)).fetchall()}
+    reviewed=[]
+    for original in questions:
+        qid=original.get('id');q={**original,**corrections.get(qid,{})}
+        response=answers.get(qid,{})
+        item={**{k:str(q.get(k,''))[:2500] for k in ('id','statement','answer','solution','topic')},
+              'options':q.get('options',[]),'response':response}
+        if qid in corrections:
+            item['corrected']=True
+            item['recorded_grade']={**response,
+                'original_statement':str(original.get('statement',''))[:2500],
+                'original_options':original.get('options',[]),
+                'original_answer':original.get('answer',''),
+                'note':'Recorded outcome for the original question; it has not been recalculated against the correction.'}
+        reviewed.append(item)
+    return reviewed
 
 
 @router.get('/insights')
@@ -140,6 +156,7 @@ def generate(message,context,history):
         system_prompt=resolve_active_prompt('IQRA_MENTOR')
         system_content=system_prompt['system_content']
         if LATEX_SYSTEM_RULE not in system_content:system_content+='\n'+LATEX_SYSTEM_RULE
+        system_content+='\nQuestion review uses the latest approved question and solution. If corrected is true, response and recorded_grade describe the original attempt, not the corrected option order. Teach the current corrected content, distinguish any recorded grading discrepancy, and never recalculate or claim a change to the recorded score.'
         response = client.models.generate_content(model=model, contents=json.dumps({'trusted_metrics':context,'conversation':history,'learner_question':message},ensure_ascii=False), config=types.GenerateContentConfig(system_instruction=system_content,temperature=0.2,max_output_tokens=max(2048,int(os.getenv('TUTOR_MAX_OUTPUT_TOKENS','2048'))),thinking_config=thinking_config(model,512),response_mime_type='application/json',response_schema=serving_schema(TutorReply),automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True)))
         result=TutorReply.model_validate(response_payload(response))
         return result.model_dump() if result.message.strip() else None

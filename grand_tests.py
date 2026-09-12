@@ -162,10 +162,14 @@ def workspace(conn, gid, user):
     return dict(row)
 
 
-def output(row):
+def output(row,conn=None):
     result = dict(row)
     result['source'] = json.loads(result.pop('source_json'))
     result['questions'] = json.loads(result.pop('questions_json'))
+    from correction_sync import hydrate_workspace
+    if conn is not None:hydrate_workspace(conn,result['questions'])
+    else:
+        with closing(db()) as own_conn:hydrate_workspace(own_conn,result['questions'])
     return result
 
 def page_progress(conn, gid, user=None):
@@ -257,7 +261,7 @@ def detail(gid: int, request: Request):
         row=workspace(conn,gid,user)
         ensure_page_statuses(conn, gid, json.loads(row['source_json']), user['id'])
         conn.commit()
-        result=output(row)
+        result=output(row,conn)
         result['digitisation_progress']=page_progress(conn,gid)
         if row['exam_id'] and user['role']=='ADMIN':
             result['exam']=dict(conn.execute('SELECT * FROM exams WHERE id=?',(row['exam_id'],)).fetchone())

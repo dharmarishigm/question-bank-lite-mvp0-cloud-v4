@@ -12,6 +12,8 @@ const OPTION_LABELS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
 let editingId = null;
 let editingSourceImage = '';
 let editingMeta = {};
+let editingBaseline = '';
+let editingStale = false;
 let questions = [];
 let previewConfirmed = false;
 let pageOffset = 0;
@@ -35,7 +37,7 @@ function invalidatePreview() {
 function syncSaveState() {
   const saveButton = $('btn-save');
   const hasStatement = (formValue().statement || '').trim().length > 0;
-  saveButton.disabled = !previewConfirmed || !hasStatement;
+  saveButton.disabled = editingStale || !previewConfirmed || !hasStatement;
 }
 
 function escapeHtml(text) {
@@ -189,6 +191,7 @@ function formValue() {
 
 function fillForm(q) {
   previewConfirmed = false;
+  editingStale = false;
   const count = Math.max(6, (q.options || []).length);
   $('options-block').innerHTML = Array.from({ length: count }, (_, i) => `<div class="opt"><span>${OPTION_LABELS[i]}</span><textarea id="f-opt-${i}" aria-label="Option ${OPTION_LABELS[i]}" rows="1"></textarea></div>`).join('');
   document.querySelectorAll('#options-block textarea').forEach(bindEditorArea);
@@ -219,6 +222,7 @@ function fillForm(q) {
   $('f-source').hidden = !editingSourceImage;
   $('f-source-img').src = editingSourceImage || '';
   Array.from({ length: count }, (_, i) => i).forEach((i) => { $(`f-opt-${i}`).value = (q.options || [])[i] || ''; });
+  editingBaseline = JSON.stringify(formValue());
   updatePreview();
 }
 
@@ -355,6 +359,10 @@ function updatePreview() {
 }
 
 async function saveRequest() {
+  if (editingStale) {
+    notify('Load the corrected question before saving this older draft.');
+    return;
+  }
   if (!previewConfirmed) {
     $('save-status').textContent = 'Preview required before saving';
     return;
@@ -499,17 +507,24 @@ $('explanation-jobs-refresh')?.addEventListener('click',loadExplanationJobs);
 
 async function openExplainModal(questionId) {
   const explainContent = $('explain-content');
-  $('explain-like').hidden = false;
+  const modal = $('explain-modal');
+  const version = String(Number(modal.dataset.requestVersion || 0) + 1);
+  modal.dataset.requestVersion = version;
+  const current = () => !modal.hidden && modal.dataset.requestVersion === version && modal.dataset.questionId === String(questionId);
+  delete explainContent.dataset.rawExplanation;
+  delete explainContent.dataset.structured;
+  $('explain-like').hidden = true;
   explainContent.textContent = 'Preparing an explanation...';
   $('explain-modal').hidden = false;
   $('explain-like').dataset.questionId = String(questionId);
   $('explain-modal').dataset.questionId = String(questionId);
   delete $('explain-modal').dataset.studentReview;
-  $('explain-like').disabled = false;
+  $('explain-like').disabled = true;
   try {
     const language = $('explain-language')?.value || 'en';
     const res = await fetch(`/api/questions/${questionId}/explain?language=${encodeURIComponent(language)}`);
     const rawText = await res.text();
+    if (!current()) return;
     let body = {};
     if (rawText) {
       try {
@@ -524,14 +539,11 @@ async function openExplainModal(questionId) {
     }
     body.explanation = body.explanation || body?.message || 'No explanation available.';
     renderStructuredExplanation(explainContent, body);
-    if (body.cached) {
-      $('explain-like').textContent = 'Saved';
-      $('explain-like').disabled = true;
-    } else {
-      $('explain-like').textContent = 'Like & save';
-      $('explain-like').disabled = false;
-    }
+    $('explain-like').textContent = 'Saved';
+    $('explain-like').disabled = true;
+    $('explain-like').hidden = !body.cached;
   } catch (err) {
+    if (!current()) return;
     explainContent.textContent = err.message || 'Could not load explanation.';
     $('explain-like').disabled = true;
   }
@@ -697,7 +709,7 @@ function pdfItemHtml(q, index) {
         ${correctnessBadge}
         ${q.garbled ? '<span class="badge-warn">maths not readable as text — keep the image</span>' : ''}
         <div class="spacer"></div>
-        <button data-idx="${index}" data-correct-draft="1">Edit / AI correct / Regenerate</button><button data-idx="${index}" data-crop="1">Crop</button>
+        ${q.saved_question_id?window.QuestionCorrection?.button({id:q.saved_question_id}):`<button data-idx="${index}" data-correct-draft="1">Edit / AI correct / Regenerate</button>`}<button data-idx="${index}" data-crop="1" ${q.saved?'disabled':''}>Crop</button>
         <button data-idx="${index}" data-preview="1">${readyForReview ? 'Review' : 'Preview'}</button>
         <button data-idx="${index}" data-save="1" class="primary" ${readyForReview ? '' : 'disabled'}>Save</button>
         <button data-idx="${index}" data-ocr="1"${q.image && ocrReady ? '' : ' disabled'}
@@ -720,6 +732,7 @@ function renderPdfPreview(index) {
   const q = parsed[index] || {};
   const item = $('pdf-list').querySelector(`.pdf-item[data-item="${index}"]`);
   const pane = item.querySelector('.pdf-preview');
+  if(q.saved){item.querySelectorAll('.pdf-fields input,.pdf-fields textarea,[data-save],[data-ocr],[data-pick]').forEach(field=>field.disabled=true);const save=item.querySelector('[data-save]');if(save)save.textContent='Saved';}
   pane.innerHTML = cardHtml({
     ...q,
     id: `Q${q.number ?? '?'}`,
@@ -731,6 +744,7 @@ function renderPdfPreview(index) {
 
 function openCompareModal(index) {
   const q = parsed[index] || {};
+  $('compare-modal').dataset.reviewIndex=String(index);
   const originalSegments = (q.source_segments || []).filter((seg) => safeUrl(seg.image));
   if (!originalSegments.length && safeUrl(q.image || q.source_image)) originalSegments.push({ image: q.image || q.source_image, page: q.page });
   const transformed = cardHtml({
@@ -750,7 +764,7 @@ function openCompareModal(index) {
   $('compare-score').textContent = `Verification confidence: ${Math.round(Number(q.confidence || 0) * 100)}%`;
   $('compare-score').className = `verify ${String(q.verification_status || 'UNVERIFIED').toLowerCase()}`;
   $('compare-transformed').innerHTML = transformed;
-  const correct=document.createElement('button');correct.type='button';correct.textContent='Edit / AI correct / Regenerate';$('compare-transformed').prepend(correct);correct.onclick=()=>QuestionCorrection.open(q,{save:async value=>{Object.assign(parsed[index],value);document.querySelector(`[data-item="${index}"]`).outerHTML=pdfItemHtml(parsed[index],index);renderPdfPreview(index);togglePreview(index,true);openCompareModal(index);return value;}});
+  const correct=document.createElement('button');correct.type='button';correct.textContent='Edit / AI correct / Regenerate';$('compare-transformed').prepend(correct);correct.onclick=()=>q.saved_question_id?QuestionCorrection.open({id:q.saved_question_id}):QuestionCorrection.open(q,{save:async value=>{Object.assign(parsed[index],value);document.querySelector(`[data-item="${index}"]`).outerHTML=pdfItemHtml(parsed[index],index);renderPdfPreview(index);togglePreview(index,true);openCompareModal(index);return value;}});
   typeset($('compare-transformed'));
   $('compare-modal').hidden = false;
 }
@@ -1309,7 +1323,8 @@ async function importSelectedQuestionsRequest() {
     notify('Import failed');
     return;
   }
-  picked.forEach((i) => { parsed[i].saved = true; });
+  const result=await res.json();
+  picked.forEach((i,index) => { parsed[i].saved = true;parsed[i].saved_question_id=result.imported?.[index]; });
   $('pdf-modal').hidden = true;
   switchMainTab('questions');
   notify(`${items.length} question(s) saved to your library.`);
@@ -1328,6 +1343,7 @@ async function saveSingleQuestionRequest(index) {
     notify('Save failed');
     return;
   }
+  const result=await res.json();parsed[index].saved=true;parsed[index].saved_question_id=result.imported?.[0];
   const item = $('pdf-list').querySelector(`.pdf-item[data-item="${index}"]`);
   if (item) {
     const saveBtn = item.querySelector('[data-save]');
@@ -1340,6 +1356,7 @@ async function saveSingleQuestionRequest(index) {
       checkbox.disabled = true;
     }
   }
+  if(item){item.outerHTML=pdfItemHtml(parsed[index],index);renderPdfPreview(index);togglePreview(index,true);}
   await Promise.all([loadQuestions(), loadFacets()]);
 }
 
@@ -1663,14 +1680,14 @@ function toggleMarkForReview() {
   renderExamNav();
   renderExamCurrentQuestion();
   const sessionId=$('exam-current-question')?.dataset.session;
-  if(sessionId){const question=examState.questions[index];fetch(`/api/student/sessions/${sessionId}/questions/${question.id}/review`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({marked:examState.markedForReview.has(index)})}).catch(()=>notify('Could not save review status.'));}
+  if(sessionId){const question=examState.questions[index];api(`/api/student/sessions/${sessionId}/questions/${question.id}/review`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({marked:examState.markedForReview.has(index),content_revision:question.content_revision})}).catch(async error=>{if(error.status===409)await window.QuestionUpdates?.refreshAttempt(true);notify(error.message||'Could not save review status.');});}
 }
 
 function clearCurrentAnswer() {
   const questionKey = getExamQuestionKey(examState.currentIndex);
   delete examState.answers[questionKey];
   const sessionId=$('exam-current-question')?.dataset.session;
-  if(sessionId&&window.MeritIQraNative){window.saveMobileAnswer?.(sessionId,examState.questions[examState.currentIndex].id,'');}else if(sessionId){const question=examState.questions[examState.currentIndex];fetch(`/api/sessions/${sessionId}/answers/${question.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({selected_answer:''})}).catch(()=>notify('Could not clear saved answer.'));}
+  if(sessionId){const question=examState.questions[examState.currentIndex];if(typeof examAnswers!=='undefined')examAnswers[question.number]='';window.saveActiveAnswer?.(question,'');}
   renderExamNav();
   renderExamCurrentQuestion();
 }
@@ -1981,7 +1998,7 @@ $('ai-close-preview')?.addEventListener('click',()=>{$('ai-prompt-preview').hidd
 $('ai-generation-form')?.addEventListener('submit',async event=>{event.preventDefault();const button=$('ai-generate-submit');button.disabled=true;$('ai-generation-status').textContent='Gemini is generating and validating structured questions…';try{const result=await api('/api/ai/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(aiGenerationPayload())});renderAiGenerationResults(result);await loadAiGenerationRuns();$('ai-generation-status').textContent=`${result.review_required} questions are ready for review. Select the questions you want to save.`;}catch(err){$('ai-generation-status').textContent=err.message;}finally{button.disabled=false;}});
 $('ai-refresh-runs')?.addEventListener('click',loadAiGenerationRuns);
 $('ai-run-list')?.addEventListener('click',async event=>{const review=event.target.closest('[data-ai-review-run]');if(review){try{await reviewAiGenerationRun(review.dataset.aiReviewRun);}catch(err){notify(err.message);}return;}const reuse=event.target.closest('[data-ai-reuse-run]');if(reuse){try{await reuseAiGenerationRun(reuse.dataset.aiReuseRun);}catch(err){notify(err.message);}return;}const regenerate=event.target.closest('[data-ai-regenerate-run]');if(regenerate){regenerate.disabled=true;$('ai-generation-status').textContent='Regenerating from the saved prompt and context…';try{const result=await api(`/api/ai/runs/${regenerate.dataset.aiRegenerateRun}/regenerate`,{method:'POST'});renderAiGenerationResults(result);await loadAiGenerationRuns();$('ai-generation-status').textContent=`Regeneration completed. Review the new questions before saving.`;}catch(err){$('ai-generation-status').textContent=err.message;regenerate.disabled=false;}}});
-$('ai-generation-results')?.addEventListener('click',async event=>{const toggle=event.target.closest('[data-ai-toggle-question]');if(toggle){const card=toggle.closest('.ai-question-card');card.classList.toggle('collapsed');toggle.textContent=card.classList.contains('collapsed')?'Expand':'Collapse';return;}if(event.target.closest('[data-ai-expand-all]')||event.target.closest('[data-ai-collapse-all]')){const collapse=!!event.target.closest('[data-ai-collapse-all]');$('ai-generation-results').querySelectorAll('.ai-question-card').forEach(card=>{card.classList.toggle('collapsed',collapse);card.querySelector('[data-ai-toggle-question]').textContent=collapse?'Expand':'Collapse';});return;}if(event.target.closest('[data-ai-view-prompt]')){$('ai-prompt-preview').hidden=false;$('ai-prompt-preview').scrollIntoView({behavior:'smooth'});return;}const saveAll=event.target.closest('[data-ai-save-all]');const saveSelected=event.target.closest('[data-ai-save-selected]');if(saveAll||saveSelected){const target=$('ai-generation-results'),cards=[...target.querySelectorAll('[data-ai-review-index]')];const chosen=cards.filter(card=>!card.querySelector('[data-ai-select]').disabled&&(saveAll||card.querySelector('[data-ai-select]').checked));if(!chosen.length){notify('Select at least one question to save.');return;}const groups={};chosen.forEach(card=>(groups[card.dataset.aiRun]??=[]).push(Number(card.dataset.aiSourceIndex)));const button=saveAll||saveSelected;button.disabled=true;try{const result=await api('/api/ai/review/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({batches:Object.entries(groups).map(([run_id,indices])=>({run_id,indices})),reviewed:true})});for(const item of result.items){const card=chosen.find(c=>c.dataset.aiRun===item.run_id&&Number(c.dataset.aiSourceIndex)===item.index);if(card){const select=card.querySelector('[data-ai-select]');select.checked=false;select.disabled=true;card.classList.add('saved');card.querySelector('.verify').textContent=item.status==='SAVED'?'SAVED':'ALREADY IN BANK';card.querySelector('[data-ai-edit-draft]').disabled=true;}}await Promise.all([loadAiGenerationRuns(),loadQuestions(),loadFacets()]);$('ai-generation-status').textContent=`${result.saved_count} questions saved across ${Object.keys(groups).length} batches. ${result.already_saved_count} were already in the bank.`;notify(`${result.saved_count} reviewed questions saved.`);}catch(err){notify(err.message);}finally{button.disabled=false;}}});
+$('ai-generation-results')?.addEventListener('click',async event=>{const toggle=event.target.closest('[data-ai-toggle-question]');if(toggle){const card=toggle.closest('.ai-question-card');card.classList.toggle('collapsed');toggle.textContent=card.classList.contains('collapsed')?'Expand':'Collapse';return;}if(event.target.closest('[data-ai-expand-all]')||event.target.closest('[data-ai-collapse-all]')){const collapse=!!event.target.closest('[data-ai-collapse-all]');$('ai-generation-results').querySelectorAll('.ai-question-card').forEach(card=>{card.classList.toggle('collapsed',collapse);card.querySelector('[data-ai-toggle-question]').textContent=collapse?'Expand':'Collapse';});return;}if(event.target.closest('[data-ai-view-prompt]')){$('ai-prompt-preview').hidden=false;$('ai-prompt-preview').scrollIntoView({behavior:'smooth'});return;}const saveAll=event.target.closest('[data-ai-save-all]');const saveSelected=event.target.closest('[data-ai-save-selected]');if(saveAll||saveSelected){const target=$('ai-generation-results'),cards=[...target.querySelectorAll('[data-ai-review-index]')];const chosen=cards.filter(card=>!card.querySelector('[data-ai-select]').disabled&&(saveAll||card.querySelector('[data-ai-select]').checked));if(!chosen.length){notify('Select at least one question to save.');return;}const groups={};chosen.forEach(card=>(groups[card.dataset.aiRun]??=[]).push(Number(card.dataset.aiSourceIndex)));const button=saveAll||saveSelected;button.disabled=true;try{const result=await api('/api/ai/review/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({batches:Object.entries(groups).map(([run_id,indices])=>({run_id,indices})),reviewed:true})});for(const item of result.items){const card=chosen.find(c=>c.dataset.aiRun===item.run_id&&Number(c.dataset.aiSourceIndex)===item.index);if(card){const select=card.querySelector('[data-ai-select]');select.checked=false;select.disabled=true;card.classList.add('saved');card.querySelector('.verify').textContent=item.status==='SAVED'?'SAVED':'ALREADY IN BANK';const cached=target._reviewQuestions?.[Number(card.dataset.aiReviewIndex)];if(cached)cached.saved_question_id=item.question_id;card.querySelector('[data-ai-edit-draft]')?.remove();card.querySelector('.meta').insertAdjacentHTML('beforeend',QuestionCorrection.button({id:item.question_id}));}}await Promise.all([loadAiGenerationRuns(),loadQuestions(),loadFacets()]);$('ai-generation-status').textContent=`${result.saved_count} questions saved across ${Object.keys(groups).length} batches. ${result.already_saved_count} were already in the bank.`;notify(`${result.saved_count} reviewed questions saved.`);}catch(err){notify(err.message);}finally{button.disabled=false;}}});
 
 $('exam-registration-form')?.addEventListener('submit', saveExamRegistration);
 $('exam-reset-form')?.addEventListener('click', () => {
@@ -2144,6 +2161,9 @@ document.addEventListener('click', (event) => {
   const url = safeUrl(button.dataset.viewImage);
   if (!url) return;
   imageViewerOpener = button;
+  const context=button.closest('[data-attempt-question],[data-paper-question],#exam-current-question,.question-card,[data-question],[data-item],[data-ai-review-index]');
+  const questionId=context?.dataset.attemptQuestion||context?.dataset.paperQuestion||context?.querySelector('[data-correct-question]')?.dataset.correctQuestion||context?.querySelector('[data-exam-question]')?.value||(context?.id==='exam-current-question'?examState.questions[examState.currentIndex]?.id:'');
+  $('image-viewer-modal').dataset.questionId=questionId||'';
   $('image-viewer-img').src = button.dataset.viewImage;
   $('image-viewer-modal').hidden = false;
   $('image-viewer-close').focus();

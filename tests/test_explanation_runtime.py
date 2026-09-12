@@ -122,3 +122,57 @@ def test_failed_explanation_does_not_cache_or_expose_provider_details(clients):
     assert response.status_code==200 and response.json()['pending']
     assert 'private-provider-secret' not in response.text
     assert app.get_cached_question_explanation(question['id']) is None
+
+
+def test_pending_explanation_cannot_be_saved_as_cache_text(clients):
+    admin,student,_=clients
+    question,_,sid=completed_attempt(admin,student)
+    pending=student.get(paths(question,sid)[0]).json()
+    assert pending['pending']
+    response=admin.post(f'/api/questions/{question["id"]}/explain/like',json={'language':'en','explanation':pending['message']})
+    assert response.status_code==409,response.text
+    assert app.get_cached_question_explanation(question['id']) is None
+    with app.connect() as conn:
+        assert conn.execute('SELECT status FROM explanation_jobs WHERE question_id=?',(question['id'],)).fetchone()['status']=='PENDING'
+
+
+def test_like_acknowledges_only_current_cache_and_never_writes_client_text(clients):
+    admin,student,_=clients
+    question,_,_=completed_attempt(admin,student)
+    structured=lesson().model_dump()
+    app.save_question_explanation(question['id'],app.explanation_markdown(structured),structured=structured)
+    cached=app.get_cached_question_explanation(question['id'])
+    path=f'/api/questions/{question["id"]}/explain/like'
+    for payload in [
+        {'explanation':'Arbitrary browser text'},
+        {'explanation':cached['explanation'],'structured':{**structured,'correct_answer':'A forged answer'}},
+        {'explanation':cached['explanation'],'language':'te'},
+    ]:
+        response=admin.post(path,json=payload)
+        assert response.status_code==409,response.text
+        assert app.get_cached_question_explanation(question['id'])==cached
+    acknowledged=admin.post(path,json={'language':'en','explanation':cached['explanation'],'structured':structured})
+    assert acknowledged.status_code==200,acknowledged.text
+    assert acknowledged.json()['cached'] and acknowledged.json()['explanation']==cached['explanation']
+    assert app.get_cached_question_explanation(question['id'])==cached
+
+
+def test_old_dialog_cannot_restore_explanation_after_question_correction(clients):
+    from tests.test_question_correction import fields
+    from explanation_jobs import claim_one,process,BilingualExplanation
+    admin,student,_=clients
+    question,_,_=completed_attempt(admin,student)
+    app.save_question_explanation(question['id'],'Previous explanation about two plus two.')
+    original=fields(question)
+    changed={**original,'statement':'What is three plus three?','options':['5','6'],'solution':'Three plus three is six.'}
+    saved=admin.put(f'/api/admin/question-corrections/{question["id"]}',json={'original':original,'question':changed,'reviewed':True})
+    assert saved.status_code==200,saved.text
+    path=f'/api/questions/{question["id"]}/explain/like'
+    stale={'explanation':'Previous explanation about two plus two.','language':'en'}
+    assert admin.post(path,json=stale).status_code==409
+    assert app.get_cached_question_explanation(question['id']) is None
+    with patch('explanation_jobs.generate_bilingual',return_value=BilingualExplanation(explanation_en='Three plus three is six.',explanation_te='మూడు మరియు మూడు కలిపితే ఆరు.')):
+        assert process(claim_one())=='SUCCEEDED'
+    current=app.get_cached_question_explanation(question['id'])
+    assert admin.post(path,json=stale).status_code==409
+    assert app.get_cached_question_explanation(question['id'])==current

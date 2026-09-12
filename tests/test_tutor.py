@@ -79,6 +79,44 @@ class TutorTests(unittest.TestCase):
             self.assertEqual(generate.call_args.args[1]['question_review'][0]['options'],['Wrong','Right'])
         self.assertEqual(self.chat(c,attempt_id=sid,question_id=999999).status_code,404)
 
+    def test_corrected_review_teaches_current_content_with_recorded_grade_context(self):
+        from tests.test_question_correction import fields
+        c,sid,questions,_=self.setup_attempt(count=1)
+        original=questions[0]
+        with app.connect() as conn:
+            before=dict(conn.execute('SELECT question_set_json,score,percentage FROM exam_sessions WHERE id=?',(sid,)).fetchone())
+        admin,_=self.login('admin@example.test')
+        changed={**fields(original),'statement':'Reviewed plant question?','options':['Right','Wrong'],'answer':'A','solution':'Current reviewed teaching solution.'}
+        result=admin.put(f'/api/admin/question-corrections/{original["id"]}',headers={'X-CSRF-Token':self.csrf(admin)},json={'original':fields(original),'question':changed,'reviewed':True})
+        self.assertEqual(result.status_code,200,result.text)
+        with patch('tutor_agent.generate',return_value='Review current explanation') as generate:
+            response=self.post(c,'/api/tutor/chat',json={'message':'Explain my answer','attempt_id':sid,'question_id':original['id']})
+        self.assertEqual(response.status_code,200,response.text)
+        review=generate.call_args.args[1]['question_review'][0]
+        self.assertEqual(review['statement'],changed['statement'])
+        self.assertEqual(review['options'],changed['options'])
+        self.assertEqual(review['answer'],'A')
+        self.assertEqual(review['solution'],changed['solution'])
+        self.assertTrue(review['corrected'])
+        self.assertEqual(review['recorded_grade']['selected_answer'],'A')
+        self.assertEqual(review['recorded_grade']['is_correct'],0)
+        self.assertEqual(review['recorded_grade']['original_answer'],'B')
+        self.assertEqual(review['recorded_grade']['original_options'],['Wrong','Right'])
+        with app.connect() as conn:
+            self.assertEqual(dict(conn.execute('SELECT question_set_json,score,percentage FROM exam_sessions WHERE id=?',(sid,)).fetchone()),before)
+
+    def test_unapproved_bank_edit_does_not_override_tutor_review(self):
+        c,sid,questions,_=self.setup_attempt(count=1)
+        with app.connect() as conn:
+            conn.execute("UPDATE questions SET statement='Unreviewed replacement',solution='Unreviewed answer' WHERE id=?",(questions[0]['id'],));conn.commit()
+        with patch('tutor_agent.generate',return_value='Original reviewed context') as generate:
+            response=self.post(c,'/api/tutor/chat',json={'message':'Explain','attempt_id':sid,'question_id':questions[0]['id']})
+        self.assertEqual(response.status_code,200,response.text)
+        review=generate.call_args.args[1]['question_review'][0]
+        self.assertEqual(review['statement'],questions[0]['statement'])
+        self.assertEqual(review['solution'],questions[0]['solution'])
+        self.assertNotIn('corrected',review)
+
     def test_cross_user_and_admin_assist_is_allowed(self):
         c,sid,qs,exam=self.setup_attempt();created=self.chat(c).json()
         other,_=self.login('other@example.test');admin,_=self.login('admin@example.test')

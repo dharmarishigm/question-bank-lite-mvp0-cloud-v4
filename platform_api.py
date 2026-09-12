@@ -668,14 +668,85 @@ def my_exams(request:Request):
                 item=dict(r); item.update(registration_id=None,registered_at=None,registration_status='PROGRAM',effective_max_attempts=r['max_attempts'],student_allow_retake=bool(r['allow_retake']),attempts_used=0,latest_session_id=None,latest_session_status=None); rows.append(item)
         return exam_program_context(conn,rows)
 
+def _question_content_revision(question):
+    """Revision of visible content only; never fingerprint the hidden answer key."""
+    from multimodal import statement_with_question_figures
+    options=question.get('options',[])
+    if isinstance(options,str):
+        try:options=json.loads(options or '[]')
+        except (TypeError,ValueError):options=[]
+    # Older published snapshots embedded the same image in statement but omitted
+    # visual_assets. Hydrating that metadata must not invalidate a learner's answer.
+    visible={'statement':statement_with_question_figures(question.get('statement',''),question.get('visual_assets',[])),'options':options}
+    return hashlib.sha256(json.dumps(visible,sort_keys=True,ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+
+
+def _synchronize_active_corrections(conn,session):
+    """Lock an active attempt and align its visible question with its grading key.
+
+    Completed attempts are immutable. Prior active content and responses remain
+    available in the audit log; exam timing, marks and published-version identity
+    are not changed. The caller owns the transaction and commits on success.
+    """
+    if session['status']!='IN_PROGRESS':return session
+    conn.execute('UPDATE exam_sessions SET updated_at=updated_at WHERE id=?',(session['id'],))
+    current=conn.execute('SELECT * FROM exam_sessions WHERE id=?',(session['id'],)).fetchone()
+    if not current or current['status']!='IN_PROGRESS':return current or session
+    originals=json.loads(current['question_set_json'] or '[]')
+    if not originals:return current
+    from correction_sync import current_corrections
+    from exam_conduct import audit
+    corrections=current_corrections(conn,originals)
+    if not corrections:return current
+    now=time.time()
+    for question in originals:
+        latest=corrections.get(question['id'])
+        if not latest:continue
+        previous=dict(question)
+        before_revision=_question_content_revision(previous)
+        question.update({key:latest[key] for key in ('statement','options','answer','solution','visual_assets') if key in latest})
+        after_revision=_question_content_revision(question)
+        needs_review=before_revision!=after_revision
+        meaningful=needs_review or any(question.get(key)!=previous.get(key) for key in ('answer','solution'))
+        if meaningful:
+            response=conn.execute('SELECT * FROM exam_answers WHERE session_id=? AND question_id=?',(current['id'],question['id'])).fetchone()
+            audit(conn,'ACTIVE_QUESTION_CORRECTED',exam_id=current['exam_id'],user_id=current['user_id'],session_id=current['id'],
+                metadata={'question_id':question['id'],'original_question':previous,'prior_response':dict(response) if response else None,
+                    'previous_content_revision':before_revision,'content_revision':after_revision,'response_reset':needs_review})
+        if needs_review:
+            conn.execute("UPDATE exam_answers SET selected_answer='',answer_payload_json='{}',is_answered=0,is_correct=NULL,marks_awarded=NULL,answered_at=NULL,scored_at=NULL,status='NOT_ANSWERED',updated_at=? WHERE session_id=? AND question_id=?",(now,current['id'],question['id']))
+        question.update(content_corrected=bool(question.get('content_corrected')) or meaningful,content_revision=after_revision,
+            response_review_required=bool(question.get('response_review_required')) or needs_review)
+    serialized=json.dumps(originals,ensure_ascii=False)
+    conn.execute('UPDATE exam_sessions SET question_set_json=?,updated_at=? WHERE id=? AND status=?',(serialized,now,current['id'],'IN_PROGRESS'))
+    return {**dict(current),'question_set_json':serialized,'updated_at':now}
+
+
+def _validate_answer_revision(conn,session,question,data):
+    revision=_question_content_revision(question)
+    supplied=data.get('content_revision')
+    if (supplied is not None and supplied!=revision) or (question.get('content_corrected') and supplied!=revision):
+        # Persist the correction/reset discovered by this stale request before
+        # rejecting its old answer. The browser can then reload the new content.
+        conn.commit()
+        raise HTTPException(409,'This question was corrected. Reload it, review the updated options, and answer again.')
+    return revision
+
+
 def _session(conn,sid,uid):
     row=conn.execute('SELECT * FROM exam_sessions WHERE id=? AND user_id=?',(sid,uid)).fetchone()
     if not row: raise HTTPException(404,'Exam session not found')
+    row=_synchronize_active_corrections(conn,row)
     if row['status']=='IN_PROGRESS' and row['expires_at']<=time.time():
         _submit(conn,row,'AUTO_SUBMITTED');row=conn.execute('SELECT * FROM exam_sessions WHERE id=?',(sid,)).fetchone()
     return row
 def _submit(conn,s,status='SUBMITTED'):
+    s=_synchronize_active_corrections(conn,s)
+    if s['status']!='IN_PROGRESS':return
     snapshot=json.loads(s['question_set_json'] or '[]') if 'question_set_json' in s.keys() else []
+    if status=='SUBMITTED' and any(q.get('response_review_required') for q in snapshot):
+        conn.commit()
+        raise HTTPException(409,'A question was corrected during this exam. Review the updated question before submitting.')
     if snapshot:rows=snapshot
     else:rows=[dict(r) for r in conn.execute('SELECT eq.question_id id,eq.marks,eq.negative_marks,q.answer FROM exam_questions eq JOIN questions q ON q.id=eq.question_id WHERE eq.exam_id=?',(s['exam_id'],)).fetchall()]
     score=0;correct=wrong=unanswered=0
@@ -732,11 +803,17 @@ def get_session(sid:int,request:Request):
                 if isinstance(options,str):
                     try: options=json.loads(options or '[]')
                     except (TypeError,ValueError): options=[]
-                questions.append({'id':q['id'],'number':q['display_order'],'statement':q['statement'],'options':options,'visual_assets':q.get('visual_assets',[]),'marks':q['marks'],'section':q.get('section_name',''),'selected_answer':answers[q['id']]['selected_answer'] if q['id'] in answers else '','state':answers[q['id']]['status'] if q['id'] in answers else 'NOT_VISITED'})
+                questions.append({'id':q['id'],'number':q['display_order'],'statement':q['statement'],'options':options,'visual_assets':q.get('visual_assets',[]),'marks':q['marks'],'section':q.get('section_name',''),'selected_answer':answers[q['id']]['selected_answer'] if q['id'] in answers else '','state':answers[q['id']]['status'] if q['id'] in answers else 'NOT_VISITED',
+                    'content_revision':_question_content_revision(q),'content_corrected':bool(q.get('content_corrected')),'response_review_required':bool(q.get('response_review_required'))})
         else:
             rows=conn.execute('SELECT q.id,q.statement,q.options,eq.display_order,eq.marks,a.selected_answer,a.answer_payload_json,a.status FROM exam_questions eq JOIN questions q ON q.id=eq.question_id LEFT JOIN exam_answers a ON a.session_id=? AND a.question_id=q.id WHERE eq.exam_id=? ORDER BY eq.display_order',(sid,s['exam_id'])).fetchall();questions=[{'id':r['id'],'number':r['display_order'],'statement':r['statement'],'options':json.loads(r['options'] or '[]'),'marks':r['marks'],'selected_answer':r['selected_answer'] or '','state':r['status'] or 'NOT_VISITED'} for r in rows]
         from correction_sync import annotate
-        annotate(conn,questions,snapshot,include_answers=False)
+        # Active content is the synchronized grading snapshot. A second live
+        # overlay could race another correction and display ungraded options.
+        if s['status']!='IN_PROGRESS':annotate(conn,questions,snapshot,include_answers=False)
+        for question in questions:
+            question['visual_assets']=[asset for asset in question.get('visual_assets',[]) if asset.get('type')!='answer_figures']
+        conn.commit()
     safe_session={key:s[key] for key in ('id','exam_id','attempt_number','status','started_at','expires_at','duration_minutes')}
     return {'session':{**safe_session,'section_timing':json.loads(s['section_timing_json'] or '{}') if 'section_timing_json' in s.keys() else {}},'exam':dict(exam),'server_time':time.time(),'questions':questions}
 @router.put('/sessions/{sid}/answers/{qid}')
@@ -765,15 +842,20 @@ def _save_answer_sync(sid:int,qid:int,request:Request,data:dict):
         if s['status']!='IN_PROGRESS':raise HTTPException(409,'Submitted exams cannot be modified')
         snapshot=json.loads(s['question_set_json'] or '[]') if 'question_set_json' in s.keys() else [];exists=any(int(q['id'])==qid for q in snapshot) if snapshot else conn.execute('SELECT 1 FROM exam_questions WHERE exam_id=? AND question_id=?',(s['exam_id'],qid)).fetchone()
         if not exists:raise HTTPException(404,'Question not in this exam')
+        question=next((q for q in snapshot if int(q['id'])==qid),None)
+        revision=_validate_answer_revision(conn,s,question,data) if question else None
         section_expiry=_section_expiry(s,snapshot,qid,now)
         if section_expiry is not None and now>=section_expiry:
             from exam_conduct import audit
             from platform_api import _submit
             _submit(conn,s,'AUTO_SUBMITTED');audit(conn,'SECTION_TIMER_EXPIRED',exam_id=s['exam_id'],user_id=user['id'],session_id=sid,metadata={'question_id':qid});conn.commit();raise HTTPException(409,'This section time has expired; the exam was submitted automatically.')
         state='ANSWERED' if selected else 'NOT_ANSWERED';conn.execute('INSERT INTO exam_answers(session_id,question_id,selected_answer,answer_payload_json,is_answered,answered_at,first_answered_at,status,updated_at) VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(session_id,question_id) DO UPDATE SET selected_answer=excluded.selected_answer,answer_payload_json=excluded.answer_payload_json,is_answered=excluded.is_answered,answered_at=excluded.answered_at,first_answered_at=COALESCE(exam_answers.first_answered_at,excluded.first_answered_at),status=CASE WHEN exam_answers.status IN (\'MARKED_FOR_REVIEW\',\'ANSWERED_AND_MARKED\') THEN CASE WHEN excluded.is_answered=1 THEN \'ANSWERED_AND_MARKED\' ELSE \'MARKED_FOR_REVIEW\' END ELSE excluded.status END,updated_at=excluded.updated_at',(sid,qid,selected,json.dumps(data.get('answer_payload',{})),int(bool(selected)),now,now if selected else None,state,now));
+        if question and question.get('response_review_required'):
+            question['response_review_required']=False
+            conn.execute('UPDATE exam_sessions SET question_set_json=?,updated_at=? WHERE id=?',(json.dumps(snapshot,ensure_ascii=False),now,sid))
         from exam_conduct import audit
         audit(conn,'ANSWER_SAVED',exam_id=s['exam_id'],user_id=user['id'],session_id=sid,metadata={'question_id':qid});conn.commit()
-    return {'saved':True}
+    return {'saved':True,'content_revision':revision,'response_review_required':False}
 @router.post('/sessions/{sid}/submit')
 def submit(sid:int,request:Request,background_tasks:BackgroundTasks):
     user=_auth(request,True)
@@ -790,7 +872,7 @@ def submit(sid:int,request:Request,background_tasks:BackgroundTasks):
 def results(request:Request):
     user=_auth(request)
     with closing(db()) as conn:rows=conn.execute("SELECT s.*,e.name exam_name,e.exam_type,e.subject,e.level FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE s.user_id=? AND s.status IN ('SUBMITTED','AUTO_SUBMITTED') ORDER BY s.submitted_at DESC",(user['id'],)).fetchall()
-    return [dict(r) for r in rows]
+    return [{key:r[key] for key in r.keys() if key!='question_set_json'} for r in rows]
 
 def _student_analytics_user(request:Request):
     user=_auth(request)
@@ -903,7 +985,8 @@ def result_detail(sid:int,request:Request):
                 questions.append({'id':q['id'],'statement':q['statement'],'options':options,'visual_assets':q.get('visual_assets',[]),'answer':q.get('answer',''),'solution':q.get('solution',''),'selected_answer':a.get('selected_answer',''),'is_correct':a.get('is_correct'),'marks_awarded':a.get('marks_awarded',0)})
         from correction_sync import annotate
         annotate(conn,questions,snapshot,include_answers=True)
-    return {'session':{**dict(s),'exam_name':exam['name'],'exam_type':exam['exam_type'],'subject':exam['subject'],'level':exam['level'],'student_name':student['display_name'],'student_email':student['email']},'released':released,'message':None if released else 'Exam submitted. Result pending.','questions':questions}
+    safe_session={key:s[key] for key in s.keys() if key!='question_set_json'}
+    return {'session':{**safe_session,'exam_name':exam['name'],'exam_type':exam['exam_type'],'subject':exam['subject'],'level':exam['level'],'student_name':student['display_name'],'student_email':student['email']},'released':released,'message':None if released else 'Exam submitted. Result pending.','questions':questions}
 
 @router.get('/student/results/{sid}/questions/{qid}/explain')
 def explain_attempt_question(sid:int,qid:int,request:Request,language:str='en'):

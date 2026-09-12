@@ -55,6 +55,28 @@
     }
   }
   async function open(id){const wasDigitising=current?.id===id&&current.status==='DIGITIZING';current=await call('/'+id);if(wasDigitising&&current.status==='REVIEW_REQUIRED')panel.dataset.workspaceSection='Review & save';render();}
+  let correctionRefresh=false,correctionAgain=false;
+  async function refreshSavedQuestions(id){
+    if(!current||!permitted()||(id&&!current.questions.some(q=>Number(q.saved_question_id)===Number(id))))return;
+    if(correctionRefresh){correctionAgain=true;return;}
+    correctionRefresh=true;const workspace=current;
+    try{const fresh=await call('/'+workspace.id);if(current!==workspace)return;
+      // Only saved rows are locked. Never rebuild the form over an unsaved review or schedule.
+      const unsaved=questions=>questions.filter(q=>!q.saved_question_id);
+      const sameDraft=JSON.stringify(unsaved(workspace.questions))===JSON.stringify(unsaved(fresh.questions))&&workspace.status===fresh.status&&workspace.exam_id===fresh.exam_id&&JSON.stringify(workspace.exam)===JSON.stringify(fresh.exam);
+      for(const q of fresh.questions.filter(q=>q.saved_question_id)){
+        const index=workspace.questions.findIndex(old=>old.id===q.id&&old.saved_question_id===q.saved_question_id);if(index<0)continue;
+        const row=[...panel.querySelectorAll('[data-question]')].find(node=>node.dataset.question===String(q.id));workspace.questions[index]=q;if(!row)continue;
+        row.querySelectorAll('[name]').forEach(field=>{if(field.name==='advanced')field.value=JSON.stringify({source_image:q.source_image,visual_assets:q.visual_assets,content_blocks:q.content_blocks,math_evidence:q.math_evidence},null,2);else if(field.type==='checkbox')field.checked=!!q[field.name];else field.value=field.name==='options'?(q.options||[]).join('\n'):q[field.name]??'';});
+        QuestionSourceReview.refresh(row,q);
+      }
+      if(sameDraft){workspace.revision=fresh.revision;progress('Saved question content updated. Your unsaved review and schedule entries are preserved.','success');}
+      else progress('Saved question content updated. Other workspace changes were found; reopen the workspace before saving. Your unsaved entries are still here.','error');
+    }catch(error){progress('Could not refresh corrected questions. '+error.message,'error');}
+    finally{correctionRefresh=false;if(correctionAgain){correctionAgain=false;refreshSavedQuestions();}}
+  }
+  document.addEventListener('question:corrected',event=>refreshSavedQuestions(event.detail?.id));
+  document.addEventListener('question:invalidated',event=>refreshSavedQuestions(event.detail?.id));
   function render(){
     const g=current,locked=!!g.exam_id||g.status==='DIGITIZING',admin=signedInUser.role==='ADMIN',saved=g.questions.filter(q=>q.saved_question_id);
     panel.innerHTML=`<button id="gt-back">← DigitalQBank</button><a class="gt-home" href="/app">Home</a><div class="page-header"><div><h2>${esc(g.name)}</h2><p>${esc(g.paper_name)} · ${esc(g.status.replaceAll('_',' '))} · ${g.questions.length} questions</p></div>${!g.exam_id?`<button class="danger" id="gt-delete-workspace">Delete workspace</button>`:''}</div><p class="gt-status" data-status role="status" aria-live="polite">${esc(g.error||(g.status==='DIGITIZING'?'Digitising and classifying… Please wait.':g.questions.length?'Questions ready for review. Select reviewed questions to save to the question bank.':'PDF ready. Select a portion or digitise the whole PDF.'))}</p>

@@ -220,7 +220,9 @@ def save(qid:int,data:SaveInput,request:Request):
         q.verification_status='APPROVED'
         _snapshot(conn,qid,'admin reviewed correction')
         conn.execute('UPDATE questions SET '+', '.join(f'{f}=?' for f in FIELDS)+', updated_at=? WHERE id=?',values_of(q)+[time.time(),qid])
-        for table in ['question_explanations','question_explanation_translations']:conn.execute(f'DELETE FROM {table} WHERE question_id=?',(qid,))
+        if any(getattr(q,key)!=old.get(key) for key in ('statement','options','answer','solution','visual_assets')):
+            for table in ['question_explanations','question_explanation_translations']:
+                conn.execute(f'DELETE FROM {table} WHERE question_id=?',(qid,))
         updated=row_to_dict(conn.execute('SELECT * FROM questions WHERE id=?',(qid,)).fetchone())
         propagate(conn,old,updated,user['id'],plans)
         from explanation_jobs import enqueue
