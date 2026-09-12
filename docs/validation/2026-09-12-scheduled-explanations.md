@@ -93,3 +93,21 @@ Rolling back the app does not require dropping the queue. Pause the scheduler
 first if rolling back the worker. The additive schema is retained so queued
 work and its audit state are recoverable. No production questions or exams are
 deleted by this rollout.
+
+## Production rollout receipt
+
+- Application revision: `question-bank-cloud-v4-scheduled-explanations-c4654c1`,
+  promoted to 100% traffic. Public `/api/health` returned this revision with `ok`.
+- Image digest: `sha256:30823c3573a7752102bc765706b009c210c154a06184b16fb83c15e2f0449c3d`.
+- Build `79466ddd-fbce-4245-a442-e073b0deaeca` passed, including actual PostgreSQL
+  queue claims and atomic bilingual cache completion.
+- Migration execution `qb-prod-explanation-queue-expand-20260912-xdz8s` succeeded;
+  logs confirmed runtime grants and an unchanged rollback marker.
+- First worker execution `qb-production-explanation-worker-4nhsr` succeeded:
+  20 queued, 10 processed, 10 succeeded, 0 retries, 0 failures, 0 stale results.
+- Scheduler `qb-production-explanations` enabled every five minutes.
+  Authenticated Scheduler-to-Jobs API invocation returned HTTP 200 at
+  `2026-09-12T10:15:07Z`.
+- Candidate queue-status API returned HTTP 401 without authentication.
+- 17 additional database/security tests passed alongside the 178-test regression
+  suite. Authenticated production browser testing remains pending normal MFA.

@@ -27,7 +27,7 @@ def main():
         return result
     source=json.loads(command('run','jobs','describe','qb-production-digitaliq-worker','--region='+args.region,'--format=json').stdout)
     name='qb-production-explanation-worker'
-    manifest={'apiVersion':'run.googleapis.com/v1','kind':'Job','metadata':{'name':name,'namespace':source['metadata']['namespace']},'spec':copy.deepcopy(source['spec'])}
+    manifest={'apiVersion':'run.googleapis.com/v1','kind':'Job','metadata':{'name':name},'spec':copy.deepcopy(source['spec'])}
     execution=manifest['spec']['template']['spec'];execution['taskCount']=1;execution['parallelism']=1
     task=execution['template']['spec'];task['maxRetries']=0;task['timeoutSeconds']='420'
     container=task['containers'][0];container['image']=args.image;container['command']=['python'];container['args']=['-m','explanation_jobs']
@@ -46,6 +46,7 @@ def main():
     operation='update' if existing.returncode==0 else 'create'
     command('scheduler','jobs',operation,'http',scheduler,'--location='+args.region,
         '--schedule=*/5 * * * *','--time-zone=Asia/Kolkata','--http-method=POST',
+        ('--update-headers=' if operation=='update' else '--headers=')+'Content-Type=application/json','--message-body={}',
         '--uri=https://run.googleapis.com/v2/projects/'+args.project+'/locations/'+args.region+'/jobs/'+name+':run',
         '--oauth-service-account-email='+identity,'--oauth-token-scope=https://www.googleapis.com/auth/cloud-platform',
         '--attempt-deadline=60s','--max-retry-attempts=0','--quiet')
