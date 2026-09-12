@@ -119,9 +119,11 @@
       <details class="ai-advanced"><summary>Advanced</summary><label class="ai-large-field"><span class="ai-field-heading"><strong>Extra Metadata (JSON)</strong><button type="button" data-ai-toggle-field>Collapse</button></span><textarea aria-label="Extra Metadata (JSON)" name="extra_metadata" rows="5" placeholder='{"target_time_minutes": 3, "calculator_allowed": false}'></textarea></label></details>
       <div class="actions"><button id="ai-preview-prompt" type="button">Preview Effective Prompt</button><button id="ai-generate-submit" class="primary" type="submit">Generate Questions</button></div>
       <p id="ai-generation-status" class="muted" role="status"></p>
+      <p class="muted">Questions, answers and worked solutions are generated first. English and Telugu teaching explanations are prepared separately by a scheduled batch job after saving.</p>
     </form>
     <section id="ai-prompt-preview" class="ai-prompt-preview" hidden><div class="section-heading"><h3>Effective prompt preview</h3><button id="ai-close-preview" type="button">Close</button></div><pre></pre></section>
     <section id="ai-generation-results" class="ai-generation-results" hidden></section>
+    <details class="panel"><summary>Scheduled explanation jobs</summary><p>Explanation preparation does not block exam review or publication.</p><button id="explanation-jobs-refresh" type="button">Refresh job status</button><div id="explanation-jobs-status" role="status"></div></details>
     </div>
     <div id="ai-saved-pane" class="ai-tab-pane" hidden>
     <section class="ai-run-history"><div class="section-heading"><div><h3>Saved generation runs</h3><p>Reuse or regenerate any previous prompt and context.</p></div><button id="ai-refresh-runs" type="button">Refresh</button></div><form id="ai-run-filters" class="workspace-filters" role="search" aria-label="Filter saved generations">

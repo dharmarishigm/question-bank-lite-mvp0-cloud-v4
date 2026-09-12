@@ -6,7 +6,7 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 
 import app
-from llm_generate import BILINGUAL_GENERATION_RULE, GeneratedOption, GeneratedQuestion, GeneratedQuestionBatch, GenerationRequest, PartialGenerationError, PromptGuidanceRequest, generate_prompt_guidance, generate_questions, parse_generated_batch, public_prompt_preview, validate_question
+from llm_generate import CORE_GENERATION_RULE, GeneratedOption, GeneratedQuestion, GeneratedQuestionBatch, GenerationRequest, PartialGenerationError, PromptGuidanceRequest, generate_prompt_guidance, generate_questions, parse_generated_batch, public_prompt_preview, validate_question
 from platform_api import init_platform
 from visual_renderer import render_visual_panels
 
@@ -79,18 +79,20 @@ class PromptGenerationTests(unittest.TestCase):
         with patch('llm_generate.gcp_project_id',return_value='test-project'),patch('llm_generate.configured_vertex_model',return_value='gemini-2.5-flash'),patch('prompt_registry.resolve_active_prompt',return_value=legacy):
             _,usage,_=generate_questions(self.request(),client=client)
         config=client.models.calls[0]['config']
-        self.assertIn(BILINGUAL_GENERATION_RULE,config.system_instruction)
+        self.assertIn(CORE_GENERATION_RULE,config.system_instruction)
         self.assertEqual(config.thinking_config.thinking_budget,1024)
         self.assertFalse(config.thinking_config.include_thoughts)
         schema=config.response_schema
         required=schema['properties']['questions']['items']['required']
-        self.assertTrue({'solution','explanation_en','explanation_te'}.issubset(required))
+        self.assertIn('solution',required)
+        self.assertNotIn('explanation_en',schema['properties']['questions']['items']['properties'])
+        self.assertNotIn('explanation_te',schema['properties']['questions']['items']['properties'])
         self.assertEqual(usage['prompt_content_hash'],'original-registry-hash')
         self.assertNotEqual(usage['effective_system_prompt_hash'],usage['prompt_content_hash'])
 
     def test_partial_provider_batch_retries_only_missing_question(self):
         first=self.response('Saved first question','Incomplete question')
-        first.parsed['questions'][1].pop('explanation_te')
+        first.parsed['questions'][1].pop('solution')
         client=self.client(first,self.response('Replacement second question'))
         with patch('llm_generate.gcp_project_id',return_value='test-project'),patch.dict(os.environ,{'AI_MAX_RETRIES':'1'}):
             batch,usage,_=generate_questions(self.request(count=2),client=client)
@@ -106,6 +108,7 @@ class PromptGenerationTests(unittest.TestCase):
         self.assertEqual(len(batch.questions),3)
         self.assertEqual(len(client.models.calls),3)
         self.assertTrue(all('Question Count: 1' in call['contents'] for call in client.models.calls))
+        self.assertTrue(all(call['config'].response_schema['properties']['questions']['maxItems']==1 for call in client.models.calls))
 
     def test_completed_internal_batches_survive_later_provider_failure(self):
         client=self.client(self.response('First','Second','Third'),TimeoutError('provider timed out'))

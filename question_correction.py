@@ -223,6 +223,8 @@ def save(qid:int,data:SaveInput,request:Request):
         for table in ['question_explanations','question_explanation_translations']:conn.execute(f'DELETE FROM {table} WHERE question_id=?',(qid,))
         updated=row_to_dict(conn.execute('SELECT * FROM questions WHERE id=?',(qid,)).fetchone())
         propagate(conn,old,updated,user['id'],plans)
+        from explanation_jobs import enqueue
+        enqueue(conn,qid)
         from exam_conduct import audit
         audit(conn,'QUESTION_CORRECTED',user_id=user['id'],metadata={'question_id':qid,'program_paper_id':data.program_paper_id})
         conn.commit()

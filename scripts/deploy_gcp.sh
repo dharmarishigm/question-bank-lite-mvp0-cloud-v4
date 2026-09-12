@@ -31,6 +31,10 @@ done
 
 DIGEST="$(gcloud builds describe "$BUILD_ID" --project="$PROJECT_ID" --format='value(results.images[0].digest)')"
 IMAGE_REF="${IMAGE%:*}@${DIGEST}"
+if [ "${BUILD_ONLY:-0}" = 1 ]; then
+  echo "Build validated; no deployment performed. Image: $IMAGE_REF"
+  exit 0
+fi
 echo "Deploying $IMAGE_REF"
 
 # A previous failed deployment can leave spec.traffic pointing at an unready

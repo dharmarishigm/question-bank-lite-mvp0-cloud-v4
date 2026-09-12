@@ -23,7 +23,7 @@ def main():
     args=parser.parse_args()
     from google import genai
     from google.genai import types
-    from ai_runtime import response_metadata
+    from ai_runtime import response_metadata,response_payload
     from llm_extract import gcp_project_id,gcp_region
     from llm_generate import GenerationRequest,PromptGuidanceRequest,configured_vertex_model,generate_questions,generate_prompt_guidance
     from prompt_registry import init_prompt_registry,resolve_active_prompt
@@ -34,7 +34,14 @@ def main():
         class Models:
             def generate_content(self,**kwargs):
                 response=real.models.generate_content(**kwargs)
-                receipts.append(response_metadata(response))
+                receipt=response_metadata(response)
+                try:
+                    decoded=response_payload(response)
+                    if isinstance(decoded,dict) and isinstance(decoded.get('questions'),list):
+                        receipt['response_question_count']=len(decoded['questions'])
+                        receipt['field_lengths']=[{field:len(str(item.get(field,''))) for field in ('statement','solution','explanation_en','explanation_te')} for item in decoded['questions']]
+                except ValueError:pass
+                receipts.append(receipt)
                 return response
         client=type('Client',(),{'models':Models()})()
         try:
@@ -47,6 +54,8 @@ def main():
                 checks={'one_question':len(batch.questions)==1,'four_options':len(q.options)==4,'solution':bool(q.solution.strip()),'english':bool(q.explanation_en.strip()),'telugu_script':any('\u0c00'<=c<='\u0c7f' for c in q.explanation_te),'latex':'$' in q.statement+q.solution,'known_answer':any(o.label.upper()==q.answer.upper() and '5' in o.text for o in q.options)}
                 if args.scenario=='jee-chemistry':
                     checks={'three_questions':len(batch.questions)==3,'four_options':all(len(item.options)==4 for item in batch.questions),'solution':all(item.solution.strip() for item in batch.questions),'english':all(item.explanation_en.strip() for item in batch.questions),'telugu_script':all(any('\u0c00'<=c<='\u0c7f' for c in item.explanation_te) for item in batch.questions),'latex':all('$' in item.statement+item.solution for item in batch.questions)}
+                checks.pop('english',None);checks.pop('telugu_script',None)
+                checks['teaching_explanations_deferred']=all(not item.explanation_en and not item.explanation_te for item in batch.questions)
             else:
                 guidance,model=generate_prompt_guidance(PromptGuidanceRequest(exam_name='Synthetic provider validation',subject='Mathematics',level='Grade 8',topic='Linear equations',count=1),client=client)
                 checks={'syllabus':len(guidance.syllabus)>=20,'generation_prompt':len(guidance.generation_prompt)>=20}

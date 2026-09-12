@@ -1,5 +1,11 @@
 # AI runtime audit — 12 September 2026
 
+**Final architecture update:** the user requested that explanations move out of
+exam generation. The scheduled implementation and current validation results are
+documented in [Scheduled explanations](2026-09-12-scheduled-explanations.md).
+The earlier inline-explanation checks below are historical evidence, not the
+final generation contract.
+
 ## Scope and evidence
 
 The reported production failure was confirmed in Cloud Run logs at

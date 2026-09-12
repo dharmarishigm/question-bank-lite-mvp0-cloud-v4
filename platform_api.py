@@ -82,6 +82,9 @@ def db():
 TIMING_COLUMNS={'grace_period_minutes':'INTEGER NOT NULL DEFAULT 0','section_timing_json':"TEXT NOT NULL DEFAULT '{}'"}
 
 def init_platform():
+    from explanation_jobs import SCHEMA as EXPLANATION_JOB_SCHEMA
+    with closing(db()) as conn:
+        conn.executescript(EXPLANATION_JOB_SCHEMA);conn.commit()
     from security_boundary import SCHEMA as SECURITY_SCHEMA
     with closing(db()) as conn:
         conn.executescript(SECURITY_SCHEMA); conn.commit()

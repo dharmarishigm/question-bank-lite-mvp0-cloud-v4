@@ -1,7 +1,7 @@
 """Synthetic browser acceptance: reviewed suggestions, persistence and role controls."""
 import asyncio,json,os,subprocess,tempfile
 import httpx
-from playwright.async_api import async_playwright
+from playwright.async_api import async_playwright,expect
 BASE='http://127.0.0.1:8059'
 async def main():
  with tempfile.TemporaryDirectory() as folder:
@@ -36,10 +36,15 @@ async def main():
       await modal.locator('button[type=submit]').click();await modal.wait_for(state='hidden')
       assert (await admin.get(f'/api/questions/{q["id"]}')).json()['statement']==new['statement']
       await page.unroute('**/api/admin/question-corrections/suggest')
+     await page.locator(f'#list [data-explain="{q["id"]}"]').click()
+     await expect(page.locator('#explain-content')).to_contain_text('scheduled batch')
+     await expect(page.locator('#explain-like')).to_be_hidden()
+     queued=(await admin.get('/api/admin/explanation-jobs')).json()
+     assert queued['counts']['PENDING']==1
      assert not errors,errors
      await context.close();context=await browser.new_context();await context.request.post(BASE+'/api/auth/mock',data={'email':'student@example.test'});page=await context.new_page();await page.goto(BASE+'/app');await page.locator('#app-shell').wait_for(state='visible')
      assert await page.locator('[data-correct-question]').count()==0
      await browser.close()
-   print(json.dumps({'desktop_mobile_correction_regeneration':'passed','suggestion_does_not_save':True,'equation_rendering':True,'student_controls_absent':True,'page_errors':errors}))
+   print(json.dumps({'desktop_mobile_correction_regeneration':'passed','suggestion_does_not_save':True,'equation_rendering':True,'scheduled_explanation_pending_ui':True,'student_controls_absent':True,'page_errors':errors}))
   finally:server.terminate();server.wait()
 if __name__=='__main__':asyncio.run(main())

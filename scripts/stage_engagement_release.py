@@ -6,7 +6,7 @@ root=Path(__file__).resolve().parents[1]
 stage=Path(tempfile.mkdtemp(prefix='meritiqra-engagement-'))
 files=['database.py','epidemiology_model.py','app.py','platform_api.py','flag_api.py','engagement.py','engagement_schema.py','marketing_pdf.py','requirements.txt',
        'migrations/versions/0017_engagement.py','static/index.html','static/home.html','static/flag.js',
-       'static/engagement.js','static/engagement.css','static/flag.css','static/enquiry.html','static/enquiry.js','static/public-auth.js','scripts/validate_release_migrations.py','scripts/check_production_runtime.py']
+       'static/engagement.js','static/engagement.css','static/flag.css','static/enquiry.html','static/enquiry.js','static/public-auth.js','scripts/validate_release_migrations.py','scripts/check_production_runtime.py','scripts/expand_explanation_jobs_schema.py']
 files = sorted({*files, *[p.name for p in root.glob('*.py')],
                 *[str(p.relative_to(root)) for p in (root/'static').rglob('*') if p.is_file() and p.name!='.DS_Store'],
                 *[str(p.relative_to(root)) for p in (root/'migrations').rglob('*.py')]})
@@ -21,6 +21,7 @@ COPY static/ /app/static/
 COPY migrations/ /app/migrations/
 COPY scripts/validate_release_migrations.py /app/scripts/validate_release_migrations.py
 COPY scripts/check_production_runtime.py /app/scripts/check_production_runtime.py
+COPY scripts/expand_explanation_jobs_schema.py /app/scripts/expand_explanation_jobs_schema.py
 ENV APP_ENV=production QB_SCHEMA_MANAGED=1 SECURITY_HARDENING=1 REQUIRE_STAFF_MFA=1 DB_POOL_ENABLED=1 DB_POOL_SIZE=5 EXPECTED_SCHEMA_REVISION=0020_dqb_document_controls PYTHONUNBUFFERED=1
 # The inherited image has a migration entrypoint; production migrations run only
 # through the reviewed migration job, never during a Cloud Run cold start.

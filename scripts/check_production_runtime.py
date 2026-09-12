@@ -32,7 +32,7 @@ def main():
         expected=os.environ.get('EXPECTED_SCHEMA_REVISION','0020_dqb_document_controls')
         if expected not in {'0020_dqb_document_controls','0022_security_sessions'}:raise RuntimeError('Unreviewed schema version')
         if conn.execute('SELECT version_num FROM alembic_version').fetchone()!=(expected,):raise RuntimeError('Reviewed schema version required')
-        required_tables = ('security_mfa','security_session_state','security_rate_limits','prompt_definitions','prompt_versions','prompt_run_bindings','prompt_audit','program_enrollments')
+        required_tables = ('security_mfa','security_session_state','security_rate_limits','prompt_definitions','prompt_versions','prompt_run_bindings','prompt_audit','program_enrollments','explanation_jobs')
         for table in required_tables:
             if not conn.execute('SELECT to_regclass(%s)',(table,)).fetchone()[0]:
                 raise RuntimeError('Missing required production table: '+table)

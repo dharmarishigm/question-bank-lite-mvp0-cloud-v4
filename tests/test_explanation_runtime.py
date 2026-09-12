@@ -42,31 +42,23 @@ def paths(question, sid):
             f'/api/student/questions/{question["id"]}/explain']
 
 
-def test_cache_miss_is_saved_once_per_language_and_reused_by_all_learners(clients):
-    admin, student, other = clients
-    question, exam, sid = completed_attempt(admin, student)
-    with patch('app.llm_status', return_value={'available': True}), \
-         patch('blueprint_gemini.structured_call', return_value=(lesson(), {})) as model:
-        first = student.get(paths(question, sid)[0])
-        assert first.status_code == 200, first.text
-        assert first.json()['cached'] is False
-        assert student.get(paths(question, sid)[1]).json()['cached'] is True
-        assert model.call_count == 1
-        assert app.get_cached_question_explanation(question['id'], 'en')['liked'] is True
-        model.return_value = lesson('te'), {}
-        assert student.get(paths(question, sid)[1] + '?language=te').json()['cached'] is False
-        assert student.get(paths(question, sid)[0] + '?language=te').json()['cached'] is True
-        assert model.call_count == 2
-    other.post('/api/auth/mock', json={'email': 'other-explanation@example.test'})
-    other.headers['X-CSRF-Token'] = other.cookies['qb_csrf']
-    other.post(f'/api/exams/{exam["id"]}/enroll')
-    other_sid = other.post(f'/api/exams/{exam["id"]}/sessions', json={'consent': True}).json()['session_id']
-    other.post(f'/api/sessions/{other_sid}/submit')
-    with patch('blueprint_gemini.structured_call') as model, patch('explanation_quota.reserve_explanation_call') as quota:
-        response = other.get(paths(question, other_sid)[0])
-        assert response.json()['cached'] is True
+def test_cache_miss_is_queued_once_then_worker_caches_both_languages(clients):
+    from explanation_jobs import run_batch,BilingualExplanation
+    admin,student,_=clients
+    question,_,sid=completed_attempt(admin,student)
+    with patch('blueprint_gemini.structured_call') as model,patch('explanation_quota.reserve_explanation_call') as quota:
+        for path in paths(question,sid):
+            response=student.get(path)
+            assert response.status_code==200 and response.json()['pending']
+        model.assert_not_called();quota.assert_not_called()
+    with app.connect() as conn:
+        assert conn.execute('SELECT COUNT(*) n FROM explanation_jobs').fetchone()['n']==1
+    with patch('explanation_jobs.generate_bilingual',return_value=BilingualExplanation(explanation_en='Addition combines the groups.',explanation_te='కూడిక ద్వారా సమూహాలను కలపాలి.')):
+        assert run_batch()['succeeded']==1
+    with patch('blueprint_gemini.structured_call') as model:
+        for language in ('en','te'):
+            assert student.get(paths(question,sid)[0]+'?language='+language).json()['cached']
         model.assert_not_called()
-        quota.assert_not_called()
 
 
 def test_unreleased_explanations_are_blocked_even_when_cached(clients):
@@ -102,6 +94,7 @@ def test_new_active_exam_blocks_explanation_response_after_provider_call(clients
 
 
 def test_edit_during_generation_cannot_resurrect_previous_explanation(clients):
+    from explanation_jobs import claim_one,process,BilingualExplanation
     admin, student, _ = clients
     question, _, sid = completed_attempt(admin, student)
 
@@ -109,21 +102,23 @@ def test_edit_during_generation_cannot_resurrect_previous_explanation(clients):
         with app.connect() as conn:
             conn.execute("UPDATE questions SET statement='A different question' WHERE id=?", (question['id'],))
             conn.commit()
-        return lesson(), {}
+        return BilingualExplanation(explanation_en='Stale addition explanation.',explanation_te='పాత కూడిక వివరణ.')
 
-    with patch('app.llm_status', return_value={'available': True}), patch('blueprint_gemini.structured_call', side_effect=changed):
-        response = student.get(paths(question, sid)[0])
-    assert response.status_code == 409
+    assert student.get(paths(question,sid)[0]).json()['pending']
+    item=claim_one()
+    with patch('explanation_jobs.generate_bilingual',side_effect=changed):
+        assert process(item)=='STALE'
     assert app.get_cached_question_explanation(question['id']) is None
 
 
 def test_failed_explanation_does_not_cache_or_expose_provider_details(clients):
+    from explanation_jobs import run_batch
     admin, student, _ = clients
     question, _, sid = completed_attempt(admin, student)
-    with patch('app.llm_status', return_value={'available': True}), \
-         patch('blueprint_gemini.structured_call', side_effect=ValueError('private-provider-secret')):
-        response = student.get(paths(question, sid)[0])
-    assert response.status_code == 502
-    assert 'Support reference' in response.text
+    assert student.get(paths(question,sid)[0]).json()['pending']
+    with patch('explanation_jobs.generate_bilingual',side_effect=ValueError('private-provider-secret')):
+        assert run_batch()['retry_pending']==1
+    response=student.get(paths(question,sid)[0])
+    assert response.status_code==200 and response.json()['pending']
     assert 'private-provider-secret' not in response.text
     assert app.get_cached_question_explanation(question['id']) is None

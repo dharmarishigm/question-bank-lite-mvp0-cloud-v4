@@ -28,7 +28,8 @@ print('Security schema expansion preserves legacy Alembic marker')
 command.upgrade(config, 'head')
 command.upgrade(config, 'head')
 with engine.connect() as conn:
-    assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar() == '0024_program_enrollments'
+    assert conn.execute(text('SELECT version_num FROM alembic_version')).scalar() == '0025_explanation_jobs'
+    assert 'explanation_jobs' in inspect(conn).get_table_names()
     for table in ('program_document_audit','grand_test_page_status','grand_test_page_status_audit'):
         columns = {c['name']: c for c in inspect(conn).get_columns(table)}
         assert 'nextval' in columns['id']['default'], (table, columns['id'])
@@ -53,3 +54,18 @@ for _ in range(8):
     assert c.execute("SELECT 1 AS n").fetchone()["n"]==1
     c.close()
 print("Bounded PostgreSQL pool checkout/reuse passed")
+
+# Exercise the actual queue/cache SQL against PostgreSQL, not only SQLite tests.
+import app
+from explanation_jobs import enqueue,claim_one,process,BilingualExplanation
+from unittest.mock import patch
+question=app.create_question(app.Question(statement='Disposable queue validation',answer='2',solution='One plus one is two.',source_type='AI_GENERATED'))
+with app.connect() as conn:
+    enqueue(conn,question['id']);conn.commit()
+item=claim_one()
+assert item and claim_one() is None
+with patch('explanation_jobs.generate_bilingual',return_value=BilingualExplanation(explanation_en='One plus one is two.',explanation_te='ఒకటి మరియు ఒకటి కలిపితే రెండు.')):
+    assert process(item)=='SUCCEEDED'
+assert app.get_cached_question_explanation(question['id'],'en')['liked']
+assert app.get_cached_question_explanation(question['id'],'te')['liked']
+print('PostgreSQL queue claim, bilingual cache transaction and completion passed')
