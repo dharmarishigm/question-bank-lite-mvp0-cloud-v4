@@ -597,24 +597,50 @@ async def update_exam(exam_id:int,request:Request):
     return {'id':exam_id}
 @router.delete('/admin/exams/{exam_id}')
 def delete_exam(exam_id:int,request:Request):
-    require_admin(_auth(request,True))
+    user=require_admin(_auth(request,True))
     with closing(db()) as conn:
-        used=conn.execute('SELECT 1 FROM exam_sessions WHERE exam_id=?',(exam_id,)).fetchone()
-        registered=conn.execute('SELECT 1 FROM exam_enrollments WHERE exam_id=?',(exam_id,)).fetchone()
-        pending=conn.execute('SELECT 1 FROM pending_exam_registrations WHERE exam_id=?',(exam_id,)).fetchone()
-        if used or registered or pending:raise HTTPException(409,'This exam has registration or attempt history and must be closed or archived')
-        # Published exams own immutable versions and may also own unused access
-        # codes, links and blueprint history. Remove those children explicitly;
-        # registration and attempt history remains a hard deletion boundary.
-        conn.execute('DELETE FROM exam_generation_runs WHERE exam_id=?',(exam_id,))
-        conn.execute('DELETE FROM exam_blueprints WHERE exam_id=?',(exam_id,))
-        conn.execute('DELETE FROM exam_registration_links WHERE exam_id=?',(exam_id,))
-        conn.execute('DELETE FROM exam_proctor_codes WHERE exam_id=?',(exam_id,))
-        conn.execute('DELETE FROM proctor_code_failures WHERE exam_id=?',(exam_id,))
-        conn.execute('UPDATE exams SET current_version_id=NULL WHERE id=?',(exam_id,))
-        conn.execute('DELETE FROM exam_versions WHERE exam_id=?',(exam_id,))
-        conn.execute('DELETE FROM exam_questions WHERE exam_id=?',(exam_id,));cur=conn.execute('DELETE FROM exams WHERE id=?',(exam_id,));conn.commit()
-    if not cur.rowcount:raise HTTPException(404,'Exam not found')
+        try:
+            # Lock the parent before checking history. Concurrent foreign-key
+            # inserts must finish first or wait until this transaction completes.
+            if not conn.execute('UPDATE exams SET id=id WHERE id=?',(exam_id,)).rowcount:
+                raise HTTPException(404,'Exam not found')
+            for table in ('exam_sessions','exam_enrollments','pending_exam_registrations','question_concerns'):
+                if conn.execute(f'SELECT 1 FROM {table} WHERE exam_id=? LIMIT 1',(exam_id,)).fetchone():
+                    raise HTTPException(409,'This exam has registration, attempt or question concern history and must be closed or archived')
+
+            # Workspaces own source material, not disposable exam children.
+            # Detach them without losing reviewed questions, prompts or PDFs.
+            now=time.time()
+            conn.execute("UPDATE grand_tests SET exam_id=NULL,status='REVIEW_REQUIRED',revision=revision+1,updated_by=?,updated_at=? WHERE exam_id=?",
+                         (user['id'],now,exam_id))
+            jobs=conn.execute('SELECT id,result_json FROM program_exam_jobs WHERE exam_id=?',(exam_id,)).fetchall()
+            for job in jobs:
+                result=json.loads(job['result_json'] or '{}')
+                result.pop('draft_hash',None)
+                conn.execute("UPDATE program_exam_jobs SET exam_id=NULL,status='REVIEW_REQUIRED',result_json=?,error='',updated_at=? WHERE id=?",
+                             (json.dumps(result),now,job['id']))
+
+            # Remove unused exam-owned records; all history guards and source
+            # detachment participate in the same transaction as the deletion.
+            conn.execute('DELETE FROM exam_generation_runs WHERE exam_id=?',(exam_id,))
+            conn.execute('DELETE FROM exam_blueprints WHERE exam_id=?',(exam_id,))
+            conn.execute('DELETE FROM exam_registration_links WHERE exam_id=?',(exam_id,))
+            conn.execute('DELETE FROM exam_proctor_codes WHERE exam_id=?',(exam_id,))
+            conn.execute('DELETE FROM proctor_code_failures WHERE exam_id=?',(exam_id,))
+            conn.execute('UPDATE exams SET current_version_id=NULL WHERE id=?',(exam_id,))
+            conn.execute('DELETE FROM exam_versions WHERE exam_id=?',(exam_id,))
+            conn.execute('DELETE FROM exam_questions WHERE exam_id=?',(exam_id,))
+            conn.execute('DELETE FROM exams WHERE id=?',(exam_id,))
+            from exam_conduct import audit
+            audit(conn,'EXAM_DELETED',exam_id=exam_id,user_id=user['id'])
+            conn.commit()
+        except Exception as exc:
+            conn.rollback()
+            # A newly introduced reference or a concurrent edit must not leave
+            # partial cleanup behind or surface as an opaque HTTP 500.
+            if getattr(exc,'sqlstate',None) in {'23503','40P01','55P03'} or getattr(exc,'sqlite_errorcode',None) in {sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY,sqlite3.SQLITE_BUSY}:
+                raise HTTPException(409,'This exam has linked records or changed during deletion. Reload and try again; exams with history must be closed or archived.') from exc
+            raise
     return {'deleted':exam_id}
 @router.post('/exams/{exam_id}/enroll')
 def enroll(exam_id:int,request:Request):
