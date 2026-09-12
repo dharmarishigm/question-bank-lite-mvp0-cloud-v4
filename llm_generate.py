@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 from typing import Any
@@ -173,6 +174,16 @@ def _json_payload(response) -> Any:
     parsed=getattr(response,"parsed",None)
     if parsed is not None:return parsed.model_dump() if isinstance(parsed,BaseModel) else parsed
     text=(getattr(response,"text","") or "").strip()
+    if not text:
+        # Vertex can populate candidate parts while leaving the convenience
+        # response.text property empty, especially near structured token limits.
+        fragments=[]
+        for candidate in getattr(response,'candidates',None) or []:
+            content=getattr(candidate,'content',None)
+            for part in getattr(content,'parts',None) or []:
+                value=getattr(part,'text',None)
+                if value:fragments.append(value)
+        text=''.join(fragments).strip()
     text=re.sub(r"^```(?:json)?\s*|\s*```$","",text,flags=re.IGNORECASE)
     try:return json.loads(text)
     except json.JSONDecodeError as exc:raise ValueError(f"Gemini returned invalid JSON ({exc.msg} at character {exc.pos})") from exc
@@ -230,7 +241,9 @@ def generate_questions(request: GenerationRequest, client=None) -> tuple[Generat
             prompt=public_prompt_preview(batch_request)
             if attempt:
                 prompt += "\n\nRETRY REQUIREMENT\nThe prior response was invalid or truncated. Return complete valid JSON. Keep statements, options, and solutions concise. Escape LaTeX backslashes and chemical notation correctly; do not put raw line breaks inside JSON strings."
-            token_limit=min(int(os.getenv('AI_GENERATION_MAX_OUTPUT_TOKENS','12000')),max(3500,batch_request.count*2200))
+            # A single item includes the question, worked solution and two
+            # teaching explanations; 3.5k tokens proved too small in production.
+            token_limit=min(int(os.getenv('AI_GENERATION_MAX_OUTPUT_TOKENS','12000')),max(6000,batch_request.count*3000))
             response=client.models.generate_content(model=model,contents=prompt,config=types.GenerateContentConfig(system_instruction=system_prompt['system_content'],temperature=0.25 if attempt else 0.4,automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),response_mime_type="application/json",response_schema=GeneratedQuestionBatch,max_output_tokens=token_limit))
             account(response)
             try:
@@ -240,7 +253,10 @@ def generate_questions(request: GenerationRequest, client=None) -> tuple[Generat
                     validate_question(question)
                     if not question.explanation_en.strip() or not question.explanation_te.strip():raise ValueError('Both English and Telugu explanations are required')
                 return batch.questions
-            except ValueError as exc:last_error=exc
+            except ValueError as exc:
+                last_error=exc
+                finishes=[str(getattr(candidate,'finish_reason','')) for candidate in getattr(response,'candidates',None) or []]
+                logging.getLogger(__name__).warning('Question generation response invalid attempt=%s count=%s token_limit=%s finish=%s type=%s',attempt+1,batch_request.count,token_limit,finishes,type(exc).__name__)
         if batch_request.count>1:
             left=batch_request.count//2
             return generate_batch(batch_request.model_copy(update={"count":left}))+generate_batch(batch_request.model_copy(update={"count":batch_request.count-left}))

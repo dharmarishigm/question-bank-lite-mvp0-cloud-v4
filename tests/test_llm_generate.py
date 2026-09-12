@@ -35,6 +35,12 @@ class PromptGenerationTests(unittest.TestCase):
         self.assertEqual(batch.questions[0].statement,'Choose');self.assertEqual(batch.questions[0].answer,'B')
         self.assertEqual(batch.questions[0].options[0].label,'A');self.assertEqual(batch.questions[0].solution,'Reason')
 
+    def test_structured_parser_recovers_json_from_candidate_parts(self):
+        part=type('Part',(),{'text':'{"questions":[{"statement":"Recovered","answer":"A"}]}'})()
+        content=type('Content',(),{'parts':[part]})();candidate=type('Candidate',(),{'content':content})()
+        response=type('Response',(),{'parsed':None,'text':'','candidates':[candidate]})()
+        self.assertEqual(parse_generated_batch(response).questions[0].statement,'Recovered')
+
     def test_generation_retries_truncated_math_json(self):
         malformed=type('Response',(),{'parsed':None,'text':'{"questions":[{"statement":"Solve $x^2','usage_metadata':None})()
         valid=type('Response',(),{'parsed':None,'text':'{"questions":[{"statement":"Solve $x^2=4$.","options":["1","2"],"answer":"B","solution":"$x=2$ for the positive root.","explanation_en":"Use square roots to solve and verify the selected option.","explanation_te":"వర్గమూలాలను ఉపయోగించి పరిష్కరించి సరైన ఎంపికను ధృవీకరించండి."}]}','usage_metadata':None})()
