@@ -37,7 +37,7 @@ class PromptGenerationTests(unittest.TestCase):
 
     def test_generation_retries_truncated_math_json(self):
         malformed=type('Response',(),{'parsed':None,'text':'{"questions":[{"statement":"Solve $x^2','usage_metadata':None})()
-        valid=type('Response',(),{'parsed':None,'text':'{"questions":[{"statement":"Solve $x^2=4$.","options":["1","2"],"answer":"B","solution":"$x=2$ for the positive root."}]}','usage_metadata':None})()
+        valid=type('Response',(),{'parsed':None,'text':'{"questions":[{"statement":"Solve $x^2=4$.","options":["1","2"],"answer":"B","solution":"$x=2$ for the positive root.","explanation_en":"Use square roots to solve and verify the selected option.","explanation_te":"వర్గమూలాలను ఉపయోగించి పరిష్కరించి సరైన ఎంపికను ధృవీకరించండి."}]}','usage_metadata':None})()
         class Models:
             def __init__(self):self.responses=[malformed,valid];self.calls=[]
             def generate_content(self,**kwargs):self.calls.append(kwargs);return self.responses.pop(0)
@@ -70,7 +70,7 @@ class PromptGenerationTests(unittest.TestCase):
             with patch.object(app,"DB_PATH",db),patch.dict(os.environ,{"APP_ENV":"test","AUTH_MODE":"mock","ADMIN_EMAILS":"admin@example.test"},clear=False):
                 init_platform();client=TestClient(app.app)
                 login=client.post('/api/auth/mock',json={'email':'admin@example.test'});self.assertEqual(login.status_code,200)
-                generated=GeneratedQuestionBatch(questions=[GeneratedQuestion(statement="An original $x^2$ question?",options=[GeneratedOption(label="A",text="One"),GeneratedOption(label="B",text="Two")],answer="B",solution="Because $x=2$.")])
+                generated=GeneratedQuestionBatch(questions=[GeneratedQuestion(statement="An original $x^2$ question?",options=[GeneratedOption(label="A",text="One"),GeneratedOption(label="B",text="Two")],answer="B",solution="Because $x=2$.",explanation_en="English cached concept and reasoning.",explanation_te="తెలుగులో నిల్వ చేసిన భావన మరియు వివరణ.")])
                 with patch.object(app,"generate_questions",return_value=(generated,{"total_token_count":42},"configured-model")):
                     response=client.post('/api/ai/generate',headers={'X-CSRF-Token':client.cookies.get('qb_csrf')},json=self.request().model_dump())
                 self.assertEqual(response.status_code,200,response.text);body=response.json();self.assertEqual(body['accepted'],0);self.assertEqual(body['review_required'],1)
@@ -81,6 +81,11 @@ class PromptGenerationTests(unittest.TestCase):
                 self.assertEqual(question['source_type'],'AI_GENERATED');self.assertEqual(question['generation_model'],'configured-model')
                 self.assertEqual(question['generation_prompt'],self.request().generation_prompt);self.assertEqual(question['verification_status'],'APPROVED')
                 self.assertEqual(run['status'],'SAVED');self.assertEqual(run['accepted_count'],1)
+                with patch.object(app,'llm_status',side_effect=AssertionError('Cached explanations must not call AI')):
+                    english=client.get(f"/api/questions/{question['id']}/explain?language=en")
+                    telugu=client.get(f"/api/questions/{question['id']}/explain?language=te")
+                self.assertTrue(english.json()['cached']);self.assertIn('English cached',english.json()['explanation'])
+                self.assertTrue(telugu.json()['cached']);self.assertIn('తెలుగులో',telugu.json()['explanation'])
                 history=client.get('/api/ai/runs');self.assertEqual(history.status_code,200);self.assertEqual(len(history.json()),1)
                 detail=client.get(f"/api/ai/runs/{body['run_id']}");self.assertEqual(detail.status_code,200)
                 self.assertEqual(detail.json()['request']['generation_prompt'],self.request().generation_prompt)

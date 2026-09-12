@@ -20,6 +20,8 @@ def author(request):
         statement=f'{request.subject} {request.difficulty}: Find the value for problem {i+1}.',
         options=[GeneratedOption(label=chr(65+j),text=str(j+1)) for j in range(4)],
         answer='B',solution='The answer is 2, by the stated calculation.',
+        explanation_en='The stored English explanation connects the concept, calculation, and answer.',
+        explanation_te='నిల్వ చేసిన తెలుగు వివరణ భావన, లెక్కింపు మరియు సమాధానాన్ని వివరిస్తుంది.',
         subject=request.subject,qtype='mcq_single',difficulty=request.difficulty)
         for i in range(request.count)]), {}, 'mock-model'
 
@@ -42,6 +44,9 @@ def test_difficulty_generation_review_publish_and_reuse(clients,difficulty):
     questions=admin.get('/api/questions').json()['items']
     assert len(questions)==2 and all(q['verification_status']=='REVIEW_REQUIRED' for q in questions)
     assert all(q['difficulty']==difficulty for q in questions)
+    with patch('app.llm_status',side_effect=AssertionError('Generated explanation must be cached')):
+        assert admin.get(f'/api/questions/{questions[0]["id"]}/explain?language=en').json()['cached'] is True
+        assert admin.get(f'/api/questions/{questions[0]["id"]}/explain?language=te').json()['cached'] is True
     path=root+f'/exam-papers/{job["id"]}/approve'
     assert student.post(path,json={'reviewed':True,'publish':True}).status_code==403
     assert anonymous.get(root+'/exam-papers').status_code==401

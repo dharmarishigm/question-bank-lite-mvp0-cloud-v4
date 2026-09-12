@@ -36,7 +36,7 @@ def question_payload(row,item):
 
 
 def save_batches(data):
-    from app import connect,FIELDS,values_of
+    from app import connect,FIELDS,values_of,cache_generated_explanations
     results=[];saved=0
     with closing(connect()) as conn:
         conn.execute('BEGIN IMMEDIATE')
@@ -63,6 +63,8 @@ def save_batches(data):
             else:
                 now=time.time();columns=', '.join(FIELDS);placeholders=', '.join('?' for _ in FIELDS)
                 qid=conn.execute(f'INSERT INTO questions ({columns},created_at,updated_at) VALUES ({placeholders},?,?)',values_of(q)+[now,now]).lastrowid
+                generated=GeneratedQuestion.model_validate({k:v for k,v in output['questions'][index].items() if k not in INTERNAL})
+                cache_generated_explanations(conn,qid,generated)
                 status='SAVED';saved+=1;counts[row['id']]=counts.get(row['id'],0)+1
             output['questions'][index]['saved_question_id']=qid;outputs[row['id']]=output
             results.append({'run_id':row['id'],'index':index,'question_id':qid,'status':status})

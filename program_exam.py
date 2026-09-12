@@ -406,7 +406,7 @@ def run_build(jid):
                     count = min(missing, batch_size)
                     payload = GenerationRequest(exam_name=job['input']['program_name'], subject=section.subject,
                         level=settings.level, language=settings.language, count=count,
-                        syllabus=settings.curriculum + '\nSection topics: ' + section.topics,
+                        syllabus='See the frozen paper prompt below; section focus: '+section.topics,
                         difficulty=settings.difficulty,
                         question_type='mcq_single', marks=str(section.marks),
                         extra_metadata={'program_id': job['program_id'], 'program_exam_scope': scope,'program_exam_job_id':jid},
@@ -414,7 +414,7 @@ def run_build(jid):
                         + f'Generate questions only for {section.subject}. Section topics: {section.topics}. '
                         + f'This batch fills section slots {section.count-missing+1}–{section.count-missing+count}. Use fresh scenarios and vary topic coverage. '
                         + "Use the current request's Question Count for this batch. The full paper quotas above are context; return only this batch.\nAvoid these existing stems:\n"
-                        + '\n'.join(x['question']['statement'] for x in selected)[-20000:])
+                        + '\n'.join(x['question']['statement'][:300] for x in selected[-20:])[-6000:])
                     batch=None
                     for transient_attempt in range(3):
                         try:
@@ -452,7 +452,8 @@ def run_build(jid):
                             generation_provider='vertex-ai', generation_model=batch['model'], generation_prompt_version=SYSTEM_PROMPT_VERSION,
                             generation_prompt=payload.generation_prompt, generation_fingerprint=fp,
                             generation_metadata={'program_id': job['program_id'], 'program_exam_scope': scope,
-                                'language':settings.language, 'level':settings.level, 'program_exam_job_id':jid, 'generated_metadata':q.metadata})
+                                'language':settings.language, 'level':settings.level, 'program_exam_job_id':jid, 'generated_metadata':q.metadata,
+                                'precomputed_explanations':{'en':q.explanation_en,'te':q.explanation_te}})
                         pending.append(question)
                         selected.append({'question': {'id': None, **question.model_dump()}, 'section':section.model_dump(), 'origin':'GENERATED', 'pending_index':len(pending)-1,'fingerprint':fp})
                         seen.add(fp); missing -= 1; accepted += 1
@@ -488,6 +489,10 @@ def run_build(jid):
                         item['question']=snapshot(existing)
                         continue
                     qid = conn.execute(f'INSERT INTO questions ({", ".join(FIELDS)}, created_at, updated_at) VALUES ({", ".join(["?"] * len(FIELDS))}, ?, ?)', values_of(q)+[time.time(),time.time()]).lastrowid
+                    from app import cache_generated_explanations
+                    prepared=q.generation_metadata.get('precomputed_explanations',{})
+                    generated=GeneratedQuestion(statement=q.statement,answer=q.answer,solution=q.solution,explanation_en=prepared.get('en',''),explanation_te=prepared.get('te',''))
+                    cache_generated_explanations(conn,qid,generated)
                     item['question'] = snapshot({'id':qid, **q.model_dump()})
                     run_counts[q.generation_run_id] = run_counts.get(q.generation_run_id,0)+1
             for run_id, count in run_counts.items():

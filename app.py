@@ -733,6 +733,15 @@ def save_question_explanation(question_id: int, explanation: str, *, language: s
     return {"question_id": question_id, "language": language, "explanation": explanation_markdown(validated_structured) if validated_structured else text, "structured": validated_structured, "liked": bool(liked)}
 
 
+def cache_generated_explanations(conn,question_id,generated):
+    """Persist generation-time bilingual explanations in the existing cache."""
+    now=time.time()
+    for language,field in (('en','explanation_en'),('te','explanation_te')):
+        text=(getattr(generated,field,'') or '').strip()
+        if not text:continue
+        conn.execute("INSERT INTO question_explanation_translations(question_id,language,explanation,liked,created_at,updated_at) VALUES(?,?,?,?,?,?) ON CONFLICT(question_id,language) DO UPDATE SET explanation=excluded.explanation,liked=excluded.liked,updated_at=excluded.updated_at",(question_id,language,text,1,now,now))
+
+
 def _snapshot(conn: sqlite3.Connection, qid: int, reason: str) -> None:
     row = conn.execute("SELECT * FROM questions WHERE id = ?", (qid,)).fetchone()
     if row is None:
@@ -983,7 +992,7 @@ def _generate_question_explanation(qid: int, language: str = 'en', student_user_
     cached = get_cached_question_explanation(qid, language)
     # Legacy saves contain flattened innerText and cannot reproduce the original
     # layout. Regenerate them once using the structured contract.
-    if cached and cached.get('liked') and cached.get('structured'):
+    if cached and cached.get('liked'):
         return {"explanation": cached['explanation'], "structured": cached.get('structured'), "language": language, "cached": True}
 
     with closing(connect()) as conn:
