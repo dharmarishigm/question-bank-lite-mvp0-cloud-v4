@@ -75,8 +75,8 @@
 
   <nav id="admin-nav" aria-label="Administrator navigation" hidden>
     <p>Workspace</p><button data-view="dashboard">Dashboard</button>
-    <p>Content Studio</p><button data-view="questions">Question Bank</button><button data-view="ai-generate">Generate Questions by AI</button><button data-view="upload-crop">Upload &amp; Digitise</button>
-    <p>Exams</p><button data-view="exam">Generate Exam</button><button data-view="admin-exams" title="Manage Exams &amp; Registrations">Exam Admin</button><button data-view="available-exams">Take exams</button><button data-view="my-exams">My exam attempts</button><button data-view="my-results">My results</button><button data-view="admin-results">Results</button><button data-view="student-analytics">Performance Lab</button>
+    <p>Content Studio</p><button data-view="questions">Question Bank</button><button data-view="ai-generate">Generate standalone questions</button><button data-view="upload-crop">Upload &amp; Digitise</button>
+    <p>Exams</p><button data-view="exam">Build standalone exam</button><button data-view="admin-exams" title="Manage Exams &amp; Registrations">Manage published exams</button><button data-view="available-exams">Take exams</button><button data-view="my-exams">My exam attempts</button><button data-view="my-results">My results</button><button data-view="admin-results">Results</button><button data-view="student-analytics">Performance Lab</button>
   </nav>
   <nav id="student-nav" aria-label="Student navigation" hidden>
     <p>Learning</p><button data-view="dashboard">Home</button><button data-view="available-exams">Available Exams</button><button data-view="my-exams">My Exams</button><button data-view="my-results">My Results</button><button data-view="student-analytics">Performance Lab</button><button data-view="my-profile">My Profile</button>
@@ -207,7 +207,7 @@
         <form id="exam-blueprint-form" class="exam-blueprint-form">
           <fieldset><legend>Exam information</legend><div class="blueprint-global-grid">
             <label>Exam name *<input id="blueprint-name" required placeholder="Grade 8 Mathematics Olympiad" /></label><label>Exam type<input id="blueprint-type" placeholder="Olympiad" /></label>
-            <label>Grade / level *<input id="blueprint-grade" required placeholder="Grade 8" /></label><label>Subject *<select id="blueprint-subject" required><option value="">Select subject</option></select></label>
+            <label>Grade / level *<input id="blueprint-grade" required placeholder="Grade 8" /></label><label>Subject (optional)<select id="blueprint-subject"><option value="">All subjects</option><option value="__manual__">Enter subject manually…</option></select><input id="blueprint-subject-manual" maxlength="200" placeholder="Enter subject name" aria-label="Manual subject name" hidden /></label>
             <label>Total questions *<input id="blueprint-total" type="number" min="1" max="200" value="15" required /></label><label>Duration (minutes)<input id="blueprint-duration" type="number" min="1" max="1440" value="30" required /></label>
             <label>Quality<select id="blueprint-verification"><option value="APPROVED,AI_VALIDATED">Approved / AI validated</option><option value="APPROVED">Approved only</option><option value="">All structurally valid</option></select></label><label>Source<select id="blueprint-source"><option value="">All sources</option><option>MANUAL</option><option>DIGITIZED</option><option>AI_GENERATED</option></select></label>
           </div><label class="wide">Selection prompt<textarea id="blueprint-prompt" rows="3" placeholder="Prioritise multi-step reasoning and practical applications..."></textarea></label></fieldset>
@@ -516,24 +516,24 @@
 <div id="notification" class="notification" role="status" aria-live="polite" hidden></div>
 <link rel="stylesheet" href="/static/participation.css?v=20260910" />
 <script src="/static/program-participation.js?v=20260910"></script>
-<script src="/static/app.js?v=20260912-generation-controls-v1"></script>
+<script src="/static/app.js?v=20260912-exam-layout-v2"></script>
 <script src="/static/pdf-viewer.js?v=20260911-validated"></script>
 <script src="/static/registration-flow.js?v=20260910-access-v3"></script>
-<script src="/static/workspace-tabs.js?v=20260912-sections"></script>
-<script src="/static/platform-ui.js?v=20260912-current-question-v2"></script>
-<script src="/static/performance-workspace.js?v=20260911-performance-fix"></script>
+<script src="/static/workspace-tabs.js?v=20260912-navigation-v2"></script>
+<script src="/static/platform-ui.js?v=20260912-exam-layout-v2"></script>
+<script src="/static/performance-workspace.js?v=20260912-performance-lab-v2"></script>
 <script src="/static/performance-empty-state.js?v=20260910-lab"></script>
-<script src="/static/mentor.js?v=20260910-access-v3"></script>
+<script src="/static/mentor.js?v=20260912-visibility-v4"></script>
 <script src="/static/mobile-client.js?v=20260912-current-question-v2"></script>
-<link rel="stylesheet" href="/static/programs.css?v=20260912-mobile-images" />
+<link rel="stylesheet" href="/static/programs.css?v=20260912-navigation-v2" />
 <script src="/static/blueprint-forms.js?v=1"></script>
 <script src="/static/blueprint-workspace.js?v=1"></script>
 <script src="/static/program-setup.js?v=1"></script>
-<script src="/static/program-exam.js?v=20260912-conditions"></script>
-<script src="/static/programs.js?v=20260912-sections"></script>
+<script src="/static/program-exam.js?v=20260912-navigation-v2"></script>
+<script src="/static/programs.js?v=20260912-navigation-v2"></script>
 <script src="/static/question-correction.js?v=20260912-current-question-v2"></script>
 <script src="/static/result-tools.js?v=20260912-current-question-v2"></script>
-<script src="/static/ai-batch-review.js?v=20260910-corrections"></script>
+<script src="/static/ai-batch-review.js?v=20260912-bulk-actions"></script>
 <link rel="stylesheet" href="/static/ui-standards.css?v=20260912-ai-actions" />
 <script src="/static/ui-standards.js?v=20260910"></script>
 <link rel="stylesheet" href="/static/student-content-guard.css?v=20260910" />
@@ -550,9 +550,11 @@
 <link rel="stylesheet" href="/static/grand-tests.css?v=20260911-review-save" />
 <link rel="stylesheet" href="/static/question-source-review.css?v=20260912" />
 <script src="/static/question-source-review.js?v=20260912-current-question-v2"></script>
-<script src="/static/digitaliq-capture.js?v=20260912"></script><script src="/static/grand-tests.js?v=20260912-current-question-v2"></script>
+<script src="/static/digitaliq-capture.js?v=20260912"></script><script src="/static/grand-tests.js?v=20260912-navigation-v2"></script>
 <link rel="stylesheet" href="/static/workspace-tabs.css?v=20260912-sections" />
-<link rel="stylesheet" href="/static/role-navigation.css?v=20260912-role-ui" />
-<script src="/static/role-navigation.js?v=20260912-role-ui"></script>
+<link rel="stylesheet" href="/static/role-navigation.css?v=20260912-exam-layout-v2" />
+<script src="/static/role-navigation.js?v=20260912-navigation-v2"></script>
+<link rel="stylesheet" href="/static/table-actions.css?v=20260912" />
+<script src="/static/table-actions.js?v=20260912"></script>
 </body>
 </html>

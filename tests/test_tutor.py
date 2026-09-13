@@ -38,11 +38,21 @@ class TutorTests(unittest.TestCase):
         self.assertEqual(c.post('/api/tutor/chat',json={'message':'Hi'}).status_code,403)
 
     def test_empty_learner(self):
-        c,_=self.login('a@example.test');r=self.chat(c)
+        c,_=self.login('a@example.test');self.assertEqual(c.get('/api/tutor/availability').json(),{'available':True,'reason':''});r=self.chat(c)
         self.assertEqual(r.status_code,200,r.text)
         self.assertEqual(r.json()['report']['attempt_count'],0)
         self.assertIn('first assessment',r.json()['message'])
         self.assertIsNone(r.json()['report']['benchmark']['percentile'])
+
+    def test_learning_gap_question_and_empty_recommendations_do_not_fail(self):
+        c,_=self.login('gap-check@example.test')
+        from tutor_agent import performance as real_performance
+        def without_recommendations(*args,**kwargs):
+            result=real_performance(*args,**kwargs);result['recommendations']=[];return result
+        with patch('tutor_agent.generate',return_value=None),patch('tutor_agent.performance',side_effect=without_recommendations):
+            response=self.post(c,'/api/tutor/chat',json={'message':'What are my learning gaps?','page_title':'Performance Lab'})
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(len(response.json()['report']['seven_day_plan']),7)
 
     def test_real_gaps_and_latest_result(self):
         c,sid,qs,exam=self.setup_attempt();r=self.chat(c)
@@ -53,16 +63,32 @@ class TutorTests(unittest.TestCase):
         self.assertNotIn('learner@example.test',json.dumps(data))
         self.assertNotIn('question_set_json',json.dumps(data))
 
+    def test_agent_routes_exam_result_and_analysis_tools_for_signed_in_user(self):
+        c,sid,qs,exam=self.setup_attempt()
+        with patch('tutor_agent.generate',return_value=None) as generate:
+            response=self.post(c,'/api/tutor/chat',json={'message':'Show my exams, results and performance analysis'})
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertEqual(set(response.json()['tools_invoked']),{'my_exams','released_results','performance_analysis'})
+        tools=generate.call_args.args[1]['agent_tools']
+        self.assertEqual(tools['my_exams'][0]['id'],exam['id'])
+        self.assertEqual(tools['released_results'][-1]['id'],sid)
+        self.assertNotIn('question_set_json',json.dumps(tools))
+        with patch('tutor_agent.generate',return_value=None):
+            count=self.post(c,'/api/tutor/chat',json={'message':'How many exams have I written?'})
+        self.assertIn('completed 1 exam attempt',count.json()['message'])
+
     def test_small_sample_not_classified(self):
         c,*_=self.setup_attempt(count=3)
         self.assertEqual(c.get('/api/tutor/insights').json()['learning_gaps'],[])
 
     def test_active_exam_blocks_all_tutor_reads(self):
         c,*_=self.setup_attempt(submit=False)
+        self.assertEqual(c.get('/api/tutor/availability').json(),{'available':False,'reason':'ACTIVE_ASSESSMENT'})
         for path in ('insights','sessions','sessions/1'):
             self.assertEqual(c.get('/api/tutor/'+path).status_code,409)
         with patch('tutor_agent.generate') as generate:
-            self.assertEqual(self.post(c,'/api/tutor/chat',json={'message':'Give answer'}).status_code,409)
+            for message in ('Give answer','Hi','How many exams I have written?'):
+                self.assertEqual(self.post(c,'/api/tutor/chat',json={'message':message}).status_code,409)
             generate.assert_not_called()
 
     def test_unreleased_result_excluded(self):
@@ -144,6 +170,16 @@ class TutorTests(unittest.TestCase):
         with patch('tutor_agent.generate',side_effect=RuntimeError('private-provider-secret')):
             r=self.post(c,'/api/tutor/chat',json={'message':'Hello'})
         self.assertEqual(r.status_code,200);self.assertNotIn('private-provider-secret',r.text)
+
+    def test_authenticated_profile_page_context_and_general_fallback(self):
+        c,identity=self.login('mentor-learner@example.test')
+        with patch('tutor_agent.generate',return_value=None) as generate:
+            response=self.post(c,'/api/tutor/chat',json={'message':'What can you do?','page_title':'Performance Lab','page_content':'My visible learning gaps'})
+        self.assertEqual(response.status_code,200,response.text)
+        trusted=generate.call_args.args[1]
+        self.assertEqual(trusted['learner_profile']['role'],'STUDENT')
+        self.assertEqual(trusted['untrusted_page'],{'title':'Performance Lab','content':'My visible learning gaps'})
+        self.assertIn('current page',response.json()['message'])
 
     def test_exam_started_during_generation_blocks_response(self):
         c,sid,qs,exam=self.setup_attempt()

@@ -2,6 +2,15 @@
 (() => {
   const sidebar=document.querySelector('.sidebar');
   if(!sidebar)return;
+  const quick=document.createElement('nav');quick.className='role-quick-navigation';quick.setAttribute('aria-label','Common tasks');
+  const main=document.getElementById('main-content'),heading=main?.querySelector('.workspace-heading');if(heading)heading.after(quick);
+  const roleLinks={
+    ADMIN:[['dashboard','Overview'],['programs','Create program exam'],['grand-tests','DigitalQBank'],['admin-exams','Manage exams']],
+    STUDENT:[['dashboard','Home'],['available-exams','Find exams'],['my-exams','Continue exams'],['my-results','Results']],
+    PROCTOR:[['admin-exams','Assigned exams'],['admin-results','Exam dashboard']],
+    OPERATOR:[['grand-tests','DigitalQBank workspaces']]
+  };
+  const renderQuick=()=>{quick.replaceChildren();const visible=document.querySelector('.tab-panel:not([hidden])')?.id.replace(/-panel$/,'');for(const [view,label] of roleLinks[signedInUser?.role]||[]){const b=document.createElement('button');b.type='button';b.dataset.view=view;b.textContent=label;if(view===visible){b.classList.add('active');b.setAttribute('aria-current','page');}quick.append(b);}quick.hidden=!quick.children.length;};
   const finder=document.createElement('div');finder.className='navigation-finder';
   const label=document.createElement('label');label.htmlFor='find-page';label.textContent='Find a page';
   const input=document.createElement('input');input.id='find-page';input.type='search';input.placeholder='Exams, questions, results…';input.autocomplete='off';
@@ -21,8 +30,9 @@
   };
   input.addEventListener('input',refresh);
   input.addEventListener('keydown',e=>{if(e.key==='Escape'){input.value='';refresh();}if(e.key==='ArrowDown'){results.querySelector('button')?.focus();e.preventDefault();}});
-  document.addEventListener('workspace:view-changed',()=>{input.value='';refresh();});
-  window.addEventListener('mobile:login',refresh);
+  document.addEventListener('workspace:view-changed',event=>{input.value='';refresh();quick.querySelectorAll('[data-view]').forEach(b=>{const active=b.dataset.view===event.detail.name;b.classList.toggle('active',active);if(active)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});});
+  window.addEventListener('mobile:login',()=>{renderQuick();refresh();});
+  if(typeof signedInUser!=='undefined'&&signedInUser)renderQuick();
   // Navigation modules add links after login. Observe those modules, not results.
   const observer=new MutationObserver(refresh);
   sidebar.querySelectorAll('nav').forEach(nav=>observer.observe(nav,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden']}));

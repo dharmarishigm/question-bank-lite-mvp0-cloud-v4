@@ -18,9 +18,13 @@ async def main():
     (await admin.post('/api/auth/mock',json={'email':'admin@example.test'})).raise_for_status();admin.headers['X-CSRF-Token']=admin.cookies['qb_csrf']
     uid=(await admin.get('/api/auth/me')).json()['id']
     program=(await admin.post('/api/programs',json={'code':'JEE_MAIN_BTECH','name':'JEE Main','status':'ACTIVE'})).json()
-    q=(await admin.post('/api/questions',json={'statement':'Two plus two?','options':['3','4'],'answer':'B'})).json()
-    exam=(await admin.post('/api/admin/exams',json={'name':'Direct entry exam','status':'OPEN','question_ids':[q['id']],'proctor_required':True,'allow_self_registration':True})).json()
+    questions=[]
+    for subject,statement in [('Mental Ability Test','Two plus two?'),('Mental Ability Test','Three plus three?'),('Environmental Studies (EVS)','Which process uses sunlight?'),('Environmental Studies (EVS)','Which organ pumps blood?')]:
+     questions.append((await admin.post('/api/questions',json={'statement':statement,'options':['Option A','Option B'],'answer':'B','subject':subject,'chapter':'Foundations'})).json())
+    exam=(await admin.post('/api/admin/exams',json={'name':'Direct multi-subject exam','status':'DRAFT','question_ids':[q['id'] for q in questions],'proctor_required':True,'allow_self_registration':True})).json()
+    response=await admin.put(f'/api/admin/exams/{exam["id"]}/state',json={'status':'PUBLISHED'});response.raise_for_status()
     code_response=await admin.post(f'/api/admin/exams/{exam["id"]}/proctor-codes',json={'valid_minutes':60});code_response.raise_for_status();code=code_response.json()['code']
+    response=await admin.put(f'/api/admin/exams/{exam["id"]}/state',json={'status':'OPEN'});response.raise_for_status()
     with sqlite3.connect(str(Path(folder)/'questions.db')) as conn:
      conn.execute('INSERT INTO program_exam_jobs(program_id,request_key,input_json,created_by,created_at,updated_at,exam_id) VALUES(?,?,?,?,?,?,?)',(program['id'],'browser-test','{}',uid,time.time(),time.time(),exam['id']));conn.commit()
    async with async_playwright() as p:
@@ -40,12 +44,21 @@ async def main():
      assert await page.locator('#available-exams-panel').is_visible()
      assert await page.locator('#student-proctor-code').is_visible()
      assert await page.locator('#exam-start-details .participation-summary').count()==1
+     await page.locator('#exam-start-consent').check()
      await page.locator('#student-proctor-code').fill('WRONG-CODE');await page.locator('#verify-start-exam').click()
      await page.wait_for_function("document.getElementById('exam-start-status').textContent.length>0")
      assert await page.locator('#exam-start-modal').is_visible()
      await page.locator('#student-proctor-code').fill(code);await page.locator('#verify-start-exam').click()
      await page.wait_for_function("location.hash.startsWith('#session-')")
      await page.locator('#exam-current-question').wait_for(state='visible')
+     assert await page.locator('[data-exam-subject]').count()==2
+     assert 'Mental Ability Test' in await page.locator('.exam-subject-tabs').inner_text()
+     assert 'Environmental Studies (EVS)' in await page.locator('.exam-subject-tabs').inner_text()
+     await page.locator('[data-exam-subject]').filter(has_text='Environmental Studies (EVS)').click()
+     assert 'Environmental Studies (EVS)' in await page.locator('#exam-header-section').inner_text()
+     assert await page.locator('.exam-question-pills [data-exam-jump]').count()==2
+     assert not await page.evaluate('document.documentElement.scrollWidth>innerWidth+2')
+     await page.screenshot(path=f'/tmp/exam-layout-{width}.png',full_page=True)
      await page.locator('#exam-current-question [data-report-concern]').click()
      await page.locator('[data-concern-form] textarea').fill('Please check the equation and question wording.')
      await page.locator('[data-concern-form] button').click()
@@ -54,9 +67,10 @@ async def main():
      assert 'Flagged' in await page.locator('#exam-current-question [data-report-concern]').inner_text()
      assert '⚑' in await page.locator('#exam-question-nav').inner_text()
      await page.evaluate("openSecureExam(Number(document.getElementById('exam-current-question').dataset.session))")
+     await page.locator('[data-exam-subject]').filter(has_text='Environmental Studies (EVS)').click()
      assert 'Flagged' in await page.locator('#exam-current-question [data-report-concern]').inner_text()
      await context.close()
     await browser.close()
-   print(json.dumps({'direct_enrollment_proctor_start':'passed','invalid_code_rejected':True,'participation_sources':'passed','widths':[1440,390]}))
+   print(json.dumps({'multi_subject_exam_navigation':'passed','direct_enrollment_proctor_start':'passed','invalid_code_rejected':True,'participation_sources':'passed','widths':[1440,390]}))
   finally:server.terminate();server.wait()
 if __name__=='__main__':asyncio.run(main())

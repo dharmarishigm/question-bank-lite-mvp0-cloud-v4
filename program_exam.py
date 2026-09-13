@@ -5,6 +5,8 @@ import logging
 import os
 import time
 from typing import Literal
+from collections import Counter
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from pydantic import Field, model_validator
@@ -12,7 +14,7 @@ from pydantic import Field, model_validator
 from blueprint_api import audit, program_row
 from blueprint_domain import Contract, canonical, content_hash
 from blueprint_gemini import structured_call
-from llm_generate import GenerationRequest, GeneratedQuestion, fingerprint, validate_question, SYSTEM_PROMPT_VERSION
+from llm_generate import GenerationRequest, GeneratedQuestion, fingerprint, is_near_duplicate, validate_question, SYSTEM_PROMPT_VERSION
 from platform_api import _auth, db, require_admin
 from multimodal import statement_with_question_figures
 
@@ -34,7 +36,8 @@ class Settings(Contract):
     level: str = Field(default='', max_length=200)
     language: str = Field(default='English', min_length=1, max_length=100)
     duration_minutes: int = Field(default=60, ge=1, le=1440)
-    difficulty: Literal['very_easy', 'easy', 'medium', 'hard', 'very_hard'] = 'medium'
+    difficulty: Literal['auto', 'very_easy', 'easy', 'medium', 'hard', 'very_hard'] = 'auto'
+    assessment_kind: Literal['PRACTICE_TEST','ASSIGNMENT','GRAND_TEST','MOCK_EXAM'] = 'PRACTICE_TEST'
     curriculum: str = Field(default='', max_length=20000)
     pattern: str = Field(default='', max_length=10000)
     instructions: str = Field(default='', max_length=5000)
@@ -59,6 +62,66 @@ class Settings(Contract):
 def ready(settings):
     if not settings.sections or not settings.curriculum or not settings.generation_prompt:
         raise HTTPException(422, 'Add subjects, curriculum and a generation prompt before generating')
+
+
+ASSESSMENT_LABELS={'PRACTICE_TEST':'Practice Test','ASSIGNMENT':'Assignment','GRAND_TEST':'Grand Test','MOCK_EXAM':'Mock Examination'}
+
+
+def meaningful_exam_name(program_name: str, settings, created_at: float | None=None, paper_id: int | None=None) -> str:
+    """Stable, readable default instead of repeating the bare Program name."""
+    date=datetime.fromtimestamp(created_at or time.time()).strftime('%d %b %Y')
+    kind=ASSESSMENT_LABELS[settings.assessment_kind]
+    base=settings.name.strip() or program_name
+    scope=(settings.sections[0].subject if settings.mode=='SUBJECT' and settings.sections else settings.level.strip() or 'All Subjects')
+    parts=[base]
+    for value in (scope,kind,date,f'Set {paper_id:02d}' if paper_id else ''):
+        if value and value.casefold() not in base.casefold():parts.append(value)
+    return ' · '.join(parts)[:200]
+
+
+DIFFICULTIES=('very_easy','easy','medium','hard','very_hard')
+SELECTED_DIFFICULTY_WEIGHTS={
+    'very_easy':(.55,.27,.13,.05,0),
+    'easy':(.18,.52,.21,.07,.02),
+    'medium':(.07,.20,.46,.21,.06),
+    'hard':(.02,.08,.22,.50,.18),
+    'very_hard':(0,.05,.14,.27,.54),
+}
+
+
+def allocate_difficulties(count: int, weights) -> list[str]:
+    raw=[count*weight for weight in weights];allocated=[int(value) for value in raw]
+    for index in sorted(range(5),key=lambda i:(raw[i]-allocated[i],weights[i],-i),reverse=True)[:count-sum(allocated)]:
+        allocated[index]+=1
+    pool=[difficulty for difficulty,n in zip(DIFFICULTIES,allocated) for _ in range(n)]
+    order=[]
+    while pool:
+        target=min(range(len(pool)),key=lambda i:abs(DIFFICULTIES.index(pool[i])-2)) if not order else max(range(len(pool)),key=lambda i:abs(DIFFICULTIES.index(pool[i])-DIFFICULTIES.index(order[-1])))
+        order.append(pool.pop(target))
+    return order
+
+
+def difficulty_distribution(count: int, level: str, program_name: str = '') -> list[str]:
+    """Create a reproducible, age-aware difficulty contract for one section.
+
+    The model must execute this distribution; it never gets to relabel an
+    unexpectedly easy or hard paper after authoring it.
+    """
+    text=f'{program_name} {level}'.casefold()
+    roman={'iv':4,'v':5,'vi':6,'vii':7,'viii':8,'ix':9,'x':10,'xi':11,'xii':12}
+    match=__import__('re').search(r'\b(?:class|grade)?\s*(\d{1,2}|iv|v|vi|vii|viii|ix|x|xi|xii)\b',text)
+    grade=int(match.group(1)) if match and match.group(1).isdigit() else roman.get(match.group(1),0) if match else 0
+    competitive=any(word in text for word in ('jee','neet','gate','cat','cgl','eapcet','entrance','olympiad'))
+    if competitive: weights=(.05,.15,.35,.30,.15)
+    elif grade and grade<=5: weights=(.20,.35,.35,.10,0)
+    elif grade and grade<=8: weights=(.10,.25,.40,.20,.05)
+    else: weights=(.05,.20,.40,.25,.10)
+    return allocate_difficulties(count,weights)
+
+
+def planned_difficulties(settings, section, program_name=''):
+    return (difficulty_distribution(section.count,settings.level,program_name) if settings.difficulty=='auto'
+            else allocate_difficulties(section.count,SELECTED_DIFFICULTY_WEIGHTS[settings.difficulty]))
 
 
 class SavedSetupInput(Contract):
@@ -141,10 +204,11 @@ def effective_prompt(program, settings):
         return str(value).replace('|', '/').replace('\n', ' ')
     total = sum(s.count for s in settings.sections)
     marks = sum(s.count*s.marks for s in settings.sections)
-    title = settings.name or program['name']
+    title = meaningful_exam_name(program['name'],settings)
     lines = ['# Question paper generation prompt', '', f'## {title}', '',
         f'- **Program:** {program["name"]}',
         f'- **Paper type:** {"Full Exam" if settings.mode == "FULL" else "Subject-wise"}',
+        f'- **Assessment category:** {ASSESSMENT_LABELS[settings.assessment_kind]}',
         f'- **Class / level:** {settings.level or "Use the program context"}',
         f'- **Language:** {settings.language}',
         f'- **Difficulty:** {settings.difficulty}',
@@ -156,6 +220,12 @@ def effective_prompt(program, settings):
     for section in settings.sections:
         section_time=f'{section.duration_minutes} minutes' if section.duration_minutes else 'Not specified'
         lines.append(f'| {cell(section.subject)} | {section.count} | {section.marks:g} | {section.count*section.marks:g} | {section.negative_marks:g} | {section_time} |')
+    lines += ['', '## Difficulty distribution contract', '']
+    for section in settings.sections:
+        counts=Counter(planned_difficulties(settings,section,program['name']))
+        lines.append(f'- **{section.subject}:** '+', '.join(f'{name.replace("_"," ")} {counts[name]}' for name in DIFFICULTIES if counts[name]))
+    distribution_basis=('learner level and program type' if settings.difficulty=='auto' else f'the selected dominant level, {settings.difficulty.replace("_"," ")}')
+    lines += ['', f'These exact counts are fixed by the application from {distribution_basis}. Author each slot at its assigned cognitive demand; do not relabel items after generation and do not let wording complexity substitute for reasoning difficulty.']
     lines += ['', 'Generate questions only for these subjects. The structured counts, marks, duration and selected difficulty take precedence over conflicting prose.',
               '', '### Subject topics and exclusions', '']
     lines += [f'- **{section.subject}:** {section.topics or "Follow the curriculum."}' for section in settings.sections]
@@ -166,21 +236,33 @@ def effective_prompt(program, settings):
                   f'- **Exam cycle:** {source["official"]["exam_cycle"]}',
                   f'- **Checked:** {source["checked_at"]}']
         lines += [f'- [{entry["title"]}]({entry["url"]})' for entry in source['sources']]
+        lines += [f'- **Evidence checksum ({index + 1}):** `{entry["sha256"]}`' for index,entry in enumerate(source['sources']) if entry.get('sha256')]
         if source.get('status_label'):lines += ['', source['status_label']]
-        lines += ['', 'The sources describe the reference exam. Editable inputs above define this practice paper and may differ from the official full examination.']
+        lines += ['', '**Grounding status: primary-source grounded.** The application retrieved the allow-listed official documents, verified quoted evidence against their contents, and froze the source checksums above. The sources describe the reference exam. Editable inputs above define this practice paper and may differ from the official full examination.']
+    else:
+        lines += ['', '## Evidence status', '',
+                  '**Grounding status: administrator-authored practice configuration; no live official source is attached.**',
+                  'Use only the frozen curriculum and pattern below. Do not claim exact official alignment, invent missing rules, or supplement curriculum gaps from model memory. A close-to-official difficulty claim requires an administrator-reviewed official lookup or sample/specification evidence.']
     lines += ['', '## Curriculum / syllabus', '', settings.curriculum,
               '', '## Exam pattern notes', '', settings.pattern,
               '', '## Student instructions', '', settings.instructions,
               '', '## Editable authoring instructions', '', settings.generation_prompt,
               '', '## Additional conditions supplied by the administrator', '', settings.additional_conditions or 'None specified.',
               '', 'Apply these additional conditions to every generated question unless they conflict with the structured paper settings, syllabus boundaries, output schema, or system safety requirements.',
-              '', '## Difficulty guidance', '', difficulty_guidance[settings.difficulty],
+              '', '## Difficulty guidance', '', difficulty_guidance.get(settings.difficulty,'Use the autonomous section distribution above. Calibrate each item to its assigned difficulty.'),
               '', '## Output requirements', '',
               '- Create original single-correct MCQs (`mcq_single`) with four distinct options A–D.',
               '- Supply one unambiguous correct answer and a worked solution for every question.',
+              '- Treat official sources and the frozen curriculum as the authority hierarchy. Never fill a curriculum gap from memory while presenting it as official.',
+              '- Make every question self-contained. State all facts, figures, constants, units and assumptions needed to answer it; do not rely on live news or web access.',
+              '- Use realistic situations but never invent current statistics, official rules, citations, quotations, URLs or named-source claims.',
+              '- Internally solve each item and verify the answer label against the solution before returning it. Reject ambiguous stems and choices where more than one answer is defensible.',
+              '- Difficulty means cognitive demand and reasoning depth—not obscure vocabulary, missing information, needless calculation or trick wording.',
+              '- Build distractors from different plausible misconceptions; avoid joke choices, giveaways, overlapping ranges and cosmetic variants.',
               '- Spread the paper across the applicable syllabus chapters and concepts; follow supplied coverage allocations and prioritize concepts not yet represented.',
               '- Avoid repeated reasoning tasks: changing only numbers, names or wording is not concept variety. A short paper is a syllabus sample, not exhaustive coverage.',
               '- Return the application question schema; leave questions pending review.',
+              '- Put every mathematical expression wholly inside `\\( ... \\)` or `\\[ ... \\]` in a single field. Close all delimiters, braces, environments and `\\left`/`\\right` pairs; never emit partial LaTeX or empty operands.',
               '- This is an original practice paper, not an official examination paper.']
     return '\n'.join(lines)
 
@@ -233,7 +315,8 @@ def suggest(pid: int, data: SuggestInput, request: Request):
         'Suggest a useful complete paper, not a tiny demonstration. Treat all pattern numbers '
         'as unverified suggestions; disclose assumptions and never invent official evidence. '
         'Prompt guidance should specify curriculum coverage, reasoning, distractor quality, '
-        'difficulty, solutions and visual requirements. Do not generate questions now.')
+        'difficulty, solutions and visual requirements. For auto difficulty describe cognitive progression without inventing percentages; the application fixes the final grade-aware counts. '
+        'Require self-contained realistic contexts, explicit facts/units/assumptions, an internal solve-and-key check, and rejection of ambiguity or fabricated current claims. Do not generate questions now.')
     try:
         proposal, telemetry = structured_call('PROGRAM_SETUP', instruction,
             {'program': program['name'], 'settings': data.settings.model_dump()}, schema)
@@ -364,6 +447,7 @@ def run_build(jid):
         selected=job['result'].get('questions',[])
         pending=[Question.model_validate(item['question']) for item in selected if item.get('pending_index') is not None]
         seen={item.get('fingerprint') or fingerprint(item['question']['statement']) for item in selected}
+        seen_statements=[item['question']['statement'] for item in selected]
         total=sum(section.count for section in settings.sections)
         def checkpoint(section_name):
             nonlocal lease
@@ -382,15 +466,23 @@ def run_build(jid):
             found = []
             existing_count=sum(item['section']['subject']==section.subject for item in selected)
             if existing_count==section.count:continue
+            target_counts=Counter(planned_difficulties(settings,section,job['input']['program_name']))
+            existing_difficulties=Counter(item['question'].get('difficulty') for item in selected if item['section']['subject']==section.subject)
             if settings.reuse_questions:
                 with closing(db()) as conn:
                     rows = conn.execute("SELECT * FROM questions WHERE lower(subject)=lower(?) AND qtype='mcq_single' AND verification_status IN ('APPROVED','VERIFIED') ORDER BY id", (section.subject,))
                     for row in rows:
                         q = row_to_dict(row)
-                        if question_scope(q) != scope or q['difficulty'] != settings.difficulty or fingerprint(q['statement']) in seen:
+                        difficulty=q['difficulty'].casefold().replace(' ','_')
+                        if (question_scope(q) != scope or difficulty not in target_counts
+                                or existing_difficulties[difficulty]>=target_counts[difficulty]
+                                or fingerprint(q['statement']) in seen
+                                or is_near_duplicate(q['statement'],seen_statements)):
                             continue
-                        found.append({'question': snapshot(q), 'section': section.model_dump(), 'origin': 'BANK','fingerprint':q.get('generation_fingerprint') or fingerprint(q['statement'])})
+                        found.append({'question': snapshot(q), 'section': section.model_dump(), 'origin': 'BANK','review_status':q['verification_status'],'fingerprint':q.get('generation_fingerprint') or fingerprint(q['statement'])})
+                        existing_difficulties[difficulty]+=1
                         seen.add(fingerprint(q['statement']))
+                        seen_statements.append(q['statement'])
                         if len(found) == section.count-existing_count:
                             break
             selected.extend(found)
@@ -405,11 +497,13 @@ def run_build(jid):
                     # Persist each normal provider-sized batch promptly instead
                     # of waiting for several internal calls before checkpointing.
                     batch_size=max(1,min(20,int(os.getenv('PROGRAM_EXAM_BATCH_SIZE','3'))))
-                    count = min(missing, batch_size)
+                    current_counts=Counter(item['question'].get('difficulty') for item in selected if item['section']['subject']==section.subject)
+                    desired=next(level for level in DIFFICULTIES if current_counts[level]<target_counts[level])
+                    count = min(missing, batch_size,target_counts[desired]-current_counts[desired])
                     payload = GenerationRequest(exam_name=job['input']['program_name'], subject=section.subject,
                         level=settings.level, language=settings.language, count=count,
                         syllabus='See the frozen paper prompt below; section focus: '+section.topics,
-                        difficulty=settings.difficulty,
+                        difficulty=desired,
                         question_type='mcq_single', marks=str(section.marks),
                         extra_metadata={'program_id': job['program_id'], 'program_exam_scope': scope,'program_exam_job_id':jid},
                         generation_prompt=job['input']['effective_prompt'] + '\n\nCURRENT BATCH\n'
@@ -432,13 +526,13 @@ def run_build(jid):
                         q = GeneratedQuestion.model_validate({k:v for k,v in item.items() if k not in {'review_index','fingerprint'}})
                         validate_question(q)
                         fp = fingerprint(q.statement)
-                        if fp in seen or len(q.options) != 4 or {o.label for o in q.options} != {'A','B','C','D'} or not q.solution.strip():
+                        if fp in seen or is_near_duplicate(q.statement,seen_statements) or len(q.options) != 4 or {o.label for o in q.options} != {'A','B','C','D'} or not q.solution.strip():
                             continue
                         if q.subject and q.subject.casefold() != section.subject.casefold():
                             continue
                         if q.qtype and q.qtype.casefold() != 'mcq_single':
                             continue
-                        if q.difficulty and q.difficulty.casefold().replace(' ', '_') != settings.difficulty:
+                        if q.difficulty and q.difficulty.casefold().replace(' ', '_') != desired:
                             continue
                         # Exam delivery renders canonical statement/options. Preserve
                         # the generated question figure there as well as in assets.
@@ -447,7 +541,7 @@ def run_build(jid):
                             if asset.get('type') != 'answer_figures' and asset.get('asset','').startswith('/uploads/') and asset['asset'] not in statement:
                                 statement += '\n\n![Question figure](' + asset['asset'] + ')'
                         question = Question(subject=section.subject, chapter=q.chapter, topic=q.topic, subtopic=q.subtopic,
-                            exam=job['input']['program_name'], qtype='mcq_single', difficulty=settings.difficulty,
+                            exam=job['input']['program_name'], qtype='mcq_single', difficulty=desired,
                             marks=str(section.marks), statement=statement, options=[o.text for o in sorted(q.options,key=lambda o:o.label)],
                             answer=q.answer, solution=q.solution, content_blocks=q.content_blocks, visual_assets=q.visual_assets,
                             verification_status='REVIEW_REQUIRED', source_type='AI_GENERATED', generation_run_id=batch['run_id'],
@@ -457,8 +551,9 @@ def run_build(jid):
                                 'language':settings.language, 'level':settings.level, 'program_exam_job_id':jid, 'generated_metadata':q.metadata,
                                 'precomputed_explanations':{'en':q.explanation_en,'te':q.explanation_te}})
                         pending.append(question)
-                        selected.append({'question': {'id': None, **question.model_dump()}, 'section':section.model_dump(), 'origin':'GENERATED', 'pending_index':len(pending)-1,'fingerprint':fp})
+                        selected.append({'question': {'id': None, **question.model_dump()}, 'section':section.model_dump(), 'origin':'GENERATED','review_status':'REVIEW_REQUIRED', 'pending_index':len(pending)-1,'fingerprint':fp})
                         seen.add(fp); missing -= 1; accepted += 1
+                        seen_statements.append(q.statement)
                         if not missing:
                             break
                     checkpoint(section.subject)
@@ -520,6 +615,45 @@ class Approval(Contract):
     review_updated_at: float | None = None
 
 
+class QuestionAction(Contract):
+    action: Literal['APPROVE','PUBLISH','DELETE']
+
+
+@router.post('/{pid}/exam-papers/{jid}/questions/{qid}')
+def question_action(pid: int, jid: int, qid: int, data: QuestionAction, request: Request):
+    user=require_admin(_auth(request,True))
+    with closing(db()) as conn:
+        program_row(conn,pid,True)
+        conn.execute('UPDATE program_exam_jobs SET status=status WHERE id=? AND program_id=?',(jid,pid))
+        row=conn.execute('SELECT * FROM program_exam_jobs WHERE id=? AND program_id=?',(jid,pid)).fetchone()
+        if not row:raise HTTPException(404,'Paper not found')
+        job=unpack(row)
+        if job['status']!='REVIEW_REQUIRED' or job['exam_id']:
+            raise HTTPException(409,'Question actions are available before the paper becomes an exam')
+        item=next((entry for entry in job['result'].get('questions',[]) if int(entry['question'].get('id') or 0)==qid),None)
+        if not item:raise HTTPException(404,'Question is not part of this paper')
+        question=conn.execute('SELECT id,verification_status FROM questions WHERE id=?',(qid,)).fetchone()
+        if not question:raise HTTPException(404,'Question not found')
+        now=time.time()
+        if data.action in {'APPROVE','PUBLISH'}:
+            target='VERIFIED' if data.action=='PUBLISH' else 'APPROVED'
+            conn.execute('UPDATE questions SET verification_status=?,updated_at=? WHERE id=?',(target,now,qid))
+            item['review_status']=target
+            job['result']['correction_review_required']=True
+            conn.execute('UPDATE program_exam_jobs SET result_json=?,updated_at=? WHERE id=?',(canonical(job['result']),now,jid))
+            audit(conn,user,pid,'GUIDED_QUESTION_'+data.action,jid,{'question_id':qid,'status':target})
+            conn.commit();return {'question_id':qid,'status':target,'paper_status':'REVIEW_REQUIRED'}
+        questions=job['result'].get('questions',[])
+        job['result']['questions']=[entry for entry in questions if entry is not item]
+        if item['origin']=='GENERATED':
+            conn.execute("UPDATE questions SET verification_status='REJECTED',updated_at=? WHERE id=? AND verification_status IN ('REVIEW_REQUIRED','APPROVED','VERIFIED')",(now,qid))
+        job['result']['progress']={'completed':len(job['result']['questions']),'total':sum(s['count'] for s in job['input']['settings']['sections']),'section':item['section']['subject']}
+        message='Question removed from this paper. Retry generation to create a distinct replacement.'
+        conn.execute("UPDATE program_exam_jobs SET status='FAILED',result_json=?,error=?,updated_at=? WHERE id=?",(canonical(job['result']),message,now,jid))
+        audit(conn,user,pid,'GUIDED_QUESTION_DELETED',jid,{'question_id':qid,'origin':item['origin']})
+        conn.commit();return {'question_id':qid,'status':'DELETED_FROM_PAPER','paper_status':'FAILED'}
+
+
 @router.post('/{pid}/exam-papers/{jid}/approve')
 def approve(pid: int, jid: int, data: Approval, request: Request):
     from app import row_to_dict
@@ -563,7 +697,7 @@ def approve(pid: int, jid: int, data: Approval, request: Request):
             if not q or snapshot(row_to_dict(q)) != item['question'] or q['verification_status'] not in allowed:
                 raise HTTPException(409, 'A question changed after preview; generate a fresh paper before approval')
         status = 'PUBLISHED' if data.publish else 'DRAFT'
-        name = settings.name or (job['input']['program_name'] + (' — Full Exam' if settings.mode=='FULL' else ' — '+settings.sections[0].subject))[:200]
+        name = meaningful_exam_name(job['input']['program_name'],settings,job['created_at'],jid)
         eid = conn.execute('INSERT INTO exams(name,description,exam_type,subject,level,instructions,duration_minutes,status,total_marks,created_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
             (name,settings.pattern,settings.mode,settings.sections[0].subject if settings.mode=='SUBJECT' else '',settings.level,settings.instructions,settings.duration_minutes,status,
              sum(s.count*s.marks for s in settings.sections),user['id'],time.time(),time.time())).lastrowid
@@ -572,7 +706,7 @@ def approve(pid: int, jid: int, data: Approval, request: Request):
             conn.execute('INSERT INTO exam_questions(exam_id,question_id,display_order,section_name,marks,negative_marks,created_at) VALUES(?,?,?,?,?,?,?)',
                 (eid,qid,order,section['subject'],section['marks'],section['negative_marks'],time.time()))
             if item['origin']=='GENERATED':
-                conn.execute("UPDATE questions SET verification_status='APPROVED',updated_at=? WHERE id=?", (time.time(),qid))
+                conn.execute("UPDATE questions SET verification_status='APPROVED',updated_at=? WHERE id=? AND verification_status='REVIEW_REQUIRED'", (time.time(),qid))
                 conn.execute("UPDATE ai_generation_runs SET status='SAVED' WHERE id=(SELECT generation_run_id FROM questions WHERE id=?) AND NOT EXISTS (SELECT 1 FROM questions WHERE generation_run_id=ai_generation_runs.id AND verification_status='REVIEW_REQUIRED')", (qid,))
         if data.publish:
             publish_version(conn,eid,user['id'])

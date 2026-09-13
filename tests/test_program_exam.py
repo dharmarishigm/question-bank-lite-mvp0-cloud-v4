@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 from tests.test_programs import clients, create
 from llm_generate import GeneratedQuestionBatch, GeneratedQuestion, GeneratedOption
-from program_exam import CurriculumSuggestion, CompleteSuggestion, Section
+from program_exam import CurriculumSuggestion, CompleteSuggestion, Section, difficulty_distribution, planned_difficulties, Settings
 
 
 def settings(**changes):
@@ -16,8 +16,18 @@ def settings(**changes):
 
 
 def author(request):
+    concepts={
+        'very_easy':('Identify the numeral represented by the pictured blocks.','Recall the basic addition fact shown.','Recognize the named geometric shape.'),
+        'easy':('Compare two fractions and select the greater shaded share.','Calculate change from a simple shopping bill.','Convert a measured length into centimetres.'),
+        'medium':('Use proportional reasoning to calculate a missing map distance.','Interpret the table before finding its arithmetic mean.','Continue a number pattern by identifying its changing rule.'),
+        'hard':('Combine rate and elapsed-time constraints to determine arrival.','Infer an unknown angle through two linked geometric properties.','Optimize the allocation subject to the stated capacity limits.'),
+        'very_hard':('Prove which invariant determines the final parity after repeated operations.','Evaluate competing strategies through a multi-stage probability model.','Synthesize the algebraic constraints to identify the unique feasible case.'),
+    }.get(request.difficulty,('Solve the stated curriculum problem.','Apply the given rule.','Select the valid conclusion.'))
+    subject_task=('Analyze the passage and choose the grammatically valid interpretation.' if 'language' in request.subject.casefold()
+        else 'Inspect the spatial sequence and infer which figure completes the arrangement.' if any(word in request.subject.casefold() for word in ('mental','environment'))
+        else concepts[0])
     return GeneratedQuestionBatch(questions=[GeneratedQuestion(
-        statement=f'{request.subject} {request.difficulty}: Find the value for problem {i+1}.',
+        statement=f'{request.subject} ({request.difficulty}): {subject_task if i==0 else concepts[i % len(concepts)]}',
         options=[GeneratedOption(label=chr(65+j),text=str(j+1)) for j in range(4)],
         answer='B',solution='The answer is 2, by the stated calculation.',
         explanation_en='The stored English explanation connects the concept, calculation, and answer.',
@@ -43,7 +53,8 @@ def test_difficulty_generation_review_publish_and_reuse(clients,difficulty):
     assert difficulty in job['input']['effective_prompt']
     questions=admin.get('/api/questions').json()['items']
     assert len(questions)==2 and all(q['verification_status']=='REVIEW_REQUIRED' for q in questions)
-    assert all(q['difficulty']==difficulty for q in questions)
+    expected=planned_difficulties(Settings.model_validate(value),Section.model_validate(value['sections'][0]),'Program')
+    assert sorted(q['difficulty'] for q in questions)==sorted(expected)
     with patch('app.llm_status',side_effect=AssertionError('Generated explanation must be cached')):
         assert admin.get(f'/api/questions/{questions[0]["id"]}/explain?language=en').json()['cached'] is True
         assert admin.get(f'/api/questions/{questions[0]["id"]}/explain?language=te').json()['cached'] is True
@@ -67,6 +78,33 @@ def test_difficulty_generation_review_publish_and_reuse(clients,difficulty):
     assert next_job['status']=='REVIEW_REQUIRED' and next_job['result']['reused']==2
 
 
+def test_autonomous_difficulty_is_grade_aware_and_enforced(clients):
+    primary=difficulty_distribution(20,'Class IV','School foundation')
+    competitive=difficulty_distribution(20,'Class XII','JEE Main')
+    assert len(primary)==len(competitive)==20
+    assert primary.count('very_hard')==0
+    assert competitive.count('hard')+competitive.count('very_hard') > primary.count('hard')
+    admin,_,_=clients;pid=create(admin)['id']
+    job=build(admin,pid,settings(level='Class VI',difficulty='auto',sections=[{'subject':'Arithmetic','count':5}]),key='auto-difficulty-paper')
+    expected=difficulty_distribution(5,'Class VI','Program')
+    actual=[item['question']['difficulty'] for item in job['result']['questions']]
+    assert sorted(actual)==sorted(expected)
+    assert 'Difficulty distribution contract' in job['input']['effective_prompt']
+
+
+@pytest.mark.parametrize('selected,expected',[
+    ('very_easy',[55,27,13,5,0]),
+    ('easy',[18,52,21,7,2]),
+    ('medium',[7,20,46,21,6]),
+    ('hard',[2,8,22,50,18]),
+    ('very_hard',[0,5,14,27,54]),
+])
+def test_selected_difficulty_is_a_dominant_distribution(selected,expected):
+    value=Settings.model_validate(settings(difficulty=selected,sections=[{'subject':'Arithmetic','count':100}]))
+    actual=planned_difficulties(value,value.sections[0],'Program')
+    assert [actual.count(level) for level in ('very_easy','easy','medium','hard','very_hard')]==expected
+
+
 def test_subject_scope_full_sections_and_prompt(clients):
     admin,_,_=clients;pid=create(admin)['id'];root=f'/api/programs/{pid}'
     value=settings(sections=[{'subject':'Arithmetic','count':2},{'subject':'Language','count':1}])
@@ -82,6 +120,8 @@ def test_subject_scope_full_sections_and_prompt(clients):
     preview=admin.post(root+'/exam-prompt',json=scoped).json()['effective_prompt']
     for expected in ['vocabulary only','very_hard','Language','90','Fractions and number reasoning']:
         assert expected in preview
+    assert 'administrator-authored practice configuration' in preview
+    assert 'Close all delimiters, braces, environments' in preview
 
 
 def test_additional_conditions_are_frozen_into_final_prompt(clients):
@@ -127,6 +167,45 @@ def test_draft_then_publish_and_external_edit_guard(clients):
     assert admin.post(path,json={'reviewed':True,'publish':True}).status_code==409
 
 
+def test_per_question_review_actions_and_meaningful_default_exam_name(clients):
+    admin,_,_=clients;pid=create(admin)['id'];root=f'/api/programs/{pid}'
+    value=settings(name='',assessment_kind='GRAND_TEST',reuse_questions=False)
+    job=build(admin,pid,value,key='question-actions-paper')
+    first,second=[item['question']['id'] for item in job['result']['questions']]
+    approved=admin.post(root+f'/exam-papers/{job["id"]}/questions/{first}',json={'action':'APPROVE'})
+    published=admin.post(root+f'/exam-papers/{job["id"]}/questions/{second}',json={'action':'PUBLISH'})
+    assert approved.status_code==published.status_code==200
+    assert approved.json()['status']=='APPROVED' and published.json()['status']=='VERIFIED'
+    refreshed=admin.get(root+f'/exam-papers/{job["id"]}').json()
+    assert [item['review_status'] for item in refreshed['result']['questions']]==['APPROVED','VERIFIED']
+    saved=admin.post(root+f'/exam-papers/{job["id"]}/approve',json={'reviewed':True,'publish':True,'review_updated_at':refreshed['updated_at']})
+    assert saved.status_code==200,saved.text
+    exam=admin.get(f'/api/exams/{saved.json()["exam_id"]}').json()
+    assert all(part in exam['name'] for part in ('Navodaya','VI','Grand Test','2026','Set 01'))
+    assert exam['program_name']=='Navodaya' and exam['program_code']=='NAVODAYA'
+    assert admin.get(f'/api/questions/{second}').json()['verification_status']=='VERIFIED'
+
+    # Older generated exams stored only the program name. Catalog responses
+    # repair their display title while retaining the persisted legacy record.
+    from platform_api import db
+    from contextlib import closing
+    with closing(db()) as conn:
+        conn.execute('UPDATE exams SET name=? WHERE id=?',('Navodaya',exam['id']));conn.commit()
+    legacy=admin.get(f'/api/exams/{exam["id"]}').json()
+    assert all(part in legacy['name'] for part in ('Navodaya','VI','Grand Test','2026','Set 01'))
+
+
+def test_delete_question_removes_it_from_paper_and_requires_replacement(clients):
+    admin,_,_=clients;pid=create(admin)['id'];root=f'/api/programs/{pid}'
+    job=build(admin,pid,settings(reuse_questions=False),key='delete-question-paper')
+    qid=job['result']['questions'][0]['question']['id']
+    deleted=admin.post(root+f'/exam-papers/{job["id"]}/questions/{qid}',json={'action':'DELETE'})
+    assert deleted.status_code==200 and deleted.json()['paper_status']=='FAILED'
+    refreshed=admin.get(root+f'/exam-papers/{job["id"]}').json()
+    assert refreshed['status']=='FAILED' and len(refreshed['result']['questions'])==1
+    assert admin.get(f'/api/questions/{qid}').json()['verification_status']=='REJECTED'
+
+
 def test_on_demand_suggestions_and_idempotency_conflict(clients):
     admin,student,_=clients;pid=create(admin)['id'];root=f'/api/programs/{pid}'
     with patch('program_exam.structured_call',return_value=(CurriculumSuggestion(curriculum='Editable syllabus',subjects=['Arithmetic']),{'model':'mock'})) as call:
@@ -154,14 +233,15 @@ def test_large_paper_batches_and_partial_failure_do_not_save_partial_bank(client
     def sequential(request):
         calls.append(request.count)
         batch,usage,model=author(request)
-        for q in batch.questions:q.statement=f'Batch {len(calls)}: '+q.statement
+        marker=''.join(chr(97+(len(calls)//(26**power))%26) for power in (0,1,2))
+        for q in batch.questions:q.statement=f'Variant {marker}: '+q.statement
         return batch,usage,model
     value=settings(sections=[{'subject':'Arithmetic','count':80}])
-    with patch('app.generate_questions',side_effect=sequential):
+    with patch('app.generate_questions',side_effect=sequential),patch('program_exam.is_near_duplicate',return_value=False):
         admin.post(root+'/exam-papers',json={'request_key':'large-paper-key','settings':value})
     job=admin.get(root+'/exam-papers').json()[0]
     assert job['status']=='REVIEW_REQUIRED',job
-    assert calls==[3]*26+[2] and job['result']['generated']==80
+    assert sum(calls)==80 and max(calls)<=3 and job['result']['generated']==80
     before=admin.get('/api/questions').json()['total']
     def partial(request):
         if request.subject=='Language':raise RuntimeError('Second section unavailable')
@@ -204,10 +284,11 @@ def test_checkpoint_retry_keeps_completed_batches(clients):
         batch,usage,model=author(request)
         for q in batch.questions:q.statement='Checkpoint original: '+q.statement
         return batch,usage,model
-    with patch('app.generate_questions',side_effect=interrupted),patch('program_exam.time.sleep'):
+    with patch('app.generate_questions',side_effect=interrupted),patch('program_exam.time.sleep'),patch('program_exam.is_near_duplicate',return_value=False):
         admin.post(root+'/exam-papers',json={'request_key':'checkpoint-request','settings':settings(sections=[{'subject':'Arithmetic','count':13}])})
     job=admin.get(root+'/exam-papers').json()[0]
-    assert job['status']=='FAILED' and job['result']['progress']['completed']==3
+    completed=calls[0]
+    assert job['status']=='FAILED' and job['result']['progress']['completed']==completed
     assert admin.get('/api/questions').json()['total']==0
     stems=[x['question']['statement'] for x in job['result']['questions']]
     resumed=[]
@@ -216,12 +297,12 @@ def test_checkpoint_retry_keeps_completed_batches(clients):
         batch,usage,model=author(request)
         for q in batch.questions:q.statement=f'Resumed batch {len(resumed)}: '+q.statement
         return batch,usage,model
-    with patch('app.generate_questions',side_effect=remaining):
+    with patch('app.generate_questions',side_effect=remaining),patch('program_exam.is_near_duplicate',return_value=False):
         admin.post(root+f'/exam-papers/{job["id"]}/retry')
     job=admin.get(root+'/exam-papers').json()[0]
-    assert job['status']=='REVIEW_REQUIRED' and resumed==[3,3,3,1]
+    assert job['status']=='REVIEW_REQUIRED' and sum(resumed)==13-completed and max(resumed)<=3
     assert len(job['result']['questions'])==13
-    assert [x['question']['statement'] for x in job['result']['questions'][:3]]==stems
+    assert [x['question']['statement'] for x in job['result']['questions'][:completed]]==stems
     assert admin.get('/api/questions').json()['total']==13
 
 

@@ -5,9 +5,10 @@
   const nav=document.createElement('nav');nav.hidden=true;nav.setAttribute('aria-label','DigitalQBank');
   nav.innerHTML='<button data-view="grand-tests">DigitalQBank</button>';
   $('admin-nav').parentElement.append(nav);
-  nav.querySelector('button').onclick=()=>showView('grand-tests');
   let current=null,programs=[],poll=null,pdfWorkspace=null;
   const call=(path='',method='GET',body)=>api('/api/grand-tests'+path,{method,...(body?{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{})});
+  const route=(workspace,mode='push')=>{if(location.pathname!=='/app')return;const url=new URL(location.href);url.searchParams.set('view','grand-tests');if(workspace)url.searchParams.set('workspace',workspace);else{url.searchParams.delete('workspace');url.searchParams.delete('step');}const next=url.pathname+url.search;if(next!==location.pathname+location.search)history[mode==='replace'?'replaceState':'pushState']({view:'grand-tests',workspace},'',next);};
+  const routeStep=(step,mode='replace')=>{panel.dataset.workspaceSection=step;if(location.pathname!=='/app')return;const url=new URL(location.href);url.searchParams.set('view','grand-tests');if(current?.id)url.searchParams.set('workspace',current.id);url.searchParams.set('step',step);const next=url.pathname+url.search;if(next!==location.pathname+location.search)history[mode==='push'?'pushState':'replaceState']({view:'grand-tests',workspace:current?.id,step},'',next);};
   const progress=(text,tone='info')=>{const el=panel.querySelector('[data-status]');if(el){el.textContent=text;el.dataset.tone=tone;}};
   const run=async task=>{try{await task();}catch(e){notify(e.message);const status=panel.querySelector('[data-status]');if(status)progress(e.message,'error');}};
   const options=id=>programs.map(p=>`<option value="${p.id}" ${p.id===Number(id)?'selected':''}>${esc(p.name)}</option>`).join('');
@@ -20,7 +21,7 @@
   async function load(){
     pdfWorkspace?.destroy();
     programs=(await api('/api/programs?limit=100')).items||[];const docs=await call(signedInUser.role==='ADMIN'?'/admin/document-library':'/documents');
-    const rows=await call();current=null;
+    const rows=await call();current=null;const requested=Number(new URL(location.href).searchParams.get('workspace'));if(requested&&rows.some(row=>row.id===requested)){await open(requested,{route:false});return;}
     panel.innerHTML=`<div class="page-header"><div><h2>DigitalQBank</h2><p>Digitise a paper, review the questions, then schedule a proctored exam.</p></div></div><p class="gt-status" data-status role="status" aria-live="polite"></p>
       <form id="gt-create" class="panel"><h3>Create DigitalQBank workspace</h3><div class="gt-fields"><label>Program<select name="program_id" required>${options()}</select></label><label>Workspace name<input name="name" required maxlength="200"></label><label>Paper name<input name="paper_name" maxlength="200"></label><label>Academic year / batch<input name="academic_year" maxlength="100"></label><label>Description<textarea name="description"></textarea></label></div><button class="primary">Create workspace</button></form>
       ${signedInUser.role==='ADMIN'?'<details class="panel"><summary>Manage Operator access</summary><p>Only Admins can approve verified Operator emails. Removing an email revokes existing sessions.</p><form id="gt-allowlist"><label>Approved Operator email<input type="email" name="email" required></label><button>Add email</button></form><div id="gt-allowlist-rows"></div><p>Assign Operator access only after the email is approved.</p><div id="gt-users"></div></details>':''}
@@ -54,7 +55,7 @@
       $('gt-users').querySelectorAll('select').forEach(s=>s.onchange=()=>run(async()=>{await api(`/api/admin/users/${s.dataset.role}/role`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:s.value})});notify('Role updated');}));
     }
   }
-  async function open(id){const wasDigitising=current?.id===id&&current.status==='DIGITIZING';current=await call('/'+id);if(wasDigitising&&current.status==='REVIEW_REQUIRED')panel.dataset.workspaceSection='Review & save';render();}
+  async function open(id,options={}){const wasDigitising=current?.id===id&&current.status==='DIGITIZING';if(options.route!==false)route(id);current=await call('/'+id);if(wasDigitising&&current.status==='REVIEW_REQUIRED')routeStep('Review & save');render();}
   let correctionRefresh=false,correctionAgain=false;
   async function refreshSavedQuestions(id){
     if(!current||!permitted()||(id&&!current.questions.some(q=>Number(q.saved_question_id)===Number(id))))return;
@@ -79,14 +80,14 @@
   document.addEventListener('question:invalidated',event=>refreshSavedQuestions(event.detail?.id));
   function render(){
     const g=current,locked=!!g.exam_id||g.status==='DIGITIZING',admin=signedInUser.role==='ADMIN',saved=g.questions.filter(q=>q.saved_question_id);
-    panel.innerHTML=`<button id="gt-back">← DigitalQBank</button><a class="gt-home" href="/app">Home</a><div class="page-header"><div><h2>${esc(g.name)}</h2><p>${esc(g.paper_name)} · ${esc(g.status.replaceAll('_',' '))} · ${g.questions.length} questions</p></div>${!g.exam_id?`<button class="danger" id="gt-delete-workspace">Delete workspace</button>`:''}</div><p class="gt-status" data-status role="status" aria-live="polite">${esc(g.error||(g.status==='DIGITIZING'?'Digitising and classifying… Please wait.':g.questions.length?'Questions ready for review. Select reviewed questions to save to the question bank.':'PDF ready. Select a portion or digitise the whole PDF.'))}</p>
+    panel.innerHTML=`<nav class="program-breadcrumbs" aria-label="Breadcrumb"><button id="gt-back">DigitalQBank</button><span aria-hidden="true">/</span><strong>${esc(g.name)}</strong></nav><div class="page-header"><div><h2>${esc(g.name)}</h2><p>${esc(g.paper_name)} · ${esc(g.status.replaceAll('_',' '))} · ${g.questions.length} questions</p></div>${!g.exam_id?`<button class="danger" id="gt-delete-workspace">Delete workspace</button>`:''}</div><p class="gt-status" data-status role="status" aria-live="polite">${esc(g.error||(g.status==='DIGITIZING'?'Digitising and classifying… Please wait.':g.questions.length?'Questions ready for review. Select reviewed questions to save to the question bank.':'PDF ready. Select a portion or digitise the whole PDF.'))}</p>
       ${!g.source.id?'<p>Choose a stored PDF when creating a workspace.</p>':''}
       ${g.source.id?'<div id="gt-pdf-workspace"></div>':''}
 
       <form id="gt-review"><h3>Review questions</h3><p>Check the source, correct metadata and answers, then mark each question reviewed. Advanced content preserves source images, tables and equations.</p><div id="gt-questions">${g.questions.map((q,i)=>question(q,i,locked)).join('')}</div>${!locked&&g.questions.length?'<div class="actions"><button>Save review</button><button type="button" id="gt-save-all" class="primary">Save all questions</button><button type="button" id="gt-save-selected">Save selected questions</button><button type="button" id="gt-finalize">Save & finalize questions</button></div>':''}</form>
       ${admin&&!g.exam_id&&saved.length?`<form id="gt-create-exam" class="panel"><h3>Create exam with selected questions</h3><p>Select saved Question Bank items above. The new exam remains a draft for review, scheduling and publication.</p><div class="gt-fields"><label>Exam name<input name="name" value="${esc(g.name)}" required maxlength="200"></label><label>Duration (minutes)<input name="duration" type="number" min="1" max="1440" value="30" required></label></div><button class="primary">Create draft exam</button></form>`:''}
       ${admin&&g.exam?examForm(g.exam):''}`;
-    $('gt-back').onclick=()=>run(load);
+    $('gt-back').onclick=()=>{route(null);run(load);};
     $('gt-delete-workspace')?.addEventListener('click',()=>run(async()=>{if(!confirm(`Delete workspace "${g.name}" permanently?`))return;await call('/'+g.id,'DELETE');notify('Workspace deleted');await load();}));
     pdfWorkspace?.destroy();
     if(g.source.id){
@@ -113,7 +114,7 @@
     if($('gt-save-all'))$('gt-save-all').onclick=()=>run(()=>saveBank(false));
     if($('gt-save-selected'))$('gt-save-selected').onclick=()=>run(()=>saveBank(true));
     $('gt-review').onsubmit=e=>{e.preventDefault();run(save);};
-    if($('gt-finalize'))$('gt-finalize').onclick=()=>run(async()=>{await save();current=await call(`/${g.id}/finalize`,'POST',{revision:current.revision});render();});
+    if($('gt-finalize'))$('gt-finalize').onclick=()=>run(async()=>{await save();current=await call(`/${g.id}/finalize`,'POST',{revision:current.revision});routeStep('Create exam / schedule');render();});
     QuestionSourceReview.bindAll(panel,g.questions);
     if($('gt-create-exam'))$('gt-create-exam').onsubmit=e=>{e.preventDefault();run(async()=>{const ids=[...panel.querySelectorAll('[data-exam-question]:checked')].map(x=>Number(x.value));if(!ids.length)throw Error('Select at least one saved question for the exam');const form=e.target;const result=await call(`/${g.id}/exams`,'POST',{revision:current.revision,question_ids:ids,name:form.name.value,duration_minutes:Number(form.duration.value),request_key:`workspace-${g.id}-${Date.now()}`});await open(g.id);notify(`Draft exam #${result.exam_id} created with ${ids.length} question(s)`);});};
     panel.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>b.closest('[data-question]').remove());

@@ -125,10 +125,12 @@ class PlatformSecurityTests(unittest.TestCase):
         admin,_=self.login('admin@example.test')
         with patch.dict(os.environ,{'AUTH_MODE':''}):
             questions=[app.create_question(app.Question(subject='Science',chapter='Plants',topic='Photosynthesis',difficulty='medium',statement=f'Plant question {i}?',options=['Wrong','Right'],answer='B',marks='2')) for i in range(3)]
-        exam=self.post(admin,'/api/admin/exams',json={'name':'Science Practice','status':'OPEN','question_ids':[q['id'] for q in questions],'duration_minutes':20}).json()
+        exam=self.post(admin,'/api/admin/exams',json={'name':'Science Practice','status':'DRAFT','question_ids':[q['id'] for q in questions],'duration_minutes':20}).json()
+        for state in ('PUBLISHED','OPEN'):
+            changed=admin.put(f'/api/admin/exams/{exam["id"]}/state',headers={'X-CSRF-Token':self.csrf(admin)},json={'status':state});self.assertEqual(changed.status_code,200,changed.text)
         student,_=self.login('learner@example.test');other,_=self.login('other@example.test')
         self.post(student,f'/api/exams/{exam["id"]}/enroll')
-        sid=self.post(student,f'/api/exams/{exam["id"]}/sessions').json()['session_id']
+        sid=self.post(student,f'/api/exams/{exam["id"]}/sessions',json={'consent':True}).json()['session_id']
         for question,answer in zip(questions,['B','A','B']):
             saved=student.put(f'/api/sessions/{sid}/answers/{question["id"]}',headers={'X-CSRF-Token':self.csrf(student)},json={'selected_answer':answer});self.assertEqual(saved.status_code,200,saved.text)
         self.assertEqual(self.post(student,f'/api/sessions/{sid}/submit').status_code,200)
@@ -148,13 +150,15 @@ class PlatformSecurityTests(unittest.TestCase):
         with patch.dict(os.environ,{'AUTH_MODE':''}):
             q1=app.create_question(app.Question(statement='2+2?',options=['3','4'],answer='B'))
             q2=app.create_question(app.Question(statement='3+3?',options=['5','6'],answer='B'))
-        created=self.post(admin,'/api/admin/exams',json={'name':'Grade 8 Mathematics Olympiad','status':'OPEN','question_ids':[q1['id'],q2['id']],'duration_minutes':30}).json();eid=created['id']
+        created=self.post(admin,'/api/admin/exams',json={'name':'Grade 8 Mathematics Olympiad','status':'DRAFT','question_ids':[q1['id'],q2['id']],'duration_minutes':30}).json();eid=created['id']
+        for state in ('PUBLISHED','OPEN'):
+            changed=admin.put(f'/api/admin/exams/{eid}/state',headers={'X-CSRF-Token':self.csrf(admin)},json={'status':state});self.assertEqual(changed.status_code,200,changed.text)
         alice,_=self.login('alice@example.test');bob,_=self.login('bob@example.test')
         self.assertEqual(len(alice.get('/api/exams').json()),1)
         self.post(alice,f'/api/exams/{eid}/enroll');self.post(alice,f'/api/exams/{eid}/enroll')
         self.post(bob,f'/api/exams/{eid}/enroll')
         self.assertEqual(len(alice.get('/api/my/exams').json()),1)
-        a_sid=self.post(alice,f'/api/exams/{eid}/sessions').json()['session_id'];b_sid=self.post(bob,f'/api/exams/{eid}/sessions').json()['session_id'];self.assertNotEqual(a_sid,b_sid)
+        a_sid=self.post(alice,f'/api/exams/{eid}/sessions',json={'consent':True}).json()['session_id'];b_sid=self.post(bob,f'/api/exams/{eid}/sessions',json={'consent':True}).json()['session_id'];self.assertNotEqual(a_sid,b_sid)
         active=alice.get(f'/api/sessions/{a_sid}').json();raw=str(active);self.assertNotIn("'answer'",raw);self.assertNotIn("'solution'",raw)
         self.assertEqual(bob.get(f'/api/sessions/{a_sid}').status_code,404)
         r=alice.put(f'/api/sessions/{a_sid}/answers/{q1["id"]}',headers={'X-CSRF-Token':self.csrf(alice)},json={'selected_answer':'B'});self.assertEqual(r.status_code,200,r.text)

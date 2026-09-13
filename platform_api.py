@@ -470,11 +470,25 @@ def exam_program_context(conn,rows):
     items=[dict(row) for row in rows]
     if not items:return items
     ids=[row['id'] for row in items]
-    links=conn.execute('SELECT j.exam_id,p.code,p.name FROM program_exam_jobs j JOIN programs p ON p.id=j.program_id WHERE j.exam_id IN ('+','.join('?' for _ in ids)+') UNION SELECT gt.exam_id,p.code,p.name FROM grand_tests gt JOIN programs p ON p.id=gt.program_id WHERE gt.exam_id IN ('+','.join('?' for _ in ids)+')',tuple(ids)+tuple(ids)).fetchall()
+    links=conn.execute("SELECT j.exam_id,p.code,p.name,j.id paper_id,j.created_at,j.input_json,'GUIDED' source FROM program_exam_jobs j JOIN programs p ON p.id=j.program_id WHERE j.exam_id IN ("+','.join('?' for _ in ids)+") UNION SELECT gt.exam_id,p.code,p.name,NULL,NULL,NULL,'DIGITAL' source FROM grand_tests gt JOIN programs p ON p.id=gt.program_id WHERE gt.exam_id IN ("+','.join('?' for _ in ids)+')',tuple(ids)+tuple(ids)).fetchall()
     by_exam={row['exam_id']:row for row in links}
     for item in items:
         link=by_exam.get(item['id'])
-        if link:item.update(program_code=link['code'],program_name=link['name'])
+        if link:
+            item.update(program_code=link['code'],program_name=link['name'])
+            # Legacy guided exams sometimes used only the program name. Give
+            # those catalog entries the same meaningful convention now used at
+            # creation, without replacing an administrator's custom title.
+            if link['source']=='GUIDED' and item.get('name','').strip().casefold()==link['name'].strip().casefold():
+                payload=json.loads(link['input_json'] or '{}');settings=payload.get('settings',{})
+                labels={'PRACTICE_TEST':'Practice Test','ASSIGNMENT':'Assignment','GRAND_TEST':'Grand Test','MOCK_EXAM':'Mock Examination'}
+                sections=settings.get('sections') or []
+                scope=(sections[0].get('subject') if settings.get('mode')=='SUBJECT' and sections else settings.get('level') or 'All Subjects')
+                date=datetime.fromtimestamp(link['created_at'] or item.get('created_at') or time.time()).strftime('%d %b %Y')
+                base=(settings.get('name') or link['name']).strip();parts=[base]
+                for value in (scope,labels.get(settings.get('assessment_kind'),'Practice Test'),date,f"Set {int(link['paper_id']):02d}"):
+                    if value and str(value).casefold() not in base.casefold():parts.append(str(value))
+                item['name']=' · '.join(parts)[:200]
     return items
 
 @router.get('/public/exams')
@@ -596,7 +610,7 @@ async def update_exam(exam_id:int,request:Request):
             publish_version(conn,exam_id,require_admin(_auth(request))['id']);conn.commit()
     return {'id':exam_id}
 @router.delete('/admin/exams/{exam_id}')
-def delete_exam(exam_id:int,request:Request):
+def delete_exam(exam_id:int,request:Request,force:bool=False,confirmation:str=''):
     user=require_admin(_auth(request,True))
     with closing(db()) as conn:
         try:
@@ -604,9 +618,28 @@ def delete_exam(exam_id:int,request:Request):
             # inserts must finish first or wait until this transaction completes.
             if not conn.execute('UPDATE exams SET id=id WHERE id=?',(exam_id,)).rowcount:
                 raise HTTPException(404,'Exam not found')
-            for table in ('exam_sessions','exam_enrollments','pending_exam_registrations','question_concerns'):
-                if conn.execute(f'SELECT 1 FROM {table} WHERE exam_id=? LIMIT 1',(exam_id,)).fetchone():
-                    raise HTTPException(409,'This exam has registration, attempt or question concern history and must be closed or archived')
+            exam=conn.execute('SELECT name FROM exams WHERE id=?',(exam_id,)).fetchone()
+            history={table:conn.execute(f'SELECT COUNT(*) n FROM {table} WHERE exam_id=?',(exam_id,)).fetchone()['n']
+                     for table in ('exam_sessions','exam_enrollments','pending_exam_registrations','question_concerns')}
+            if any(history.values()) and not force:
+                raise HTTPException(409,'This exam has registration, attempt or question concern history. Use Force delete only when those records may be permanently removed.')
+            if force and confirmation!='DELETE':
+                raise HTTPException(422,'Type DELETE to confirm permanent removal of the exam and all linked student history')
+
+            # Force deletion is deliberately explicit. Dependent student records
+            # are removed leaf-first inside this transaction; reusable questions,
+            # explanations and source documents are never deleted.
+            if force:
+                session_ids=[row['id'] for row in conn.execute('SELECT id FROM exam_sessions WHERE exam_id=?',(exam_id,)).fetchall()]
+                for sid in session_ids:
+                    conn.execute('DELETE FROM result_report_links WHERE session_id=?',(sid,))
+                    conn.execute('DELETE FROM question_concerns WHERE session_id=?',(sid,))
+                    conn.execute('DELETE FROM exam_answers WHERE session_id=?',(sid,))
+                conn.execute('DELETE FROM question_concerns WHERE exam_id=?',(exam_id,))
+                conn.execute('DELETE FROM exam_audit_log WHERE exam_id=?',(exam_id,))
+                conn.execute('DELETE FROM exam_sessions WHERE exam_id=?',(exam_id,))
+                conn.execute('DELETE FROM exam_enrollments WHERE exam_id=?',(exam_id,))
+                conn.execute('DELETE FROM pending_exam_registrations WHERE exam_id=?',(exam_id,))
 
             # Workspaces own source material, not disposable exam children.
             # Detach them without losing reviewed questions, prompts or PDFs.
@@ -632,7 +665,8 @@ def delete_exam(exam_id:int,request:Request):
             conn.execute('DELETE FROM exam_questions WHERE exam_id=?',(exam_id,))
             conn.execute('DELETE FROM exams WHERE id=?',(exam_id,))
             from exam_conduct import audit
-            audit(conn,'EXAM_DELETED',exam_id=exam_id,user_id=user['id'])
+            audit(conn,'EXAM_FORCE_DELETED' if force else 'EXAM_DELETED',exam_id=None if force else exam_id,user_id=user['id'],metadata={
+                'deleted_exam_id':exam_id,'exam_name':exam['name'],'removed_history':history})
             conn.commit()
         except Exception as exc:
             conn.rollback()
@@ -641,7 +675,9 @@ def delete_exam(exam_id:int,request:Request):
             if getattr(exc,'sqlstate',None) in {'23503','40P01','55P03'} or getattr(exc,'sqlite_errorcode',None) in {sqlite3.SQLITE_CONSTRAINT_FOREIGNKEY,sqlite3.SQLITE_BUSY}:
                 raise HTTPException(409,'This exam has linked records or changed during deletion. Reload and try again; exams with history must be closed or archived.') from exc
             raise
-    return {'deleted':exam_id}
+    # Keep the established ordinary-delete response stable for existing
+    # clients; only the explicitly requested force operation returns details.
+    return {'deleted':exam_id,'forced':True,'removed_history':history} if force else {'deleted':exam_id}
 @router.post('/exams/{exam_id}/enroll')
 def enroll(exam_id:int,request:Request):
     user=_auth(request,True);now=time.time()
@@ -803,10 +839,11 @@ def get_session(sid:int,request:Request):
                 if isinstance(options,str):
                     try: options=json.loads(options or '[]')
                     except (TypeError,ValueError): options=[]
-                questions.append({'id':q['id'],'number':q['display_order'],'statement':q['statement'],'options':options,'visual_assets':q.get('visual_assets',[]),'marks':q['marks'],'section':q.get('section_name',''),'selected_answer':answers[q['id']]['selected_answer'] if q['id'] in answers else '','state':answers[q['id']]['status'] if q['id'] in answers else 'NOT_VISITED',
+                subject=str(q.get('subject') or q.get('section_name') or 'General')
+                questions.append({'id':q['id'],'number':q['display_order'],'statement':q['statement'],'options':options,'visual_assets':q.get('visual_assets',[]),'marks':q['marks'],'subject':subject,'chapter':q.get('chapter',''),'topic':q.get('topic',''),'difficulty':q.get('difficulty',''),'qtype':q.get('qtype',''),'section':q.get('section_name') or subject,'section_name':q.get('section_name') or subject,'selected_answer':answers[q['id']]['selected_answer'] if q['id'] in answers else '','state':answers[q['id']]['status'] if q['id'] in answers else 'NOT_VISITED',
                     'content_revision':_question_content_revision(q),'content_corrected':bool(q.get('content_corrected')),'response_review_required':bool(q.get('response_review_required'))})
         else:
-            rows=conn.execute('SELECT q.id,q.statement,q.options,eq.display_order,eq.marks,a.selected_answer,a.answer_payload_json,a.status FROM exam_questions eq JOIN questions q ON q.id=eq.question_id LEFT JOIN exam_answers a ON a.session_id=? AND a.question_id=q.id WHERE eq.exam_id=? ORDER BY eq.display_order',(sid,s['exam_id'])).fetchall();questions=[{'id':r['id'],'number':r['display_order'],'statement':r['statement'],'options':json.loads(r['options'] or '[]'),'marks':r['marks'],'selected_answer':r['selected_answer'] or '','state':r['status'] or 'NOT_VISITED'} for r in rows]
+            rows=conn.execute('SELECT q.id,q.statement,q.options,q.subject,q.chapter,q.topic,q.difficulty,q.qtype,eq.display_order,eq.marks,eq.section_name,a.selected_answer,a.answer_payload_json,a.status FROM exam_questions eq JOIN questions q ON q.id=eq.question_id LEFT JOIN exam_answers a ON a.session_id=? AND a.question_id=q.id WHERE eq.exam_id=? ORDER BY eq.display_order',(sid,s['exam_id'])).fetchall();questions=[{'id':r['id'],'number':r['display_order'],'statement':r['statement'],'options':json.loads(r['options'] or '[]'),'marks':r['marks'],'subject':r['subject'] or r['section_name'] or 'General','chapter':r['chapter'],'topic':r['topic'],'difficulty':r['difficulty'],'qtype':r['qtype'],'section':r['section_name'] or r['subject'] or 'General','section_name':r['section_name'] or r['subject'] or 'General','selected_answer':r['selected_answer'] or '','state':r['status'] or 'NOT_VISITED'} for r in rows]
         from correction_sync import annotate
         # Active content is the synchronized grading snapshot. A second live
         # overlay could race another correction and display ungraded options.

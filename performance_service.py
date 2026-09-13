@@ -30,8 +30,6 @@ def performance(conn, user_id, exam_id=None, limit=10, days=365, subject='', dif
     params = [user_id, time.time() - days * 86400]
     if exam_id:
         clauses.append('s.exam_id=?'); params.append(exam_id)
-    if subject:
-        clauses.append('e.subject=?'); params.append(subject)
     rows = [dict(r) for r in conn.execute(f"SELECT s.*,e.name exam_name,e.subject,e.exam_type FROM exam_sessions s JOIN exams e ON e.id=s.exam_id WHERE {' AND '.join(clauses)} ORDER BY s.submitted_at DESC,s.id DESC LIMIT ?", (*params, limit)).fetchall()]
     answers = {}
     if rows:
@@ -51,6 +49,7 @@ def performance(conn, user_id, exam_id=None, limit=10, days=365, subject='', dif
         question_count += len(snapshot)
         for stored in snapshot:
             q = {**metadata.get(stored.get('id', stored.get('question_id')), {}), **stored}
+            if subject and str(q.get('subject') or row['subject']).strip().casefold()!=subject.strip().casefold(): continue
             if difficulty and q.get('difficulty') != difficulty: continue
             if qtype and q.get('qtype') != qtype: continue
             a = answers.get((row['id'], q.get('id', q.get('question_id'))), {})
@@ -76,7 +75,7 @@ def performance(conn, user_id, exam_id=None, limit=10, days=365, subject='', dif
     available = [dict(r) for r in conn.execute("SELECT e.id,e.name,e.subject,e.level FROM exams e WHERE e.status='OPEN' AND (e.allow_self_registration=1 OR EXISTS (SELECT 1 FROM exam_enrollments er WHERE er.exam_id=e.id AND er.user_id=?)) AND (e.exam_end_at IS NULL OR e.exam_end_at>?) ORDER BY e.id DESC LIMIT 30", (user_id, time.time())).fetchall()]
     recommendations = []
     for gap in gaps[:5]:
-        matches = [e for e in available if e['subject'] == gap['subject']][:3]
+        matches = [e for e in available if gap['subject'].casefold() in {part.strip().casefold() for part in str(e['subject'] or '').split(',')}][:3]
         recommendations.append({'title': 'Revise '+gap['label'], 'reason': f"{gap['accuracy']}% accuracy across {gap['count']-gap['unanswered']} answered questions.", 'action': 'Review foundations, then practice medium difficulty questions.', 'exams': matches})
     if not recommendations:
         recommendations = [{'title': 'Build your assessment baseline' if not eligible else 'Continue consistent practice', 'reason': 'At least five answered questions per topic are needed to identify a gap.' if not eligible else 'No established topic is below 60% accuracy.', 'action': 'Complete an available assessment and review your mistakes.', 'exams': available[:3]}]

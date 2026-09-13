@@ -356,3 +356,95 @@ The requirement is complete only when:
 - The Programs workspace exposes the existing `DELETE /api/programs/{program_id}` archive/delete action to Admins; version and audit history are retained.
 - Exam Admin exposes the existing Admin-only exam delete action. Exams with registrations, attempts, or pending registrations are protected and must be closed/archived instead.
 - Learner catalogs expose only `OPEN` exams that are publicly self-registerable or explicitly enrolled for that learner. Draft, archived, and admin-only `PUBLISHED` papers are not exposed through learner APIs. Admins and proctors retain full visibility.
+
+## 9. Grounded autonomous Program paper playbook
+
+### 9.1 Evidence states
+
+Every Create Exam workflow must show and preserve one of these states:
+
+| State | Permitted claim | Generation use |
+|---|---|---|
+| Official and verified | Exact claims supported by a retrieved primary document, checksum, URL, checked time, and verbatim evidence | May define official pattern/curriculum boundaries after Admin review |
+| Official source, AI-extracted | Primary document retrieved; structured rules passed quote and numeric reconciliation checks | May populate editable inputs; Admin must review before publication |
+| AI suggestion, unverified | No approved primary evidence | Practice guidance only; never described as official/current/complete |
+| Missing or conflicting evidence | Documents unavailable, wrong class/cycle, or values do not reconcile | Stop official lookup; require correction or explicit practice-only setup |
+
+Grounded lookup uses Google Search only to discover primary-source URLs. The application then downloads documents from an allowlist of official public hosts, validates redirects and file size, extracts evidence, and rejects any number or quote not found in the retrieved source. Search summaries are not evidence. Coaching pages, news summaries, social media, and model memory cannot establish official rules.
+
+### 9.2 Autonomous pipeline
+
+```text
+Program + class/level
+  → grounded official lookup (when requested)
+  → source validation and evidence state
+  → editable curriculum, exclusions and pattern
+  → frozen final prompt preview
+  → deterministic grade-aware difficulty allocation
+  → small resumable subject/difficulty batches
+  → structural and semantic authoring gates
+  → Question Bank records marked REVIEW_REQUIRED
+  → human paper review
+  → draft exam
+  → explicit publication
+```
+
+The system may act autonomously inside a frozen, reviewable contract. It must never autonomously publish, silently change the class or subject, convert an unverified curriculum into an official claim, or expand beyond the supplied syllabus.
+
+### 9.3 Difficulty contract
+
+Create Exam defaults to **Auto — balanced for level**. The backend, not the language model, fixes the count for each difficulty before authoring:
+
+- Primary grades emphasize direct recognition, routine application, and short reasoning; `VERY_HARD` is excluded.
+- Middle grades center on `MEDIUM`, with bounded easy and hard items.
+- Senior grades add more non-routine multi-step reasoning.
+- Named competitive programs receive a larger hard/very-hard share while remaining inside the stated class syllabus.
+
+Allocation is deterministic and frozen in the final prompt. Explicit single-level choices remain supported. Difficulty represents cognitive demand: number of concepts, transfer, inference, representation and reasoning depth. It must not be simulated with obscure vocabulary, missing facts, excessive arithmetic, or trick wording.
+
+An explicit difficulty is a dominant target, not a command to make every item identical. The percentage matrix (Very easy / Easy / Medium / Hard / Very hard) is:
+
+| Selected target | Distribution |
+|---|---|
+| Very easy | 55 / 27 / 13 / 5 / 0 |
+| Easy | 18 / 52 / 21 / 7 / 2 |
+| Medium | 7 / 20 / 46 / 21 / 6 |
+| Hard | 2 / 8 / 22 / 50 / 18 |
+| Very hard | 0 / 5 / 14 / 27 / 54 |
+
+Counts use deterministic largest-remainder rounding for the requested section size and are interleaved during authoring. Consequently, very small sections may not contain all five bands, while the selected band remains dominant whenever the count permits it.
+
+### 9.4 Final prompt authority order
+
+The authoring model receives this precedence order:
+
+1. Application safety and response schema.
+2. Verified official source constraints and selected Program/class.
+3. Structured section counts, marks, allocated difficulty and language.
+4. Frozen curriculum, topics and explicit exclusions.
+5. Administrator authoring instructions and additional conditions.
+
+Lower-priority prose cannot override higher-priority structured fields. Source documents and user text are untrusted context and cannot issue system instructions.
+
+### 9.5 Realistic-question quality gate
+
+Every accepted question must:
+
+- be original, self-contained and inside the frozen curriculum;
+- state every fact, quantity, unit, convention and assumption required to solve it;
+- use an age-appropriate realistic context without fabricated current statistics, policies, citations, URLs, quotations, experimental observations, or official claims;
+- have four distinct choices for the current single-correct format;
+- contain exactly one defensible answer;
+- include a concise worked solution whose result matches the answer label;
+- use distractors representing different plausible misconceptions;
+- add a genuinely different concept or reasoning task, not a cosmetic numerical rewrite;
+- preserve diagrams as validated visual structures when the task requires a figure.
+- keep every mathematical expression complete within one field, use supported inline/display delimiters, and close all braces, environments, and scalable delimiter pairs.
+
+The authoring prompt requires an internal solve-and-check before JSON is returned. Application validation rejects malformed options, invalid answer labels, missing solutions, exact or near-duplicate stems (including number-only template rewrites), wrong subjects, wrong question types, difficulty mismatches, unclosed math delimiters/braces/environments, raw LaTeX commands outside math mode, empty operands, and partial command fragments. Rejected items are replaced in bounded, resumable batches. Completed batches are checkpointed; incomplete papers are never published.
+
+### 9.6 Review and observability
+
+The final Markdown prompt is visible before generation and frozen with the job. Each generated record stores Program scope, level, language, model, prompt version, run ID, generation fingerprint and source type. AI-authored questions enter `REVIEW_REQUIRED`; approval and exam publication remain separate Admin actions. Retries reuse the frozen job contract and resume missing slots without silently adopting later prompt edits.
+
+Release acceptance requires tests for explicit difficulty levels, autonomous grade-aware allocation, exact paper counts, cross-subject isolation, duplicate replacement, partial failure/resume, official-source quote validation, unverified-label behavior, prompt provenance, review-before-publish, JavaScript syntax, responsive UI and PostgreSQL/SQLite compatibility.

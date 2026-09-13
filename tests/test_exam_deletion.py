@@ -144,6 +144,39 @@ def test_student_history_blocks_deletion_without_changing_linked_records(deletio
     assert snapshot(DOMAIN_TABLES)==before
 
 
+def test_force_delete_requires_typed_confirmation_and_removes_student_history_atomically(deletion_clients):
+    admin,student,_=deletion_clients;linked=linked_exam(admin);eid=linked['exam_id'];now=time.time()
+    uid=student.get('/api/auth/me').json()['id']
+    with closing(app.connect()) as conn:
+        registration=conn.execute("INSERT INTO exam_enrollments(exam_id,user_id,status,registered_at,created_at,updated_at) VALUES(?,?,'COMPLETED',?,?,?)",(eid,uid,now,now,now)).lastrowid
+        session=conn.execute("INSERT INTO exam_sessions(exam_id,user_id,registration_id,attempt_number,status,started_at,submitted_at,expires_at,duration_minutes,score,max_score,percentage,created_at,updated_at) VALUES(?,?,?,1,'SUBMITTED',?,?,?,?,1,1,100,?,?)",(eid,uid,registration,now,now,now+1800,30,now,now)).lastrowid
+        conn.execute("INSERT INTO exam_answers(session_id,question_id,selected_answer,is_answered,is_correct,marks_awarded,updated_at) VALUES(?,?,'B',1,1,1,?)",(session,linked['question_id'],now))
+        conn.execute("INSERT INTO question_concerns(question_id,session_id,exam_id,reporter_id,category,description,created_at,updated_at) VALUES(?,?,?,?,'ANSWER','Force-delete fixture',?,?)",(linked['question_id'],session,eid,uid,now,now))
+        conn.execute('INSERT INTO result_report_links(session_id,token_hash,created_by,created_at,expires_at) VALUES(?,?,?,?,?)',(session,'force-delete-report',linked['admin_id'],now,now+3600))
+        conn.commit()
+    before=snapshot(DOMAIN_TABLES+('exam_answers','result_report_links'))
+    rejected=admin.delete(f'/api/admin/exams/{eid}?force=true&confirmation=wrong')
+    assert rejected.status_code==422,rejected.text
+    assert snapshot(DOMAIN_TABLES+('exam_answers','result_report_links'))==before
+    deleted=admin.delete(f'/api/admin/exams/{eid}?force=true&confirmation=DELETE')
+    assert deleted.status_code==200,deleted.text
+    assert deleted.json()['forced'] is True
+    assert deleted.json()['removed_history']['exam_sessions']==1
+    after=snapshot(DOMAIN_TABLES+('exam_answers','result_report_links'))
+    assert not any(row['id']==eid for row in after['exams'])
+    for table in ('exam_sessions','exam_enrollments','question_concerns'):
+        assert not any(row.get('exam_id')==eid for row in after[table])
+    assert not any(row['session_id']==session for row in after['exam_answers'])
+    assert not any(row['session_id']==session for row in after['result_report_links'])
+    assert any(row['id']==linked['question_id'] for row in after['questions'])
+    paper=next(row for row in after['program_exam_jobs'] if row['id']==linked['paper_id'])
+    assert paper['exam_id'] is None and paper['status']=='REVIEW_REQUIRED'
+    with closing(app.connect()) as conn:
+        event=conn.execute("SELECT metadata_json FROM exam_audit_log WHERE event_type='EXAM_FORCE_DELETED' ORDER BY id DESC LIMIT 1").fetchone()
+        assert event and json.loads(event['metadata_json'])['deleted_exam_id']==eid
+        assert conn.execute('PRAGMA foreign_key_check').fetchall()==[]
+
+
 def test_deletion_requires_admin_and_valid_csrf(deletion_clients):
     admin,student,anonymous=deletion_clients;linked=linked_exam(admin);path=f'/api/admin/exams/{linked["exam_id"]}'
     before=snapshot(DOMAIN_TABLES)

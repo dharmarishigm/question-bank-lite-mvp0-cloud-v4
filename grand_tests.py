@@ -516,7 +516,12 @@ def create_exam_from_saved(gid: int, payload: ExamCreate, request: Request):
             return {'exam_id':row['exam_id'],'created':False}
         change(conn,row,user,payload.revision,status='EXAM_GENERATED')
         now=time.time();total_marks=0
-        cur=conn.execute("INSERT INTO exams(name,description,exam_type,status,duration_minutes,created_by,created_at,updated_at,proctor_required) VALUES(?,?,?,'DRAFT',?,?,?,?,1)",(payload.name,row['description'],'GRAND_TEST',payload.duration_minutes,user['id'],now,now));eid=cur.lastrowid
+        subjects=[]
+        for qid in payload.question_ids:
+            subject=str(linked[qid].get('subject') or '').strip()
+            if subject and subject not in subjects:subjects.append(subject)
+        subject_summary=', '.join(subjects)[:200]
+        cur=conn.execute("INSERT INTO exams(name,description,exam_type,subject,status,duration_minutes,created_by,created_at,updated_at,proctor_required) VALUES(?,?,?,?,'DRAFT',?,?,?,?,1)",(payload.name,row['description'],'GRAND_TEST',subject_summary,payload.duration_minutes,user['id'],now,now));eid=cur.lastrowid
         for order,qid in enumerate(payload.question_ids,1):
             raw=linked[qid]
             try:marks=float(raw.get('marks') or 1)

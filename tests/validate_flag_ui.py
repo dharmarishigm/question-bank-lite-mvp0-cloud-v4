@@ -38,12 +38,13 @@ async def main():
     await page.goto(BASE+'/app');await page.locator('#admin-nav [data-view=flag-reader]').click();await expect(page.locator('#flag-pages .flag-text-layer').first).to_be_visible(timeout=20000)
     await page.locator('#flag-page-number').fill('12');await page.locator('#flag-go').click();target=page.locator('.flag-pdf-page[data-page="12"]');await expect(target.locator('.flag-text-layer')).to_be_visible()
     await page.wait_for_function("document.querySelector('.flag-pdf-page[data-page=\"12\"] img')?.complete")
-    await page.evaluate("""()=>{const words=document.querySelector('.flag-pdf-page[data-page="12"] .flag-text-layer').children;const range=document.createRange();range.setStart(words[0].firstChild,0);range.setEnd(words[6].firstChild,words[6].textContent.length);const s=getSelection();s.removeAllRanges();s.addRange(range);document.dispatchEvent(new Event('selectionchange'));}""")
-    await expect(page.locator('#flag-explain')).to_be_enabled();assert await page.locator('#flag-selection').input_value()
+    box=await target.bounding_box();await page.mouse.move(box['x']+60,box['y']+160);await page.mouse.down();await page.mouse.move(box['x']+200,box['y']+230);await page.mouse.up()
+    await expect(page.locator('#flag-selection-label')).to_contain_text('Area selected');await expect(page.locator('#flag-explain')).to_be_enabled();assert await page.locator('#flag-selection').input_value()
+    await page.locator('.flag-intent-options [data-question]').first.click();assert 'background' in (await page.locator('#flag-question').input_value()).lower()
     await page.route('**/api/flag/materials/*/explain',lambda route:route.fulfill(json={'markdown':'## Background\n\nA forecasting model tracks patients over time.\n\n## Core concept\n\nIncidence measures new cases.','page':12,'material_id':pdf['id']}))
     await page.locator('#flag-explain').click();await expect(page.locator('#flag-explanation h2').first).to_have_text('Background')
     await page.screenshot(path='/tmp/flag-reader-desktop.png')
-    await page.locator('#flag-select-mode').select_option('area');box=await target.bounding_box();await page.mouse.move(box['x']+60,box['y']+160);await page.mouse.down();await page.mouse.move(box['x']+200,box['y']+230);await page.mouse.up();await expect(page.locator('#flag-selection-label')).to_contain_text('Selected area')
+    await page.locator('#flag-close-mentor').click();await page.locator('#flag-clear-selection').click();await expect(page.locator('#flag-selection-label')).to_have_text('No area selected')
     await page.locator('#admin-nav [data-view=flag-excel]').click();await expect(page.locator('.flag-template-tile')).to_have_count(22)
     await page.locator('#flag-template-search').fill('Excel Working');await page.locator('.flag-template-tile').click();await page.locator('#flag-sheet-select').select_option('Age_adjusted_Incidence_Prevalen');await expect(page.locator('#flag-sheet-grid td').first).to_be_visible();await expect(page.locator('#flag-sheet-status')).not_to_have_text('Loading sheet…')
     await page.locator('#flag-sheet-grid td').first.click();await expect(page.locator('#flag-formula')).not_to_have_text('Select a cell to see its value or formula.')
@@ -57,7 +58,7 @@ async def main():
     student=await browser.new_context();await student.request.post(BASE+'/api/auth/mock',data={'email':'student@example.test'});sp=await student.new_page();await sp.goto(BASE+'/app');await expect(sp.locator('#student-nav [data-view=flag-reader]')).to_be_visible();await sp.locator('#student-nav [data-view=flag-reader]').click();await expect(sp.locator('#flag-pages .flag-text-layer').first).to_be_visible()
     await page.locator('[data-edit-member]').click();await page.locator('#flag-member-form [name=active]').uncheck();await page.locator('#flag-member-form button').click();await expect(page.locator('#flag-admin-content table')).to_contain_text('Disabled')
     assert (await student.request.get(BASE+f'/api/flag/materials/{pdf["id"]}/download')).status==403
-    await sp.evaluate("showView('flag-excel')");await expect(sp.locator('#flag-excel-content')).to_contain_text('FLAG access is required')
+    await sp.evaluate("showView('flag-excel')");await expect(sp.locator('#flag-excel-content')).to_contain_text('FLAG LEARNING MEMBERSHIP')
     assert not errors,errors
     await browser.close();print('FLAG browser checks passed: desktop, mobile, selection, Markdown, area selection, membership and revocation.',flush=True)
   finally:

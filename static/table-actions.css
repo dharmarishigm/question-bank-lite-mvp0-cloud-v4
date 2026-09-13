@@ -1,0 +1,11 @@
+.table-action-source { display:none !important; }
+.table-action-menu { width:135px; min-width:110px; max-width:100%; padding:8px; }
+#ai-run-list td { vertical-align:top; }
+#ai-run-list td:nth-child(3) { min-width:180px; }
+#ai-run-list td:nth-child(5) small { display:block; max-width:320px; overflow-wrap:anywhere; }
+.ai-bulk-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:12px 0; }
+.ai-bulk-toolbar select { width:auto; min-width:165px; }
+.ai-bulk-toolbar [role=status] { flex-basis:100%; }
+.table-selection-toolbar { display:flex; flex-wrap:wrap; gap:12px; align-items:center; margin:8px 0; }
+.table-selection-toolbar select { width:auto; }
+.table-row-select { width:auto; margin-right:8px; }

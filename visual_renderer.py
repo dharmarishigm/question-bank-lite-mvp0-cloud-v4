@@ -26,6 +26,19 @@ def render_visual_spec(spec,output_dir):
     svg=f'<svg xmlns="http://www.w3.org/2000/svg" width="660" height="480" viewBox="0 0 660 480"><rect width="100%" height="100%" fill="white"/>{"".join(cells)}</svg>'
     name='generated-visual-'+hashlib.sha256(json.dumps(spec,sort_keys=True).encode()).hexdigest()[:16]+'.svg';Path(output_dir).mkdir(parents=True,exist_ok=True);(Path(output_dir)/name).write_text(svg);return '/uploads/'+name
 
+
+def validate_visual_choices(spec):
+    """Compare rendered choices, not repeated/empty human-readable captions."""
+    panels=[spec.get('question_figure') or {}]+[(spec.get('options') or {}).get(k) or {} for k in 'ABCD']
+    rendered=[]
+    for panel in panels:
+        shapes=[_primitive(p) for p in panel.get('primitives',[]) if isinstance(p,dict)]
+        if not shapes or any(not shape for shape in shapes):
+            raise ValueError('Visual panels must contain supported renderable primitives')
+        rendered.append(''.join(shapes))
+    if len(set(rendered[1:]))!=4:
+        raise ValueError('Visual answer diagrams must be distinct; changing captions does not create different choices')
+
 def render_visual_panels(spec,output_dir):
     """Render question and options separately so MCQ options remain durable images."""
     panels={'question':spec.get('question_figure') or {}}

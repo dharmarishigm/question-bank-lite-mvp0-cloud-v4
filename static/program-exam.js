@@ -1,6 +1,8 @@
 /* Guided authoring: server-owned prompts, persistent generation and explicit review. */
 window.ProgramExam = (() => {
-  const difficultyOptions = [['very_easy','Very Easy'],['easy','Easy'],['medium','Medium'],['hard','Hard'],['very_hard','Very Hard']];
+  const difficultyOptions = [['auto','Auto — balanced for level'],['very_easy','Very Easy dominant'],['easy','Easy dominant'],['medium','Medium dominant'],['hard','Hard dominant'],['very_hard','Very Hard dominant']];
+  const assessmentLabels={PRACTICE_TEST:'Practice Test',ASSIGNMENT:'Assignment',GRAND_TEST:'Grand Test',MOCK_EXAM:'Mock Examination'};
+  const paperLabel=(program,setup,row)=>{const base=setup.name||program.name,scope=setup.mode==='SUBJECT'?setup.sections[0]?.subject:(setup.level||'All Subjects'),kind=assessmentLabels[setup.assessment_kind||'PRACTICE_TEST'],date=new Date(row.created_at*1000).toLocaleDateString(undefined,{day:'2-digit',month:'short',year:'numeric'});return [base,scope,kind,date,`Set ${String(row.id).padStart(2,'0')}`].filter((value,index,all)=>value&&all.findIndex(item=>String(item).toLowerCase()===String(value).toLowerCase())===index).join(' · ');};
   async function render(host, program, request, options={}) {
     host.replaceChildren();
     const el = (tag, text, parent=host) => {const node=document.createElement(tag);node.textContent=text;parent.append(node);return node;};
@@ -34,9 +36,13 @@ window.ProgramExam = (() => {
     function button(label,parent,action){const node=el('button',label,parent);node.type='button';node.onclick=action;return node;}
     const mode=select('Paper type','mode',[['FULL','Full Exam'],['SUBJECT','Subject-wise']],'FULL');
     const name=field('Exam title (optional)','name','');name.maxLength=200;
+    name.placeholder='Automatically created from program, level, assessment type and date';
+    const assessmentKind=select('Assessment category','assessment_kind',[['PRACTICE_TEST','Practice Test'],['ASSIGNMENT','Assignment'],['GRAND_TEST','Grand Test'],['MOCK_EXAM','Mock Examination']],'PRACTICE_TEST');
     const level=field('Class / level','level',program.payload.levels?.[0]||'');level.placeholder='For example: Class VI';
     const language=field('Language','language',program.payload.languages?.[0]||'English');language.required=true;
-    const difficulty=select('Difficulty','difficulty',difficultyOptions,'medium');
+    const difficulty=select('Difficulty','difficulty',difficultyOptions,'auto');
+    const difficultyHelp=el('small','Selected difficulty is the largest share; adjacent levels are mixed in smaller proportions. Exact counts appear in the final prompt.',difficulty.parentElement);
+    difficultyHelp.className='muted';
     const duration=field('Duration (minutes)','duration_minutes',60);duration.type='number';duration.min=1;duration.max=1440;duration.required=true;
     const allButton=button('Refresh official pattern',form,()=>loadOfficial(true));allButton.className='primary wide';
     const subjectArea=el('section','',form);subjectArea.className='wide';el('h5','Subjects and question counts',subjectArea);
@@ -78,7 +84,11 @@ window.ProgramExam = (() => {
       prompt.value=`Prepare an original ${mode.value==='FULL'?'full':'subject-wise'} ${program.name} paper for ${level.value||'the chosen level'} in ${language.value}. Use ${difficulty.selectedOptions[0].textContent} difficulty. Follow the curriculum, section counts, marking scheme and pattern supplied with this prompt. Cover the listed topics, construct plausible distractors, use clear age-appropriate language, provide one unambiguous correct answer and a worked solution for every question. Include visual reasoning where the curriculum requires it using the supported visual format. Avoid repeated questions and disclose no claims of official approval.`;invalidate();
     });
     const promptButton=button('Improve prompt with AI',promptActions,()=>suggest('prompt'));
-    const reuse=field('Reuse approved questions matching these inputs','reuse_questions','','input');reuse.type='checkbox';reuse.checked=true;
+    const sourceChoice=select('Question source','question_source',[['NEW','Generate all-new questions'],['REUSE','Reuse matching approved questions, then generate missing questions']],'NEW');
+    const sourceHelp=el('small','Choose explicitly for this paper. Reuse only selects approved questions matching the same Program, curriculum, subject, level and difficulty distribution.',sourceChoice.parentElement);sourceHelp.className='muted';
+    function disclosure(title,help,nodes,open=false){const details=document.createElement('details');details.className='guided-disclosure wide';details.open=open;const summary=el('summary',title,details),note=el('p',help,details);note.className='muted';const body=el('div','',details);body.className='guided-disclosure-content';nodes[0].before(details);nodes.forEach(node=>body.append(node));return details;}
+    disclosure('Curriculum, official pattern and student instructions','Expand to review or edit the long-form grounding inputs used for this paper.',[curriculum.parentElement,curriculumButton,pattern.parentElement,patternButton,instructions.parentElement]);
+    disclosure('Question-authoring instructions','Expand to edit the detailed generation prompt and additional conditions.',[prompt.parentElement,additionalConditions.parentElement,promptActions]);
     const actions=el('div','',form);actions.className='actions wide';
     let setupRevision=0;
     button('Save exam setup',actions,async()=>{
@@ -95,8 +105,9 @@ window.ProgramExam = (() => {
     const rawBox=el('details','',previewBox);el('summary','View / copy Markdown source',rawBox);const rawPrompt=el('textarea','',rawBox);rawPrompt.readOnly=true;rawPrompt.rows=8;rawPrompt.setAttribute('aria-label','Final prompt Markdown source');
     button('Copy final prompt',previewBox,async()=>{try{await navigator.clipboard.writeText(rawPrompt.value);status.textContent='Final prompt copied.';}catch{rawPrompt.select();status.textContent='Select and copy the Markdown source.';}});
     const results=el('section','');
+    if(!options.reviewOnly)host.insertBefore(results,officialPanel);
     if(options.reviewOnly){form.hidden=true;officialPanel.hidden=true;previewBox.hidden=true;}
-    function settings(){return {name:name.value.trim(),mode:mode.value,level:level.value.trim(),language:language.value.trim(),duration_minutes:Number(duration.value),difficulty:difficulty.value,curriculum:curriculum.value.trim(),pattern:pattern.value.trim(),instructions:instructions.value.trim(),generation_prompt:prompt.value.trim(),additional_conditions:additionalConditions.value.trim(),sections:readSections(),reuse_questions:reuse.checked,official_lookup_id:officialLookupId};}
+    function settings(){return {name:name.value.trim(),mode:mode.value,assessment_kind:assessmentKind.value,level:level.value.trim(),language:language.value.trim(),duration_minutes:Number(duration.value),difficulty:difficulty.value,curriculum:curriculum.value.trim(),pattern:pattern.value.trim(),instructions:instructions.value.trim(),generation_prompt:prompt.value.trim(),additional_conditions:additionalConditions.value.trim(),sections:readSections(),reuse_questions:sourceChoice.value==='REUSE',official_lookup_id:officialLookupId};}
     let requestKey=null,lastRequest='',timer,previewTimer,previewVersion=0,officialTimer,officialLookupId=null,officialRow=null;
     const totals=el('div','',subjectArea);totals.className='guided-totals';const totalQuestions=field('Total questions','total_questions',0,'input',totals),totalMarks=field('Total marks','total_marks',0,'input',totals);totalQuestions.readOnly=true;totalMarks.readOnly=true;
     function updateTotals(){const values=readSections();totalQuestions.value=values.reduce((n,s)=>n+s.count,0);totalMarks.value=Number(values.reduce((n,s)=>n+s.count*s.marks,0).toFixed(4));}
@@ -136,7 +147,7 @@ window.ProgramExam = (() => {
     function populate(value){
       if(value.mode==='FULL')fullDuration=value.duration_minutes;
       mode.value=value.mode;name.value=value.name;level.value=value.level;language.value=value.language;difficulty.value=value.difficulty;duration.value=value.duration_minutes;
-      curriculum.value=value.curriculum;pattern.value=value.pattern;instructions.value=value.instructions;prompt.value=value.generation_prompt;additionalConditions.value=value.additional_conditions||'';reuse.checked=value.reuse_questions;officialLookupId=value.official_lookup_id||null;setSections(value.sections);addSubject.hidden=value.mode==='SUBJECT';updateTotals();
+      curriculum.value=value.curriculum;pattern.value=value.pattern;instructions.value=value.instructions;prompt.value=value.generation_prompt;additionalConditions.value=value.additional_conditions||'';assessmentKind.value=value.assessment_kind||'PRACTICE_TEST';sourceChoice.value=value.reuse_questions?'REUSE':'NEW';officialLookupId=value.official_lookup_id||null;setSections(value.sections);addSubject.hidden=value.mode==='SUBJECT';updateTotals();
     }
     function showOfficial(){
       officialPanel.replaceChildren();const busy=['QUEUED','RUNNING'].includes(officialRow?.status);allButton.disabled=busy;patternButton.disabled=busy;if(!officialRow)return;
@@ -176,7 +187,7 @@ window.ProgramExam = (() => {
           if(officialRow.status==='READY'&&canApply){
             if(JSON.stringify(settings())!==baseline){status.textContent='Official pattern is ready. Your edits were kept; use Refresh official pattern to populate it.';return;}
             const chosen=mode.value==='SUBJECT'?readSections()[0]?.subject:null;
-            const value={...officialRow.result.settings,difficulty:difficulty.value,language:language.value,reuse_questions:reuse.checked};
+            const value={...officialRow.result.settings,difficulty:difficulty.value,language:language.value,assessment_kind:assessmentKind.value,reuse_questions:sourceChoice.value==='REUSE'};
             fullDuration=value.duration_minutes;fullSections=value.sections;setChoices(fullSections);
             if(chosen){const section=fullSections.find(s=>s.subject.toLowerCase()===chosen.toLowerCase());if(section){value.mode='SUBJECT';value.sections=[section];value.duration_minutes=section.duration_minutes||value.duration_minutes;subjectChoice.value=section.subject;}else{status.textContent='The chosen subject was not in the official pattern. Select a subject from the retrieved full pattern.';}}
             populate(value);subjectChoice.parentElement.hidden=value.mode!=='SUBJECT'||fullSections.length<2;
@@ -198,7 +209,7 @@ window.ProgramExam = (() => {
       for(const row of rows){
         const card=el('article','',results);card.className='panel program-setup-card';
         const setup=row.input.settings;
-        el('h5',`${setup.name||program.name} · #${row.id} · ${row.status.replaceAll('_',' ')}`,card);
+        el('h5',`${paperLabel(program,setup,row)} · ${row.status.replaceAll('_',' ')}`,card);
         el('p',`${setup.mode==='FULL'?'Full Exam':setup.sections[0].subject} · ${difficultyOptions.find(([key])=>key===setup.difficulty)?.[1]||setup.difficulty} · ${setup.sections.reduce((n,s)=>n+s.count,0)} questions · ${setup.duration_minutes} minutes`,card);
         if(row.error)el('p',row.error,card);
         if(['RUNNING','QUEUED','FAILED'].includes(row.status)){
@@ -210,15 +221,25 @@ window.ProgramExam = (() => {
         if(row.status==='FAILED'||(['RUNNING','QUEUED'].includes(row.status)&&Date.now()/1000-row.updated_at>1800))button(completeFailure?'Finalize for review':'Retry generation',card,async event=>{const retryButton=event.currentTarget;retryButton.disabled=true;status.textContent=completeFailure?'Finalizing the preserved paper for review…':'Resuming paper generation…';try{await request(`/${program.id}/exam-papers/${row.id}/retry`,'POST');await refresh();}catch(error){status.textContent=error.message;retryButton.disabled=false;}});
         if(row.result.questions&&(['REVIEW_REQUIRED','DRAFT','PUBLISHED'].includes(row.status)||completeFailure)){
           el('p',`${row.result.reused} reused from the bank · ${row.result.generated} generated`,card);
-          const paper=el('details','',card);el('summary','Review question paper, answers and solutions',paper);
+          const paper=el('details','',card);el('summary','Review question paper, answers and solutions',paper);paper.ontoggle=()=>{if(paper.open)options.onPaperChange?.(row.id);};
+          const paperTools=el('div','',paper);paperTools.className='actions guided-paper-tools';
+          button('Expand all explanations',paperTools,()=>paper.querySelectorAll('.guided-answer-details').forEach(node=>node.open=true));
+          button('Collapse all explanations',paperTools,()=>paper.querySelectorAll('.guided-answer-details').forEach(node=>node.open=false));
           row.result.questions.forEach((item,index)=>{
             const q=item.question;const block=el('section','',paper);block.className='guided-review-question';
-            el('strong',`${index+1}. ${item.section.subject} · ${item.section.marks} marks · ${item.origin==='BANK'?'Question bank':'New question'}`,block);
+            el('strong',`${index+1}. ${item.section.subject} · ${item.section.marks} marks · ${item.origin==='BANK'?'Question bank':'New question'} · ${(item.review_status||'REVIEW_REQUIRED').replaceAll('_',' ')}`,block);
             renderInto(el('div','',block),q.statement);
             q.options.forEach((text,i)=>renderInto(el('div','',block),`${String.fromCharCode(65+i)}. ${text}`));
-            el('p',`Answer: ${q.answer}`,block);renderInto(el('div','',block),q.solution);
+            const explanation=el('details','',block);explanation.className='guided-answer-details';el('summary','Show answer and worked explanation',explanation);el('p',`Answer: ${q.answer}`,explanation);const solution=el('div','',explanation);solution.className='guided-worked-explanation';renderInto(solution,q.solution||'No worked explanation supplied.');
             if(q.id)button('Edit / AI correct / Regenerate',block,()=>QuestionCorrection.open(q,{programPaperId:row.id,onSaved:()=>refresh()}));
             if(q.id)button('Report a concern',block,()=>window.ResultTools?.reportConcern(q.id,null));
+            if(q.id&&row.status==='REVIEW_REQUIRED'){
+              const reviewActions=el('div','',block);reviewActions.className='actions guided-question-actions';
+              const act=async action=>{if(action==='DELETE'&&!confirm('Remove this question from the paper? Generation will pause until you create a replacement.'))return;reviewActions.querySelectorAll('button').forEach(node=>node.disabled=true);try{await request(`/${program.id}/exam-papers/${row.id}/questions/${q.id}`,'POST',{action});status.textContent=action==='DELETE'?'Question removed. Use Retry generation to create a replacement.':action==='PUBLISH'?'Question published to the approved Question Bank.':'Question approved for this exam and future matching papers.';await refresh();}catch(error){status.textContent=error.message;reviewActions.querySelectorAll('button').forEach(node=>node.disabled=false);}};
+              if(!['APPROVED','VERIFIED'].includes(item.review_status))button('Approve question',reviewActions,()=>act('APPROVE'));
+              if(item.review_status!=='VERIFIED')button('Publish to Question Bank',reviewActions,()=>act('PUBLISH')).className='primary';
+              button('Delete from paper',reviewActions,()=>act('DELETE')).className='danger';
+            }
           });
           if(completeFailure)el('p','All questions are available to inspect. Finalize the preserved paper to enable approval and publication; no new AI generation is required.',card);
           const frozen=el('details','',card);el('summary','Inputs and prompt used for this paper',frozen);const frozenPrompt=el('div','',frozen);frozenPrompt.className='guided-prompt-markdown';renderInto(frozenPrompt,row.input.effective_prompt);
@@ -235,7 +256,18 @@ window.ProgramExam = (() => {
             button('Approve and publish exam',actionArea,()=>approve(true)).className='primary';
           }
         }
-        if(row.exam_id){el('p',`Exam #${row.exam_id} · ${row.status==='PUBLISHED'?'Published':'Draft'}`,card);button('Open Manage Exams',card,()=>document.querySelector('#admin-nav [data-view="admin-exams"]')?.click());}
+        if(row.exam_id){
+          el('p',`Exam #${row.exam_id} · ${row.status==='PUBLISHED'?'Published':'Draft'}`,card);
+          const examActions=el('div','',card);examActions.className='actions';
+          button('Open Manage Exams',examActions,()=>{if(options.onManageExams)options.onManageExams();else document.querySelector('#admin-nav [data-view="admin-exams"]')?.click();});
+          const remove=button('Force delete exam',examActions,async event=>{
+            const warning=`Force delete exam #${row.exam_id}? This permanently removes registrations, attempts, results and concerns. The reviewed paper and reusable questions will be preserved.`;
+            if(!confirm(warning)||prompt('Type DELETE to confirm permanent deletion')!=='DELETE')return;
+            event.currentTarget.disabled=true;
+            try{const deleted=await request(`/admin/exams/${row.exam_id}?force=true&confirmation=DELETE`,'DELETE');const counts=deleted.removed_history||{};status.textContent=`Exam #${row.exam_id} deleted. Removed ${counts.exam_sessions||0} attempt(s) and ${counts.exam_enrollments||0} enrollment(s); the paper remains available for review.`;await refresh();await options.onChange?.();}
+            catch(error){status.textContent=error.message;event.currentTarget.disabled=false;}
+          });remove.className='danger';
+        }
       }
       if(initial&&!options.reviewOnly){await loadOfficial(false,!savedSetup&&rows.length===0);invalidate();}
       if(rows.some(r=>['QUEUED','RUNNING'].includes(r.status)))timer=setTimeout(()=>{if(results.isConnected)refresh().catch(error=>{status.textContent=error.message;});},4000);
@@ -243,7 +275,7 @@ window.ProgramExam = (() => {
     form.onsubmit=async event=>{
       event.preventDefault();if(!form.reportValidity())return;generate.disabled=true;status.textContent='Starting paper generation…';
       try{const value=settings(),serialized=JSON.stringify(value);if(!requestKey||lastRequest!==serialized){requestKey=crypto.randomUUID();lastRequest=serialized;}
-        await preview();await request(`/${program.id}/exam-papers`,'POST',{request_key:requestKey,settings:value});requestKey=null;status.textContent='Paper generation started. Review and publication remain separate steps.';await refresh();
+        await preview();const started=await request(`/${program.id}/exam-papers`,'POST',{request_key:requestKey,settings:value});requestKey=null;status.textContent='Paper generation started. Review and publication remain separate steps.';options.onPaperChange?.(started.id);await refresh();
       }catch(error){status.textContent=error.message;}finally{generate.disabled=false;}
     };
     host.dataset.programCorrectionHost='1';host._refreshCorrections=()=>refresh();

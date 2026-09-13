@@ -1589,10 +1589,44 @@ function getExamQuestionKey(index) {
   return question._examKey;
 }
 
+function examSubject(question) {
+  return String(question?.section_name || question?.section || question?.subject || 'General').trim() || 'General';
+}
+
+function examSubjectGroups() {
+  const groups = [];
+  examState.questions.forEach((question, index) => {
+    const name = examSubject(question);
+    let group = groups.find(item => item.name === name);
+    if (!group) { group = {name, indexes: []}; groups.push(group); }
+    group.indexes.push(index);
+  });
+  return groups;
+}
+
+function examProgress(indexes = examState.questions.map((_, index) => index)) {
+  return indexes.reduce((result, index) => {
+    const answer = examState.answers[getExamQuestionKey(index)];
+    if (String(answer || '').trim()) result.answered += 1;
+    else result.unanswered += 1;
+    if (examState.markedForReview.has(index)) result.review += 1;
+    return result;
+  }, {answered: 0, unanswered: 0, review: 0});
+}
+
 function renderExamNav() {
   const nav = $('exam-question-nav');
   if (!nav) return;
-  nav.innerHTML = examState.questions.map((question, index) => {
+  const groups = examSubjectGroups();
+  const activeSubject = examSubject(examState.questions[examState.currentIndex]);
+  const activeGroup = groups.find(group => group.name === activeSubject) || groups[0];
+  const overall = examProgress();
+  const subjectTabs = groups.map((group, groupIndex) => {
+    const progress = examProgress(group.indexes);
+    return `<button type="button" class="exam-subject-tab ${group===activeGroup?'active':''}" data-exam-subject="${groupIndex}" aria-pressed="${group===activeGroup}"><span>${escapeHtml(group.name)}</span><small>${progress.answered}/${group.indexes.length} answered${progress.review?` · ${progress.review} review`:''}</small></button>`;
+  }).join('');
+  const questionPills = (activeGroup?.indexes || []).map(index => {
+    const question = examState.questions[index];
     const questionKey = getExamQuestionKey(index);
     const selected = examState.answers[questionKey] ?? '';
     const isActive = index === examState.currentIndex;
@@ -1604,14 +1638,16 @@ function renderExamNav() {
     if (isReview) classes.push('review');
     return `<button type="button" class="${classes.join(' ')}" data-exam-jump="${index}">${index + 1}${window.ExamQuestionFlags?.has(question.id)?' ⚑':''}</button>`;
   }).join('');
+  nav.innerHTML = `<div class="exam-nav-heading"><strong>Subjects</strong><span>${overall.answered}/${examState.questions.length} answered</span></div><div class="exam-subject-tabs">${subjectTabs}</div><div class="exam-nav-heading"><strong>${escapeHtml(activeGroup?.name || 'Questions')}</strong><span>${activeGroup?.indexes.length || 0} questions</span></div><div class="exam-question-pills">${questionPills}</div><div class="exam-nav-legend"><span><i class="answered"></i>Answered</span><span><i class="review"></i>Review</span><span><i></i>Not answered</span></div>${overall.unanswered?'<button type="button" class="exam-review-unanswered" data-review-unanswered>Go to first unanswered</button>':''}`;
 }
 
 function renderExamCurrentQuestion() {
   const container = $('exam-current-question');
   if (!container || !examState.questions.length) return;
   const question = examState.questions[examState.currentIndex];
-  $('exam-header-subject').textContent = question.subject || 'General subject';
-  $('exam-header-section').textContent = question.section_name || `Section ${examState.currentIndex + 1}`;
+  $('exam-header-subject').textContent = examSubject(question);
+  const groups=examSubjectGroups(),subject=examSubject(question),group=groups.find(item=>item.name===subject),position=(group?.indexes.indexOf(examState.currentIndex)??0)+1;
+  $('exam-header-section').textContent = `${subject} · ${position} of ${group?.indexes.length||1}`;
   const questionNumber = question.number || examState.currentIndex + 1;
   const questionKey = getExamQuestionKey(examState.currentIndex);
   const selected = examState.answers[questionKey] ?? '';
@@ -1631,7 +1667,6 @@ function renderExamCurrentQuestion() {
   container.innerHTML = `
     <div class="exam-question-meta">
       <span>Question ${questionNumber}</span>
-      <span>${escapeHtml(question.subject || 'General')}</span>
       <span>${escapeHtml(question.chapter || 'General')}</span>
       <span>${isReview ? 'Marked for review' : 'Standard view'}</span>
     </div>
@@ -1642,7 +1677,10 @@ function renderExamCurrentQuestion() {
     ${window.QuestionUpdates?.notice(question)||''}
   `;
   container.querySelectorAll('.rendered').forEach((node) => typeset(node));
-  $('exam-progress-text').textContent = `Question ${examState.currentIndex + 1} of ${examState.questions.length}`;
+  $('exam-progress-text').textContent = `Overall question ${examState.currentIndex + 1} of ${examState.questions.length}`;
+  const previous=$('exam-prev-question'),next=$('exam-next-question');
+  if(previous){previous.disabled=examState.currentIndex===0;previous.textContent=examState.currentIndex===0?'Previous':examSubject(examState.questions[examState.currentIndex-1])!==subject?`Previous subject: ${examSubject(examState.questions[examState.currentIndex-1])}`:'Previous';}
+  if(next){next.disabled=examState.currentIndex===examState.questions.length-1;next.textContent=next.disabled?'Last question':examSubject(examState.questions[examState.currentIndex+1])!==subject?`Next subject: ${examSubject(examState.questions[examState.currentIndex+1])}`:'Next';}
 }
 
 function renderExamSession() {
@@ -1953,7 +1991,7 @@ function aiGenerationPayload() {
 
 function renderAiGenerationResults(result) {
   const target=$('ai-generation-results');target.hidden=false;
-  target.dataset.runId=result.run_id;target.innerHTML=`<div class="ai-result-summary"><h3>Review generated questions</h3><p><strong>${escapeHtml(result.exam)}</strong> · ${escapeHtml(result.subject)} · Requested ${result.requested} · Generated ${result.generated} · Awaiting review ${result.review_required} · Model ${escapeHtml(result.model)}</p><div class="actions"><button type="button" data-ai-view-prompt>View prompt</button><button type="button" data-ai-expand-all>Expand all</button><button type="button" data-ai-collapse-all>Collapse all</button><button type="button" data-ai-save-selected>Save selected</button><button type="button" class="primary" data-ai-save-all>Save all to Question Bank</button></div></div><div class="ai-question-grid">${result.questions.map((q,index)=>`<article class="ai-question-card" data-ai-review-index="${index}" data-ai-run="${escapeHtml(q._runId||result.run_id)}" data-ai-source-index="${q._reviewIndex??index}"><div class="meta"><label><input type="checkbox" data-ai-select ${q.saved_question_id?'disabled':'checked'} /> Select</label><span class="badge">AI Generated</span><span class="verify review_required">${q.saved_question_id?'ALREADY IN BANK':'REVIEW REQUIRED'}</span>${q.saved_question_id?window.QuestionCorrection?.button({id:q.saved_question_id}):'<button type="button" data-ai-edit-draft>Edit / AI correct / Regenerate</button>'}<button type="button" data-ai-toggle-question>Collapse</button></div><div class="ai-question-body"><h3>Question ${index+1}</h3><div class="rendered">${toHtml(q.statement)}</div>${(q.visual_assets||[]).map(a=>safeUrl(a.asset)?`<figure class="digital-asset"><img src="${safeUrl(a.asset)}" alt="${escapeHtml(a.description||'Generated question diagram')}"/><button type="button" class="image-expand" data-view-image="${safeUrl(a.asset)}">Expand diagram</button></figure>`:'').join('')}${(q.options||[]).length?`<ol class="ai-question-options">${q.options.map(o=>`<li><strong>${escapeHtml(o.label)}.</strong> <span class="rendered">${toHtml(o.text)}</span></li>`).join('')}</ol>`:''}<div class="ai-answer rendered"><strong>Answer:</strong> ${toHtml(q.answer)}${q.solution?`<br><strong>Solution:</strong> ${toHtml(q.solution)}`:''}</div></div></article>`).join('')}</div>`;
+  target.dataset.runId=result.run_id;target.innerHTML=`<div class="ai-result-summary"><h3>Review generated questions</h3><p><strong>${escapeHtml(result.exam)}</strong> · ${escapeHtml(result.subject)} · Requested ${result.requested} · Generated ${result.generated} · Awaiting review ${result.review_required} · Model ${escapeHtml(result.model)}</p><div class="actions"><button type="button" data-ai-view-prompt>View prompt</button><button type="button" data-ai-expand-all>Expand all</button><button type="button" data-ai-collapse-all>Collapse all</button><button type="button" data-ai-save-selected>Save selected</button><button type="button" class="primary" data-ai-save-all>Save all to Question Bank</button></div></div><div class="ai-question-grid">${result.questions.map((q,index)=>`<article class="ai-question-card" data-ai-review-index="${index}" data-ai-run="${escapeHtml(q._runId||result.run_id)}" data-ai-source-index="${q._reviewIndex??index}"><div class="meta"><label><input type="checkbox" data-ai-select ${q.saved_question_id?'disabled':'checked'} /> Select</label><span class="badge">AI Generated</span><span class="verify review_required">${q.saved_question_id?'ALREADY IN BANK':'REVIEW REQUIRED'}</span>${q.saved_question_id?window.QuestionCorrection?.button({id:q.saved_question_id}):'<button type="button" data-ai-edit-draft>Edit / AI correct / Regenerate</button>'}<button type="button" data-ai-toggle-question>Collapse</button></div><div class="ai-question-body"><h3>Question ${index+1}</h3><div class="rendered">${toHtml(q.statement)}</div>${(q.visual_assets||[]).map(a=>safeUrl(a.asset)?`<figure class="digital-asset"><img src="${safeUrl(a.asset)}" alt="${escapeHtml(a.description||'Generated question diagram')}"/><button type="button" class="image-expand" data-view-image="${safeUrl(a.asset)}">Expand diagram</button></figure>`:'').join('')}${(q.options||[]).length?`<ol class="ai-question-options">${q.options.map(o=>`<li><strong>${escapeHtml(o.label)}.</strong> <span class="rendered">${toHtml(o.text)}</span></li>`).join('')}</ol>`:''}<details class="ai-answer-details"><summary>Show answer and worked explanation</summary><div class="ai-answer rendered"><strong>Answer:</strong> ${toHtml(q.answer)}${q.solution?`<br><strong>Solution:</strong> ${toHtml(q.solution)}`:''}</div></details></div></article>`).join('')}</div>`;
   target._reviewQuestions=result.questions;
   if(result.warning){
     const warning=document.createElement('p');warning.className='verify-issue warning';warning.setAttribute('role','status');warning.textContent=result.warning;
@@ -1977,6 +2015,7 @@ async function loadAiGenerationRuns() {
     $('ai-runs-prev').disabled=aiRunOffset===0;$('ai-runs-next').disabled=aiRunOffset+runs.length>=total;
     target.innerHTML=runs.length?`<div class="actions"><button data-ai-select-all-batches>Select ready batches on this page</button><button data-ai-clear-batches>Clear selection</button><button class="primary" data-ai-review-selected-batches>Review selected batches together</button></div><table><thead><tr><th>Select batch</th><th>Created</th><th>Exam and subject</th><th>Questions</th><th>Status</th><th>Model</th><th>Actions</th></tr></thead><tbody>${runs.map(run=>`<tr><td><input type="checkbox" data-ai-select-run="${run.id}" aria-label="Select batch ${escapeHtml(run.exam_name)} ${escapeHtml(run.subject)}" ${['REVIEW_REQUIRED','SAVED'].includes(run.status)?'':'disabled'}></td><td>${new Date(run.created_at*1000).toLocaleString()}</td><td><strong>${escapeHtml(run.exam_name)}</strong><small>${escapeHtml(run.subject)}${run.topic?` · ${escapeHtml(run.topic)}`:''}</small></td><td>${run.accepted_count} saved / ${run.generated_count} generated</td><td><span class="badge">${escapeHtml(statusLabels[run.status]||run.status)}</span>${run.error_message?`<small>${escapeHtml(run.error_message)}</small>`:''}</td><td>${escapeHtml(run.model||'—')}</td><td><div class="actions"><button type="button" data-ai-review-run="${run.id}">Review</button><button type="button" data-ai-reuse-run="${run.id}">Reuse inputs</button><button type="button" class="primary" data-ai-regenerate-run="${run.id}" ${run.status==='RUNNING'?'disabled':''}>Regenerate</button></div></td></tr>`).join('')}</tbody></table>`:'<p class="empty-state">No saved generation runs match. Change or clear the filters.</p>';
     for(const run of runs){
+      const selection=target.querySelector(`[data-ai-select-run="${run.id}"]`);if(selection){selection.disabled=false;selection.dataset.status=run.status;}
       const actions=target.querySelector(`[data-ai-review-run="${run.id}"]`)?.parentElement;if(!actions)continue;
       if(['PAUSED','CONTINUED'].includes(run.status)){const select=target.querySelector(`[data-ai-select-run="${run.id}"]`);if(select)select.disabled=false;}
       if(run.status==='PAUSING')actions.querySelector('[data-ai-regenerate-run]').disabled=true;
@@ -1987,6 +2026,7 @@ async function loadAiGenerationRuns() {
       else if(run.status==='PAUSING'){const note=document.createElement('small');note.textContent='Stopping after in-flight calls finish…';actions.append(note);}
       else {add('Delete saved generation','delete','#b91c1c');if(['PAUSED','FAILED','REVIEW_REQUIRED','SAVED'].includes(run.status)&&run.generated_count<run.requested_count)add('Continue remaining in new batch','resume','#047857');}
     }
+    window.AiBatchActions?.mount(target);
   } catch(err) { if(requestVersion!==aiRunRequest)return;target.innerHTML=`<p class="empty-state">${escapeHtml(err.message)}</p>`;$('ai-run-summary').textContent='';$('ai-runs-prev').disabled=true;$('ai-runs-next').disabled=true; }
 }
 
@@ -2027,7 +2067,7 @@ $('ai-close-preview')?.addEventListener('click',()=>{$('ai-prompt-preview').hidd
 $('ai-generation-form')?.addEventListener('submit',async event=>{event.preventDefault();const button=$('ai-generate-submit');button.disabled=true;$('ai-generation-status').textContent='Gemini is generating and validating structured questions…';try{const result=await api('/api/ai/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(aiGenerationPayload())});renderAiGenerationResults(result);await loadAiGenerationRuns();$('ai-generation-status').textContent=`${result.review_required} questions are ready for review. Select the questions you want to save.`;}catch(err){$('ai-generation-status').textContent=err.message;}finally{button.disabled=false;}});
 $('ai-refresh-runs')?.addEventListener('click',loadAiGenerationRuns);
 $('ai-run-list')?.addEventListener('click',async event=>{const review=event.target.closest('[data-ai-review-run]');if(review){try{await reviewAiGenerationRun(review.dataset.aiReviewRun);}catch(err){notify(err.message);}return;}const reuse=event.target.closest('[data-ai-reuse-run]');if(reuse){try{await reuseAiGenerationRun(reuse.dataset.aiReuseRun);}catch(err){notify(err.message);}return;}const regenerate=event.target.closest('[data-ai-regenerate-run]');if(regenerate){regenerate.disabled=true;$('ai-generation-status').textContent='Regenerating from the saved prompt and context…';try{const result=await api(`/api/ai/runs/${regenerate.dataset.aiRegenerateRun}/regenerate`,{method:'POST'});renderAiGenerationResults(result);await loadAiGenerationRuns();$('ai-generation-status').textContent=`Regeneration completed. Review the new questions before saving.`;}catch(err){$('ai-generation-status').textContent=err.message;regenerate.disabled=false;}}});
-$('ai-generation-results')?.addEventListener('click',async event=>{const toggle=event.target.closest('[data-ai-toggle-question]');if(toggle){const card=toggle.closest('.ai-question-card');card.classList.toggle('collapsed');toggle.textContent=card.classList.contains('collapsed')?'Expand':'Collapse';return;}if(event.target.closest('[data-ai-expand-all]')||event.target.closest('[data-ai-collapse-all]')){const collapse=!!event.target.closest('[data-ai-collapse-all]');$('ai-generation-results').querySelectorAll('.ai-question-card').forEach(card=>{card.classList.toggle('collapsed',collapse);card.querySelector('[data-ai-toggle-question]').textContent=collapse?'Expand':'Collapse';});return;}if(event.target.closest('[data-ai-view-prompt]')){$('ai-prompt-preview').hidden=false;$('ai-prompt-preview').scrollIntoView({behavior:'smooth'});return;}const saveAll=event.target.closest('[data-ai-save-all]');const saveSelected=event.target.closest('[data-ai-save-selected]');if(saveAll||saveSelected){const target=$('ai-generation-results'),cards=[...target.querySelectorAll('[data-ai-review-index]')];const chosen=cards.filter(card=>!card.querySelector('[data-ai-select]').disabled&&(saveAll||card.querySelector('[data-ai-select]').checked));if(!chosen.length){notify('Select at least one question to save.');return;}const groups={};chosen.forEach(card=>(groups[card.dataset.aiRun]??=[]).push(Number(card.dataset.aiSourceIndex)));const button=saveAll||saveSelected;button.disabled=true;try{const result=await api('/api/ai/review/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({batches:Object.entries(groups).map(([run_id,indices])=>({run_id,indices})),reviewed:true})});for(const item of result.items){const card=chosen.find(c=>c.dataset.aiRun===item.run_id&&Number(c.dataset.aiSourceIndex)===item.index);if(card){const select=card.querySelector('[data-ai-select]');select.checked=false;select.disabled=true;card.classList.add('saved');card.querySelector('.verify').textContent=item.status==='SAVED'?'SAVED':'ALREADY IN BANK';const cached=target._reviewQuestions?.[Number(card.dataset.aiReviewIndex)];if(cached)cached.saved_question_id=item.question_id;card.querySelector('[data-ai-edit-draft]')?.remove();card.querySelector('.meta').insertAdjacentHTML('beforeend',QuestionCorrection.button({id:item.question_id}));}}await Promise.all([loadAiGenerationRuns(),loadQuestions(),loadFacets()]);$('ai-generation-status').textContent=`${result.saved_count} questions saved across ${Object.keys(groups).length} batches. ${result.already_saved_count} were already in the bank.`;notify(`${result.saved_count} reviewed questions saved.`);}catch(err){notify(err.message);}finally{button.disabled=false;}}});
+$('ai-generation-results')?.addEventListener('click',async event=>{const toggle=event.target.closest('[data-ai-toggle-question]');if(toggle){const card=toggle.closest('.ai-question-card');card.classList.toggle('collapsed');toggle.textContent=card.classList.contains('collapsed')?'Expand':'Collapse';return;}if(event.target.closest('[data-ai-expand-all]')||event.target.closest('[data-ai-collapse-all]')){const collapse=!!event.target.closest('[data-ai-collapse-all]');$('ai-generation-results').querySelectorAll('.ai-question-card').forEach(card=>{card.classList.toggle('collapsed',collapse);card.querySelector('[data-ai-toggle-question]').textContent=collapse?'Expand':'Collapse';card.querySelectorAll('.ai-answer-details').forEach(details=>details.open=!collapse);});return;}if(event.target.closest('[data-ai-view-prompt]')){$('ai-prompt-preview').hidden=false;$('ai-prompt-preview').scrollIntoView({behavior:'smooth'});return;}const saveAll=event.target.closest('[data-ai-save-all]');const saveSelected=event.target.closest('[data-ai-save-selected]');if(saveAll||saveSelected){const target=$('ai-generation-results'),cards=[...target.querySelectorAll('[data-ai-review-index]')];const chosen=cards.filter(card=>!card.querySelector('[data-ai-select]').disabled&&(saveAll||card.querySelector('[data-ai-select]').checked));if(!chosen.length){notify('Select at least one question to save.');return;}const groups={};chosen.forEach(card=>(groups[card.dataset.aiRun]??=[]).push(Number(card.dataset.aiSourceIndex)));const button=saveAll||saveSelected;button.disabled=true;try{const result=await api('/api/ai/review/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({batches:Object.entries(groups).map(([run_id,indices])=>({run_id,indices})),reviewed:true})});for(const item of result.items){const card=chosen.find(c=>c.dataset.aiRun===item.run_id&&Number(c.dataset.aiSourceIndex)===item.index);if(card){const select=card.querySelector('[data-ai-select]');select.checked=false;select.disabled=true;card.classList.add('saved');card.querySelector('.verify').textContent=item.status==='SAVED'?'SAVED':'ALREADY IN BANK';const cached=target._reviewQuestions?.[Number(card.dataset.aiReviewIndex)];if(cached)cached.saved_question_id=item.question_id;card.querySelector('[data-ai-edit-draft]')?.remove();card.querySelector('.meta').insertAdjacentHTML('beforeend',QuestionCorrection.button({id:item.question_id}));}}await Promise.all([loadAiGenerationRuns(),loadQuestions(),loadFacets()]);$('ai-generation-status').textContent=`${result.saved_count} questions saved across ${Object.keys(groups).length} batches. ${result.already_saved_count} were already in the bank.`;notify(`${result.saved_count} reviewed questions saved.`);}catch(err){notify(err.message);}finally{button.disabled=false;}}});
 
 $('exam-registration-form')?.addEventListener('submit', saveExamRegistration);
 $('exam-reset-form')?.addEventListener('click', () => {
@@ -2067,6 +2107,9 @@ $('exam-submit-button')?.addEventListener('click', () => {
   if (!$('exam-current-question').dataset.session) submitExamSession();
 });
 $('exam-question-nav')?.addEventListener('click', (event) => {
+  const subject = event.target.closest('[data-exam-subject]');
+  if (subject) { const group=examSubjectGroups()[Number(subject.dataset.examSubject)];if(group?.indexes.length)moveExamQuestion(group.indexes[0]);return; }
+  if (event.target.closest('[data-review-unanswered]')) { const index=examState.questions.findIndex((_,i)=>!String(examState.answers[getExamQuestionKey(i)]||'').trim());if(index>=0)moveExamQuestion(index);return; }
   const button = event.target.closest('[data-exam-jump]');
   if (!button) return;
   moveExamQuestion(Number(button.dataset.examJump));
